@@ -36,7 +36,6 @@ const Model = ({ path }: { path: string }) => {
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
-    let meshIndex = 0;
     clone.traverse((child) => {
       if (child instanceof Mesh) {
         // Only hide transparent eye meshes on the dinosaur model
@@ -47,35 +46,8 @@ const Model = ({ path }: { path: string }) => {
           );
           if (hasTransparentEye) {
             child.visible = false;
-            return;
           }
         }
-
-        // Assign unique renderOrder per mesh to resolve z-fighting
-        child.renderOrder = meshIndex;
-
-        const offsetFactor = meshIndex;
-        const fixMat = (mat: MeshStandardMaterial) => {
-          const fixed = mat.clone();
-          fixed.metalness = 0;
-          fixed.roughness = 1;
-          fixed.polygonOffset = true;
-          fixed.polygonOffsetFactor = offsetFactor;
-          fixed.polygonOffsetUnits = offsetFactor;
-          fixed.depthWrite = true;
-          fixed.needsUpdate = true;
-          return fixed;
-        };
-
-        if (Array.isArray(child.material)) {
-          child.material = child.material.map((m) =>
-            m instanceof MeshStandardMaterial ? fixMat(m) : m
-          );
-        } else if (child.material instanceof MeshStandardMaterial) {
-          child.material = fixMat(child.material);
-        }
-
-        meshIndex++;
       }
     });
     return clone;
@@ -171,7 +143,7 @@ const ModelViewer = ({ modelPath, height = "300px" }: ModelViewerProps) => {
         <Suspense fallback={<LoadingUI height={height} />}>
           <Canvas
             camera={{ position: [0, 1, 3], fov: 45 }}
-            gl={{ logarithmicDepthBuffer: true }}
+            gl={{ antialias: true }}
             style={{ background: "transparent" }}
             onCreated={() => {
               // Canvas created successfully
