@@ -1,7 +1,7 @@
-import { Suspense, useRef, useState, useMemo, Component, type ReactNode } from "react";
+import { Suspense, useRef, useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, useGLTF, Environment, ContactShadows } from "@react-three/drei";
-import { Group, Mesh } from "three";
+import { OrbitControls, useGLTF, useAnimations, Environment, ContactShadows } from "@react-three/drei";
+import { Group, Mesh, MeshStandardMaterial } from "three";
 
 interface ModelViewerProps {
   modelPath: string;
@@ -28,28 +28,42 @@ class ModelErrorBoundary extends Component<
 }
 
 const Model = ({ path }: { path: string }) => {
-  const gltf = useGLTF(path);
+  const { scene, animations } = useGLTF(path);
   const ref = useRef<Group>(null);
+  const { actions } = useAnimations(animations, ref);
+
   const clonedScene = useMemo(() => {
-    const scene = gltf.scene.clone(true);
-    // Hide eye meshes that render as white
-    scene.traverse((child) => {
+    const clone = scene.clone(true);
+    clone.traverse((child) => {
       if (child instanceof Mesh) {
-        const name = child.name.toLowerCase();
-        console.log("[ModelViewer] mesh:", child.name, "material:", (child.material as any)?.name);
-        // Hide eye-related meshes (white texture issue)
-        if (
-          name.includes("eye") ||
-          name.includes("눈") ||
-          name.includes("sphere") ||
-          name.includes("oval")
-        ) {
+        const matName = ((child.material as MeshStandardMaterial)?.name || "").toLowerCase();
+        // Hide transparent eye meshes (white blob issue)
+        if (matName.includes("eyes_transparent")) {
           child.visible = false;
+          return;
+        }
+        // Fix desaturated/metallic look — reduce metalness, increase roughness
+        if (child.material instanceof MeshStandardMaterial) {
+          child.material = child.material.clone();
+          child.material.metalness = Math.min(child.material.metalness, 0.1);
+          child.material.roughness = Math.max(child.material.roughness, 0.6);
+          child.material.needsUpdate = true;
         }
       }
     });
-    return scene;
-  }, [gltf.scene]);
+    return clone;
+  }, [scene]);
+
+  // Play first animation if available (fixes T-pose)
+  useEffect(() => {
+    const names = Object.keys(actions);
+    if (names.length > 0 && actions[names[0]]) {
+      actions[names[0]]!.reset().fadeIn(0.3).play();
+    }
+    return () => {
+      names.forEach((n) => actions[n]?.fadeOut(0.3));
+    };
+  }, [actions]);
 
   useFrame((_, delta) => {
     if (ref.current) {
@@ -57,13 +71,13 @@ const Model = ({ path }: { path: string }) => {
     }
   });
 
-  if (!gltf.scene || gltf.scene.children.length === 0) {
+  if (!scene || scene.children.length === 0) {
     return null;
   }
 
   return (
     <group ref={ref}>
-      <primitive object={clonedScene} scale={1.5} position={[0, -0.5, 0]} />
+      <primitive object={clonedScene} scale={1.5} position={[0, -1, 0]} />
     </group>
   );
 };
@@ -124,8 +138,8 @@ const ModelViewer = ({ modelPath, height = "300px" }: ModelViewerProps) => {
               // Canvas created successfully
             }}
           >
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[5, 5, 5]} intensity={1} />
+            <ambientLight intensity={0.8} />
+            <directionalLight position={[5, 5, 5]} intensity={1.2} />
             <Suspense fallback={null}>
               <ModelErrorBoundary fallback={null}>
                 <Model path={modelPath} />
