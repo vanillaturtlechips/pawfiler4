@@ -38,6 +38,10 @@ const Model = ({ path }: { path: string }) => {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child instanceof Mesh) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        console.log(
+          `[GLB Mesh] name="${child.name}" | materials: [${mats.map((m) => `"${m?.name}" (type=${m?.type})`).join(", ")}] | renderOrder=${child.renderOrder} | position=${child.position.toArray().map(v => v.toFixed(3)).join(",")}`
+        );
         // Only hide transparent eye meshes on the dinosaur model
         if (isDino) {
           const materials = Array.isArray(child.material) ? child.material : [child.material];
