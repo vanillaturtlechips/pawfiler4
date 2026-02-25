@@ -42,14 +42,14 @@ const withAuth = (token: string | null) => {
 
 // --------------- Mock data ---------------
 
-const FREE_CHARACTERS = ["matcha_fox"];
+const FREE_CHARACTERS = ["turquoise_dino"];
 
 const MOCK_USER: UserProfile = {
   id: "usr_fox_001",
   email: "detective@deepfind.io",
   nickname: "날쌘 여우 탐정",
   avatarEmoji: "🦊",
-  characterModel: "matcha_fox",
+  characterModel: "turquoise_dino",
   ownedCharacters: [...FREE_CHARACTERS],
   subscriptionType: "free",
   coins: 1200,
@@ -60,9 +60,7 @@ const MOCK_USER: UserProfile = {
 };
 
 export const CHARACTER_CATALOG: CharacterModel[] = [
-  { id: "matcha_fox", name: "말차 여우", modelPath: "/models/Matcha_Fox.glb", price: 0, rarity: "common", emoji: "🦊", free: true },
-  { id: "night_fox", name: "밤의 여우", modelPath: "/models/Night_Fox .glb", price: 500, rarity: "rare", emoji: "🌙" },
-  { id: "turquoise_dino", name: "터콰이즈 공룡", modelPath: "/models/Turquoise_Dinosaur.glb", price: 1000, rarity: "legendary", emoji: "🦕" },
+  { id: "turquoise_dino", name: "터콰이즈 공룡", modelPath: "/models/Turquoise_Dinosaur.glb", price: 0, rarity: "common", emoji: "🦕", free: true },
 ];
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
