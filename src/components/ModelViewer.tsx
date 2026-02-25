@@ -1,6 +1,6 @@
 import { Suspense, useRef, useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, useGLTF, useAnimations, Environment, ContactShadows } from "@react-three/drei";
+import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import { Group, Mesh, MeshStandardMaterial, Box3, Vector3 } from "three";
 
 interface ModelViewerProps {
@@ -155,13 +155,11 @@ const ModelViewer = ({ modelPath, height = "300px" }: ModelViewerProps) => {
               <ModelErrorBoundary fallback={null}>
                 <Model path={modelPath} />
               </ModelErrorBoundary>
-              <ContactShadows
-                position={[0, -1.5, 0]}
-                opacity={0.5}
-                scale={5}
-                blur={2}
-              />
-              <Environment preset="sunset" />
+              {/* Simple shadow plane instead of ContactShadows to avoid GPU stalls */}
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.5, 0]} receiveShadow>
+                <circleGeometry args={[1.2, 32]} />
+                <meshBasicMaterial color="#000000" transparent opacity={0.2} />
+              </mesh>
             </Suspense>
             <OrbitControls
               enableZoom={false}
