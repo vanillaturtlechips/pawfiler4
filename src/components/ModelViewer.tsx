@@ -49,11 +49,14 @@ const Model = ({ path }: { path: string }) => {
             return;
           }
         }
-        // Fix desaturated/metallic look
+        // Fix desaturated/metallic look + z-fighting on small face details
         const fixMat = (mat: MeshStandardMaterial) => {
           const fixed = mat.clone();
           fixed.metalness = 0;
           fixed.roughness = 1;
+          fixed.polygonOffset = true;
+          fixed.polygonOffsetFactor = -1;
+          fixed.polygonOffsetUnits = -1;
           fixed.needsUpdate = true;
           return fixed;
         };
