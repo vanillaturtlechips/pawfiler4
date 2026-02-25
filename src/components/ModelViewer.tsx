@@ -49,23 +49,36 @@ const Model = ({ path }: { path: string }) => {
             return;
           }
         }
-        // Fix desaturated/metallic look + z-fighting on small face details
-        const fixMat = (mat: MeshStandardMaterial) => {
+        // Detect if this mesh is a small overlay (eyes, pupils, details)
+        const name = child.name.toLowerCase();
+        const isOverlay = name.includes("eye") || name.includes("pupil") || name.includes("iris") || name.includes("beak");
+
+        const fixMat = (mat: MeshStandardMaterial, overlay: boolean) => {
           const fixed = mat.clone();
           fixed.metalness = 0;
           fixed.roughness = 1;
-          fixed.polygonOffset = true;
-          fixed.polygonOffsetFactor = -1;
-          fixed.polygonOffsetUnits = -1;
+          if (overlay) {
+            // Push overlay geometry slightly forward to avoid z-fighting
+            fixed.depthWrite = true;
+            fixed.polygonOffset = true;
+            fixed.polygonOffsetFactor = -4;
+            fixed.polygonOffsetUnits = -4;
+          }
           fixed.needsUpdate = true;
           return fixed;
         };
+
+        // Bump renderOrder so overlay draws after the base face
+        if (isOverlay) {
+          child.renderOrder = 1;
+        }
+
         if (Array.isArray(child.material)) {
           child.material = child.material.map((m) =>
-            m instanceof MeshStandardMaterial ? fixMat(m) : m
+            m instanceof MeshStandardMaterial ? fixMat(m, isOverlay) : m
           );
         } else if (child.material instanceof MeshStandardMaterial) {
-          child.material = fixMat(child.material);
+          child.material = fixMat(child.material, isOverlay);
         }
       }
     });
