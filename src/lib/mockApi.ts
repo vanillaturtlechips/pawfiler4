@@ -61,6 +61,7 @@ const MOCK_USER: UserProfile = {
 
 export const CHARACTER_CATALOG: CharacterModel[] = [
   { id: "turquoise_dino", name: "터콰이즈 공룡", modelPath: "/models/Turquoise_Dinosaur.glb", price: 0, rarity: "common", emoji: "🦕", free: true },
+  { id: "minecraft_chicken", name: "마인크래프트 치킨", modelPath: "/models/Minecraft_Chicken.glb", price: 0, rarity: "common", emoji: "🐔", free: true },
 ];
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
