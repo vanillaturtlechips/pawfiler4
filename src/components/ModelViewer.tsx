@@ -36,6 +36,7 @@ const Model = ({ path }: { path: string }) => {
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
+    let meshIndex = 0;
     clone.traverse((child) => {
       if (child instanceof Mesh) {
         // Only hide transparent eye meshes on the dinosaur model
@@ -50,13 +51,18 @@ const Model = ({ path }: { path: string }) => {
           }
         }
 
+        // Assign unique renderOrder per mesh to resolve z-fighting
+        child.renderOrder = meshIndex;
+
+        const offsetFactor = meshIndex;
         const fixMat = (mat: MeshStandardMaterial) => {
           const fixed = mat.clone();
           fixed.metalness = 0;
           fixed.roughness = 1;
           fixed.polygonOffset = true;
-          fixed.polygonOffsetFactor = 1;
-          fixed.polygonOffsetUnits = 1;
+          fixed.polygonOffsetFactor = offsetFactor;
+          fixed.polygonOffsetUnits = offsetFactor;
+          fixed.depthWrite = true;
           fixed.needsUpdate = true;
           return fixed;
         };
@@ -68,6 +74,8 @@ const Model = ({ path }: { path: string }) => {
         } else if (child.material instanceof MeshStandardMaterial) {
           child.material = fixMat(child.material);
         }
+
+        meshIndex++;
       }
     });
     return clone;
