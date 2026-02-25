@@ -38,10 +38,6 @@ const Model = ({ path }: { path: string }) => {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child instanceof Mesh) {
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        console.log(
-          `[GLB Mesh] name="${child.name}" | materials: [${mats.map((m) => `"${m?.name}" (type=${m?.type})`).join(", ")}] | renderOrder=${child.renderOrder} | position=${child.position.toArray().map(v => v.toFixed(3)).join(",")}`
-        );
         // Only hide transparent eye meshes on the dinosaur model
         if (isDino) {
           const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -53,36 +49,24 @@ const Model = ({ path }: { path: string }) => {
             return;
           }
         }
-        // Detect if this mesh is a small overlay (eyes, pupils, details)
-        const name = child.name.toLowerCase();
-        const isOverlay = name.includes("eye") || name.includes("pupil") || name.includes("iris") || name.includes("beak");
 
-        const fixMat = (mat: MeshStandardMaterial, overlay: boolean) => {
+        const fixMat = (mat: MeshStandardMaterial) => {
           const fixed = mat.clone();
           fixed.metalness = 0;
           fixed.roughness = 1;
-          if (overlay) {
-            // Push overlay geometry slightly forward to avoid z-fighting
-            fixed.depthWrite = true;
-            fixed.polygonOffset = true;
-            fixed.polygonOffsetFactor = -4;
-            fixed.polygonOffsetUnits = -4;
-          }
+          fixed.polygonOffset = true;
+          fixed.polygonOffsetFactor = 1;
+          fixed.polygonOffsetUnits = 1;
           fixed.needsUpdate = true;
           return fixed;
         };
 
-        // Bump renderOrder so overlay draws after the base face
-        if (isOverlay) {
-          child.renderOrder = 1;
-        }
-
         if (Array.isArray(child.material)) {
           child.material = child.material.map((m) =>
-            m instanceof MeshStandardMaterial ? fixMat(m, isOverlay) : m
+            m instanceof MeshStandardMaterial ? fixMat(m) : m
           );
         } else if (child.material instanceof MeshStandardMaterial) {
-          child.material = fixMat(child.material, isOverlay);
+          child.material = fixMat(child.material);
         }
       }
     });
@@ -179,6 +163,7 @@ const ModelViewer = ({ modelPath, height = "300px" }: ModelViewerProps) => {
         <Suspense fallback={<LoadingUI height={height} />}>
           <Canvas
             camera={{ position: [0, 1, 3], fov: 45 }}
+            gl={{ logarithmicDepthBuffer: true }}
             style={{ background: "transparent" }}
             onCreated={() => {
               // Canvas created successfully
