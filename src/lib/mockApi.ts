@@ -42,14 +42,14 @@ const withAuth = (token: string | null) => {
 
 // --------------- Mock data ---------------
 
-const FREE_CHARACTERS = ["cat", "penguin", "snowman"];
+const FREE_CHARACTERS = ["matcha_fox"];
 
 const MOCK_USER: UserProfile = {
   id: "usr_fox_001",
   email: "detective@deepfind.io",
   nickname: "날쌘 여우 탐정",
   avatarEmoji: "🦊",
-  characterModel: "cat",
+  characterModel: "matcha_fox",
   ownedCharacters: [...FREE_CHARACTERS],
   subscriptionType: "free",
   coins: 1200,
@@ -60,23 +60,9 @@ const MOCK_USER: UserProfile = {
 };
 
 export const CHARACTER_CATALOG: CharacterModel[] = [
-  { id: "cat", name: "고양이", modelPath: "/models/cat.glb", price: 0, rarity: "common", emoji: "🐱", free: true },
-  { id: "penguin", name: "펭귄", modelPath: "/models/penguin.glb", price: 0, rarity: "common", emoji: "🐧", free: true },
-  { id: "snowman", name: "눈사람", modelPath: "/models/snowman.glb", price: 0, rarity: "common", emoji: "⛄", free: true },
-  { id: "fox", name: "여우", modelPath: "/models/fox.glb", price: 300, rarity: "common", emoji: "🦊" },
-  { id: "deer", name: "사슴", modelPath: "/models/deer.glb", price: 300, rarity: "common", emoji: "🦌" },
-  { id: "sheep", name: "양", modelPath: "/models/sheep.glb", price: 300, rarity: "common", emoji: "🐑" },
-  { id: "teddybear", name: "곰돌이", modelPath: "/models/teddybear.glb", price: 500, rarity: "rare", emoji: "🧸" },
-  { id: "lion", name: "사자", modelPath: "/models/lion.glb", price: 500, rarity: "rare", emoji: "🦁" },
-  { id: "walrus", name: "바다코끼리", modelPath: "/models/walrus.glb", price: 500, rarity: "rare", emoji: "🦭" },
-  { id: "lizard", name: "도마뱀", modelPath: "/models/lizard.glb", price: 800, rarity: "rare", emoji: "🦎" },
-  { id: "dinosaur", name: "공룡", modelPath: "/models/dinosaur.glb", price: 1000, rarity: "legendary", emoji: "🦕" },
-  { id: "dinosaur2", name: "공룡 킹", modelPath: "/models/dinosaur2.glb", price: 1200, rarity: "legendary", emoji: "🦖" },
-  { id: "dragon", name: "드래곤", modelPath: "/models/dragon.glb", price: 1500, rarity: "legendary", emoji: "🐉" },
-  { id: "dragon2", name: "드래곤 로드", modelPath: "/models/dragon2.glb", price: 2000, rarity: "legendary", emoji: "🐲" },
-  { id: "chimera", name: "키메라", modelPath: "/models/chimera.glb", price: 2500, rarity: "legendary", emoji: "👹" },
-  { id: "creature", name: "신비한 생물", modelPath: "/models/creature.glb", price: 1800, rarity: "legendary", emoji: "🌟" },
-  { id: "creature2", name: "신비한 생물 II", modelPath: "/models/creature2.glb", price: 2000, rarity: "legendary", emoji: "✨" },
+  { id: "matcha_fox", name: "말차 여우", modelPath: "/models/Matcha_Fox.glb", price: 0, rarity: "common", emoji: "🦊", free: true },
+  { id: "night_fox", name: "밤의 여우", modelPath: "/models/Night_Fox .glb", price: 500, rarity: "rare", emoji: "🌙" },
+  { id: "turquoise_dino", name: "터콰이즈 공룡", modelPath: "/models/Turquoise_Dinosaur.glb", price: 1000, rarity: "legendary", emoji: "🦕" },
 ];
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
