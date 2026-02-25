@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchCommunityFeed } from "@/lib/api";
+import { fetchCommunityFeed } from "@/lib/mockApi";
 import type { CommunityPost } from "@/lib/types";
 
 const CommunityPage = () => {
@@ -14,7 +14,7 @@ const CommunityPage = () => {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    fetchCommunityFeed()
+    fetchCommunityFeed(token)
       .then((feed) => setPosts(feed.posts))
       .finally(() => setLoading(false));
   }, [token]);

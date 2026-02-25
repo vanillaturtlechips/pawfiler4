@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { login as apiLogin, signup as apiSignup } from "@/lib/api";
+import { mockLogin, mockSignup } from "@/lib/mockApi";
 
 const AVATARS = ["🦊", "🐱", "🐻", "🦉", "🐰", "🐸", "🐧", "🦁"];
 
@@ -18,8 +18,6 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const selectedCharacter = (location.state as any)?.characterModel || "cat";
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -27,8 +25,8 @@ const LoginPage = () => {
     try {
       const result =
         mode === "login"
-          ? await apiLogin({ email, password })
-          : await apiSignup({ email, password, nickname, avatarEmoji: avatar, characterModel: selectedCharacter });
+          ? await mockLogin({ email, password })
+          : await mockSignup({ email, password, nickname, avatarEmoji: avatar });
       login(result.token, result.user);
       navigate("/");
     } catch (e: any) {

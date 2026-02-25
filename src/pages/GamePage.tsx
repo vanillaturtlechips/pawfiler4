@@ -5,7 +5,7 @@ import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchQuizQuestion, submitQuizAnswer } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer } from "@/lib/mockApi";
 import type { QuizQuestion, QuizSubmitResponse } from "@/lib/types";
 
 const GamePage = () => {
@@ -24,7 +24,7 @@ const GamePage = () => {
     setSelectedIndex(null);
     setResult(null);
     try {
-      const q = await fetchQuizQuestion();
+      const q = await fetchQuizQuestion(token);
       setQuestion(q);
     } finally {
       setLoading(false);
@@ -39,7 +39,7 @@ const GamePage = () => {
     if (selectedIndex === null || !question || !token) return;
     setSubmitting(true);
     try {
-      const res = await submitQuizAnswer({ questionId: question.id, selectedIndex });
+      const res = await submitQuizAnswer(token, { questionId: question.id, selectedIndex });
       setResult(res);
       if (res.correct) {
         setScore((s) => s + res.coinsEarned);

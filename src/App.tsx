@@ -14,7 +14,6 @@ import AnalysisPage from "@/pages/AnalysisPage";
 import CommunityPage from "@/pages/CommunityPage";
 import ShopPage from "@/pages/ShopPage";
 import LoginPage from "@/pages/LoginPage";
-import CharacterSelectPage from "@/pages/CharacterSelectPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,7 +32,6 @@ const App = () => (
                 <AnimatePresence mode="wait">
                   <Routes>
                     <Route path="/" element={<HomePage />} />
-                    <Route path="/characters" element={<CharacterSelectPage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/game" element={<AuthGuard><GamePage /></AuthGuard>} />
                     <Route path="/analysis" element={<AuthGuard><AnalysisPage /></AuthGuard>} />

@@ -4,7 +4,7 @@ import WoodPanel from "@/components/WoodPanel";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { runVideoAnalysis } from "@/lib/api";
+import { runVideoAnalysis } from "@/lib/mockApi";
 import type { AnalysisStage, AnalysisLogEntry, DeepfakeReport } from "@/lib/types";
 
 const stageLabels: Record<AnalysisStage, string> = {

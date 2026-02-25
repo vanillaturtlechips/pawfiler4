@@ -17,7 +17,6 @@ import type {
   CheckoutRequest,
   CheckoutResponse,
   SubscriptionPlan,
-  CharacterModel,
 } from "./types";
 
 // --------------- helpers ---------------
@@ -42,15 +41,11 @@ const withAuth = (token: string | null) => {
 
 // --------------- Mock data ---------------
 
-const FREE_CHARACTERS = ["turquoise_dino"];
-
 const MOCK_USER: UserProfile = {
   id: "usr_fox_001",
   email: "detective@deepfind.io",
   nickname: "날쌘 여우 탐정",
   avatarEmoji: "🦊",
-  characterModel: "turquoise_dino",
-  ownedCharacters: [...FREE_CHARACTERS],
   subscriptionType: "free",
   coins: 1200,
   level: 5,
@@ -58,11 +53,6 @@ const MOCK_USER: UserProfile = {
   xp: 3400,
   createdAt: "2025-09-15T00:00:00Z",
 };
-
-export const CHARACTER_CATALOG: CharacterModel[] = [
-  { id: "turquoise_dino", name: "터콰이즈 공룡", modelPath: "/models/Turquoise_Dinosaur.glb", price: 0, rarity: "common", emoji: "🦕", free: true },
-  { id: "minecraft_chicken", name: "마인크래프트 치킨", modelPath: "/models/Minecraft_Chicken.glb", price: 0, rarity: "common", emoji: "🐔", free: true },
-];
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
   {
@@ -110,7 +100,7 @@ export async function mockLogin(req: LoginRequest): Promise<{ token: string; use
 
 export async function mockSignup(req: SignupRequest): Promise<{ token: string; user: UserProfile }> {
   await delay(800, 1200);
-  const user: UserProfile = { ...MOCK_USER, id: uuid(), email: req.email, nickname: req.nickname, avatarEmoji: req.avatarEmoji, characterModel: (req as any).characterModel || "cat", ownedCharacters: [...FREE_CHARACTERS], coins: 100, level: 1, levelTitle: "새싹 탐정", xp: 0 };
+  const user: UserProfile = { ...MOCK_USER, id: uuid(), email: req.email, nickname: req.nickname, avatarEmoji: req.avatarEmoji, coins: 100, level: 1, levelTitle: "새싹 탐정", xp: 0 };
   const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: "free", iat: Date.now(), exp: Date.now() + 3600000 });
   return { token, user };
 }
@@ -248,22 +238,4 @@ export async function mockCheckout(token: string, req: CheckoutRequest): Promise
     newSubscriptionType: "premium",
     expiresAt: new Date(Date.now() + (req.planId === "yearly" ? 365 : 30) * 86400000).toISOString(),
   };
-}
-
-// --------------- Character Service ---------------
-
-export function getCharacterCatalog(): CharacterModel[] {
-  return CHARACTER_CATALOG;
-}
-
-export async function purchaseCharacter(
-  token: string,
-  characterId: string
-): Promise<{ success: boolean; character: CharacterModel; remainingCoins: number }> {
-  withAuth(token);
-  await delay(600, 1000);
-  const character = CHARACTER_CATALOG.find((c) => c.id === characterId);
-  if (!character) throw new Error("CHARACTER_NOT_FOUND");
-  // Mock: always succeed
-  return { success: true, character, remainingCoins: 1200 - character.price };
 }
