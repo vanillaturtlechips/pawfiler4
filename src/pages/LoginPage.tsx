@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,8 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedCharacter = (location.state as any)?.characterModel || "cat";
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -26,7 +28,7 @@ const LoginPage = () => {
       const result =
         mode === "login"
           ? await apiLogin({ email, password })
-          : await apiSignup({ email, password, nickname, avatarEmoji: avatar });
+          : await apiSignup({ email, password, nickname, avatarEmoji: avatar, characterModel: selectedCharacter });
       login(result.token, result.user);
       navigate("/");
     } catch (e: any) {

@@ -13,6 +13,7 @@ export interface SignupRequest {
   password: string;
   nickname: string;
   avatarEmoji: string;
+  characterModel?: string;
 }
 
 export interface AuthTokenPayload {
@@ -30,12 +31,25 @@ export interface UserProfile {
   email: string;
   nickname: string;
   avatarEmoji: string;
+  characterModel: string;
+  ownedCharacters: string[];
   subscriptionType: "free" | "premium";
   coins: number;
   level: number;
   levelTitle: string;
   xp: number;
   createdAt: string;
+}
+
+// --- Character / Shop ---
+export interface CharacterModel {
+  id: string;
+  name: string;
+  modelPath: string;
+  price: number;
+  rarity: "common" | "rare" | "legendary";
+  emoji: string;
+  free?: boolean;
 }
 
 // --- Quiz Service ---

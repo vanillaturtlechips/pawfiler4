@@ -2,8 +2,11 @@ import { motion } from "framer-motion";
 import MagicDoor from "@/components/MagicDoor";
 import WantedPoster from "@/components/WantedPoster";
 import DetectiveDesk from "@/components/DetectiveDesk";
+import GameButton from "@/components/GameButton";
+import { useNavigate } from "react-router-dom";
 
 const HomePage = () => {
+  const navigate = useNavigate();
   return (
     <div className="relative flex h-full flex-col items-center justify-center gap-10">
       <WantedPoster />
@@ -40,6 +43,12 @@ const HomePage = () => {
           color="orange"
           to="/community"
         />
+      </div>
+
+      <div className="mt-4">
+        <GameButton variant="blue" onClick={() => navigate("/characters")}>
+          🐾 캐릭터 선택하고 시작하기
+        </GameButton>
       </div>
     </div>
   );
