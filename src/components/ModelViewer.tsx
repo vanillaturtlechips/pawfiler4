@@ -1,7 +1,7 @@
 import { Suspense, useRef, useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
-import { Group, Mesh, MeshStandardMaterial, Box3, Vector3 } from "three";
+import { Group, Mesh, MeshBasicMaterial, Box3, Vector3, Color, FrontSide } from "three";
 
 interface ModelViewerProps {
   modelPath: string;
@@ -38,7 +38,7 @@ const Model = ({ path }: { path: string }) => {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child instanceof Mesh) {
-        // Only hide transparent eye meshes on the dinosaur model
+        // Hide transparent eye meshes on the dinosaur model
         if (isDino) {
           const materials = Array.isArray(child.material) ? child.material : [child.material];
           const hasTransparentEye = materials.some(
@@ -46,8 +46,23 @@ const Model = ({ path }: { path: string }) => {
           );
           if (hasTransparentEye) {
             child.visible = false;
+            return;
           }
         }
+        // Replace all materials with MeshBasicMaterial to eliminate
+        // lighting-induced z-fighting on voxel models with coplanar faces
+        const oldMats = Array.isArray(child.material) ? child.material : [child.material];
+        const newMats = oldMats.map((m) => {
+          const basic = new MeshBasicMaterial({
+            color: (m as any).color ?? new Color(0xffffff),
+            map: (m as any).map ?? null,
+            side: FrontSide,
+            transparent: m.transparent,
+            opacity: m.opacity,
+          });
+          return basic;
+        });
+        child.material = newMats.length === 1 ? newMats[0] : newMats;
       }
     });
     return clone;
