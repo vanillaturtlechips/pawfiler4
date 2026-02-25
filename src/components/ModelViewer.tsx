@@ -36,18 +36,31 @@ const Model = ({ path }: { path: string }) => {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child instanceof Mesh) {
-        const matName = ((child.material as MeshStandardMaterial)?.name || "").toLowerCase();
-        // Hide transparent eye meshes (white blob issue)
-        if (matName.includes("eyes_transparent")) {
+        const name = child.name.toLowerCase();
+        // Handle both single material and material array
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        const hasTransparentEye = materials.some(
+          (m) => m?.name?.toLowerCase().includes("eyes_transparent")
+        );
+        // Hide any mesh related to transparent eyes
+        if (hasTransparentEye || name.includes("eye") || name.includes("눈")) {
           child.visible = false;
           return;
         }
-        // Fix desaturated/metallic look — reduce metalness, increase roughness
-        if (child.material instanceof MeshStandardMaterial) {
-          child.material = child.material.clone();
-          child.material.metalness = Math.min(child.material.metalness, 0.1);
-          child.material.roughness = Math.max(child.material.roughness, 0.6);
-          child.material.needsUpdate = true;
+        // Fix desaturated/metallic look
+        const fixMat = (mat: MeshStandardMaterial) => {
+          const fixed = mat.clone();
+          fixed.metalness = 0;
+          fixed.roughness = 1;
+          fixed.needsUpdate = true;
+          return fixed;
+        };
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map((m) =>
+            m instanceof MeshStandardMaterial ? fixMat(m) : m
+          );
+        } else if (child.material instanceof MeshStandardMaterial) {
+          child.material = fixMat(child.material);
         }
       }
     });
@@ -77,7 +90,7 @@ const Model = ({ path }: { path: string }) => {
 
   return (
     <group ref={ref}>
-      <primitive object={clonedScene} scale={1.5} position={[0, -1, 0]} />
+      <primitive object={clonedScene} scale={1.5} position={[0, -1.5, 0]} />
     </group>
   );
 };
@@ -145,8 +158,8 @@ const ModelViewer = ({ modelPath, height = "300px" }: ModelViewerProps) => {
                 <Model path={modelPath} />
               </ModelErrorBoundary>
               <ContactShadows
-                position={[0, -0.5, 0]}
-                opacity={0.4}
+                position={[0, -1.5, 0]}
+                opacity={0.5}
                 scale={5}
                 blur={2}
               />
