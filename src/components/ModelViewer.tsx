@@ -36,7 +36,14 @@ const Model = ({ path }: { path: string }) => {
     scene.traverse((child) => {
       if (child instanceof Mesh) {
         const name = child.name.toLowerCase();
-        if (name.includes("eye") || name.includes("눈")) {
+        console.log("[ModelViewer] mesh:", child.name, "material:", (child.material as any)?.name);
+        // Hide eye-related meshes (white texture issue)
+        if (
+          name.includes("eye") ||
+          name.includes("눈") ||
+          name.includes("sphere") ||
+          name.includes("oval")
+        ) {
           child.visible = false;
         }
       }
