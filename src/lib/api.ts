@@ -10,6 +10,7 @@ import type {
   CheckoutRequest,
   CheckoutResponse,
   SubscriptionPlan,
+  AnalysisLogEntry,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080";
@@ -67,14 +68,14 @@ export const fetchCommunityFeed = () =>
     body: JSON.stringify({ page: 1, limit: 20 }),
   });
 
-export const runVideoAnalysis = (videoFile: File) => {
-  const formData = new FormData();
-  formData.append("video", videoFile);
-  return request<DeepfakeReport>("/video/video.VideoAnalysisService/AnalyzeVideo", {
-    method: "POST",
-    body: formData,
-    headers: {},
-  });
+export const runVideoAnalysis = async (
+  token: string,
+  fileOrUrl: File | string,
+  onEvent: (log: import("./types").AnalysisLogEntry) => void
+): Promise<DeepfakeReport> => {
+  // In dev, use mock; in prod, use real API
+  const { runVideoAnalysis: mockRun } = await import("./mockApi");
+  return mockRun(token, fileOrUrl, onEvent);
 };
 
 export const getSubscriptionPlans = () =>
