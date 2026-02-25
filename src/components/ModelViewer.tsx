@@ -1,7 +1,7 @@
-import { Suspense, useRef, useState, Component, type ReactNode } from "react";
+import { Suspense, useRef, useState, useMemo, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, ContactShadows } from "@react-three/drei";
-import type { Group } from "three";
+import { Group, Mesh } from "three";
 
 interface ModelViewerProps {
   modelPath: string;
@@ -30,6 +30,19 @@ class ModelErrorBoundary extends Component<
 const Model = ({ path }: { path: string }) => {
   const gltf = useGLTF(path);
   const ref = useRef<Group>(null);
+  const clonedScene = useMemo(() => {
+    const scene = gltf.scene.clone(true);
+    // Hide eye meshes that render as white
+    scene.traverse((child) => {
+      if (child instanceof Mesh) {
+        const name = child.name.toLowerCase();
+        if (name.includes("eye") || name.includes("눈")) {
+          child.visible = false;
+        }
+      }
+    });
+    return scene;
+  }, [gltf.scene]);
 
   useFrame((_, delta) => {
     if (ref.current) {
@@ -43,7 +56,7 @@ const Model = ({ path }: { path: string }) => {
 
   return (
     <group ref={ref}>
-      <primitive object={gltf.scene.clone()} scale={1.5} position={[0, -0.5, 0]} />
+      <primitive object={clonedScene} scale={1.5} position={[0, -0.5, 0]} />
     </group>
   );
 };
