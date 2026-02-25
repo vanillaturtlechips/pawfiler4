@@ -1,7 +1,7 @@
 import { Suspense, useRef, useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations, Environment, ContactShadows } from "@react-three/drei";
-import { Group, Mesh, MeshStandardMaterial } from "three";
+import { Group, Mesh, MeshStandardMaterial, Box3, Vector3 } from "three";
 
 interface ModelViewerProps {
   modelPath: string;
@@ -32,20 +32,22 @@ const Model = ({ path }: { path: string }) => {
   const ref = useRef<Group>(null);
   const { actions } = useAnimations(animations, ref);
 
+  const isDino = path.toLowerCase().includes("dinosaur");
+
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child instanceof Mesh) {
-        const name = child.name.toLowerCase();
-        // Handle both single material and material array
-        const materials = Array.isArray(child.material) ? child.material : [child.material];
-        const hasTransparentEye = materials.some(
-          (m) => m?.name?.toLowerCase().includes("eyes_transparent")
-        );
-        // Hide any mesh related to transparent eyes
-        if (hasTransparentEye || name.includes("eye") || name.includes("눈")) {
-          child.visible = false;
-          return;
+        // Only hide transparent eye meshes on the dinosaur model
+        if (isDino) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          const hasTransparentEye = materials.some(
+            (m) => m?.name?.toLowerCase().includes("eyes_transparent")
+          );
+          if (hasTransparentEye) {
+            child.visible = false;
+            return;
+          }
         }
         // Fix desaturated/metallic look
         const fixMat = (mat: MeshStandardMaterial) => {
@@ -65,7 +67,7 @@ const Model = ({ path }: { path: string }) => {
       }
     });
     return clone;
-  }, [scene]);
+  }, [scene, isDino]);
 
   // Play first animation if available (fixes T-pose)
   useEffect(() => {
@@ -84,13 +86,24 @@ const Model = ({ path }: { path: string }) => {
     }
   });
 
+  // Auto-fit: compute bounding box to center and scale the model
+  const { fitScale, yOffset } = useMemo(() => {
+    const box = new Box3().setFromObject(clonedScene);
+    const size = new Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const desiredSize = 2.2;
+    const s = maxDim > 0 ? desiredSize / maxDim : 1;
+    return { fitScale: s, yOffset: -(box.min.y * s) - (size.y * s) / 2 };
+  }, [clonedScene]);
+
   if (!scene || scene.children.length === 0) {
     return null;
   }
 
   return (
     <group ref={ref}>
-      <primitive object={clonedScene} scale={1.5} position={[0, -1.5, 0]} />
+      <primitive object={clonedScene} scale={fitScale} position={[0, yOffset, 0]} />
     </group>
   );
 };
