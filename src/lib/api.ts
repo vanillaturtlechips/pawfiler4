@@ -11,8 +11,10 @@ import type {
   CheckoutResponse,
   SubscriptionPlan,
 } from "./types";
+import { fetchQuizQuestion as mockFetchQuizQuestion, submitQuizAnswer as mockSubmitQuizAnswer } from "./mockApi";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080";
+const USE_MOCK = true; // 임시로 mock 사용
 
 const request = async <T>(
   endpoint: string,
@@ -52,14 +54,24 @@ export const signup = (req: SignupRequest) =>
     body: JSON.stringify(req),
   });
 
-export const fetchQuizQuestion = () =>
-  request<QuizQuestion>("http://localhost:50052/quiz.QuizService/GetQuestion", { method: "POST", body: JSON.stringify({}) });
+export const fetchQuizQuestion = () => {
+  if (USE_MOCK) {
+    const token = localStorage.getItem("token");
+    return mockFetchQuizQuestion(token || "");
+  }
+  return request<QuizQuestion>("http://localhost:50052/quiz.QuizService/GetQuestion", { method: "POST", body: JSON.stringify({}) });
+};
 
-export const submitQuizAnswer = (req: QuizSubmitRequest) =>
-  request<QuizSubmitResponse>("/quiz/quiz.QuizService/SubmitAnswer", {
+export const submitQuizAnswer = (req: QuizSubmitRequest) => {
+  if (USE_MOCK) {
+    const token = localStorage.getItem("token");
+    return mockSubmitQuizAnswer(token || "", req);
+  }
+  return request<QuizSubmitResponse>("/quiz/quiz.QuizService/SubmitAnswer", {
     method: "POST",
     body: JSON.stringify(req),
   });
+};
 
 export const fetchCommunityFeed = () =>
   request<CommunityFeed>("http://localhost:50053/community.CommunityService/GetFeed", {
