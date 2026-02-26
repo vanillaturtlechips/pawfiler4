@@ -11,22 +11,9 @@ service QuizService {
   rpc GetQuestionById(GetQuestionByIdRequest) returns (QuizQuestion);
 }
 
-enum QuestionType {
-  MULTIPLE_CHOICE = 0;
-  TRUE_FALSE = 1;
-  REGION_SELECT = 2;
-  COMPARISON = 3;
-}
-
-enum MediaType {
-  VIDEO = 0;
-  IMAGE = 1;
-}
-
 message GetRandomQuestionRequest {
   string user_id = 1;
   optional string difficulty = 2;
-  optional QuestionType type = 3;
 }
 
 message GetQuestionByIdRequest {
@@ -35,56 +22,18 @@ message GetQuestionByIdRequest {
 
 message QuizQuestion {
   string id = 1;
-  QuestionType type = 2;
-  MediaType media_type = 3;
-  string media_url = 4;
-  string thumbnail_emoji = 5;
-  string difficulty = 6;
-  string category = 7;
-  string explanation = 8;
-  
-  // Multiple Choice fields
-  repeated string options = 10;
-  optional int32 correct_index = 11;
-  
-  // True/False fields
-  optional bool correct_answer = 12;
-  
-  // Region Select fields
-  repeated Region correct_regions = 13;
-  optional int32 tolerance = 14;
-  
-  // Comparison fields
-  optional string comparison_media_url = 15;
-  optional string correct_side = 16; // "left" or "right"
-}
-
-message Region {
-  int32 x = 1;
-  int32 y = 2;
-  int32 radius = 3;
+  string video_url = 2;
+  string thumbnail_emoji = 3;
+  repeated string options = 4;
+  int32 correct_index = 5;
+  string explanation = 6;
+  string difficulty = 7;
 }
 
 message SubmitAnswerRequest {
   string user_id = 1;
   string question_id = 2;
-  
-  // Multiple Choice
-  optional int32 selected_index = 3;
-  
-  // True/False
-  optional bool selected_answer = 4;
-  
-  // Region Select
-  optional Point selected_region = 5;
-  
-  // Comparison
-  optional string selected_side = 6; // "left" or "right"
-}
-
-message Point {
-  int32 x = 1;
-  int32 y = 2;
+  int32 selected_index = 3;
 }
 
 message SubmitAnswerResponse {

@@ -25,16 +25,18 @@ const delay = (min = 500, max = 1500) =>
   new Promise<void>((r) => setTimeout(r, min + Math.random() * (max - min)));
 
 const fakeJwt = (payload: Record<string, unknown>) => {
-  // 간단한 mock JWT - Base64 인코딩 없이 그냥 문자열로
-  return `mock.${JSON.stringify(payload)}.signature`;
+  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = btoa(JSON.stringify(payload));
+  const sig = btoa("mock-signature");
+  return `${header}.${body}.${sig}`;
 };
 
 const uuid = () => crypto.randomUUID();
 
 /** Simulates attaching gRPC metadata (authorization header) */
 const withAuth = (token: string | null) => {
-  // Mock에서는 token 체크 완화
-  return { authorization: token ? `Bearer ${token}` : "", "x-request-id": uuid() };
+  if (!token) throw new Error("UNAUTHENTICATED: No token provided");
+  return { authorization: `Bearer ${token}`, "x-request-id": uuid() };
 };
 
 // --------------- Mock data ---------------
@@ -53,69 +55,23 @@ const MOCK_USER: UserProfile = {
 };
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
-  // 1. Multiple Choice (객관식)
   {
     id: "q1",
-    type: "multiple_choice",
-    mediaType: "video",
-    mediaUrl: "",
+    videoUrl: "",
     thumbnailEmoji: "🎬",
-    difficulty: "easy",
-    category: "딥페이크 탐지",
-    explanation: "딥페이크 영상에서는 눈 깜빡임이 부자연스러운 경우가 많아요!",
     options: ["입 모양이 어색해요", "눈 깜빡임이 없어요", "머리카락이 흔들려요", "목소리가 달라요"],
     correctIndex: 1,
+    explanation: "딥페이크 영상에서는 눈 깜빡임이 부자연스러운 경우가 많아요!",
+    difficulty: "easy",
   },
-  // 2. True/False (OX 퀴즈)
   {
     id: "q2",
-    type: "true_false",
-    mediaType: "video",
-    mediaUrl: "",
+    videoUrl: "",
     thumbnailEmoji: "🎥",
-    difficulty: "medium",
-    category: "딥페이크 탐지",
-    explanation: "이 영상은 AI로 생성된 가짜 영상입니다. 얼굴 경계가 부자연스럽게 번져있어요!",
-    correctAnswer: false,
-  },
-  // 3. Region Select (영역 선택 - 이미지)
-  {
-    id: "q3",
-    type: "region_select",
-    mediaType: "image",
-    mediaUrl: "https://via.placeholder.com/800x600/333/fff?text=Deepfake+Image",
-    thumbnailEmoji: "🖼️",
-    difficulty: "hard",
-    category: "딥페이크 탐지",
-    explanation: "얼굴 주변 경계 부분이 조작되었습니다!",
-    correctRegions: [{ x: 400, y: 250, radius: 80 }],
-    tolerance: 100,
-  },
-  // 4. Comparison (비교 문제 - 이미지)
-  {
-    id: "q4",
-    type: "comparison",
-    mediaType: "image",
-    mediaUrl: "https://via.placeholder.com/600x800/444/fff?text=Image+A",
-    comparisonMediaUrl: "https://via.placeholder.com/600x800/555/fff?text=Image+B",
-    thumbnailEmoji: "🔍",
-    difficulty: "medium",
-    category: "딥페이크 탐지",
-    explanation: "왼쪽 이미지가 진짜입니다. 오른쪽은 AI가 생성한 가짜예요!",
-    correctSide: "left",
-  },
-  // 5. Multiple Choice (객관식 - 이미지)
-  {
-    id: "q5",
-    type: "multiple_choice",
-    mediaType: "image",
-    mediaUrl: "https://via.placeholder.com/800x600/666/fff?text=Suspicious+Photo",
-    thumbnailEmoji: "📸",
-    difficulty: "easy",
-    category: "딥페이크 탐지",
-    explanation: "배경과 조명이 일치하지 않는 것이 가장 큰 단서입니다!",
-    options: ["얼굴 표정이 자연스러워요", "배경과 조명이 안 맞아요", "옷이 선명해요", "머리카락이 자연스러워요"],
+    options: ["배경이 자연스러워요", "얼굴 경계가 번져요", "음성이 정확해요", "조명이 일치해요"],
     correctIndex: 1,
+    explanation: "얼굴 합성 경계 부분이 번지거나 흐릿한 건 딥페이크의 대표 특징이에요!",
+    difficulty: "medium",
   },
 ];
 
@@ -187,55 +143,13 @@ export async function fetchQuizQuestion(token: string): Promise<QuizQuestion> {
 export async function submitQuizAnswer(token: string, req: QuizSubmitRequest): Promise<QuizSubmitResponse> {
   withAuth(token);
   await delay(400, 700);
-  const q = MOCK_QUIZ_QUESTIONS.find((question) => question.id === req.questionId);
-  
-  if (!q) {
-    return {
-      correct: false,
-      xpEarned: 0,
-      coinsEarned: 0,
-      explanation: "문제를 찾을 수 없습니다.",
-      streakCount: 0,
-    };
-  }
-
-  let correct = false;
-
-  // Check answer based on question type
-  if ('type' in q) {
-    switch (q.type) {
-      case 'multiple_choice':
-        correct = req.selectedIndex === q.correctIndex;
-        break;
-      case 'true_false':
-        correct = req.selectedAnswer === q.correctAnswer;
-        break;
-      case 'region_select':
-        if (req.selectedRegion && q.correctRegions) {
-          // Check if selected point is within any correct region
-          correct = q.correctRegions.some((region) => {
-            const distance = Math.sqrt(
-              Math.pow(req.selectedRegion!.x - region.x, 2) +
-              Math.pow(req.selectedRegion!.y - region.y, 2)
-            );
-            return distance <= region.radius + (q.tolerance || 0);
-          });
-        }
-        break;
-      case 'comparison':
-        correct = req.selectedSide === q.correctSide;
-        break;
-    }
-  } else {
-    // Legacy support
-    correct = req.selectedIndex === q.correctIndex;
-  }
-
+  const q = MOCK_QUIZ_QUESTIONS.find((q) => q.id === req.questionId);
+  const correct = q ? req.selectedIndex === q.correctIndex : false;
   return {
     correct,
     xpEarned: correct ? 100 : 10,
     coinsEarned: correct ? 25 : 0,
-    explanation: q.explanation,
+    explanation: q?.explanation ?? "",
     streakCount: correct ? 3 : 0,
   };
 }
