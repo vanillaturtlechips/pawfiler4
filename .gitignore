@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Go
+*.tar.gz
+go*.linux-amd64.tar.gz
+ 
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Binaries
+community-service
+community-service.exe
+main
+main.exe
+node_modules

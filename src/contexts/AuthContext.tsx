@@ -22,25 +22,46 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [state, setState] = useState<AuthState>({
-    token: null,
-    user: null,
-    isLoggedIn: false,
+  const [state, setState] = useState<AuthState>(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const user = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+    if (token && user) {
+      try {
+        return {
+          token,
+          user: JSON.parse(user),
+          isLoggedIn: true,
+        };
+      } catch (e) {
+        return { token: null, user: null, isLoggedIn: false };
+      }
+    }
+    return {
+      token: null,
+      user: null,
+      isLoggedIn: false,
+    };
   });
 
   const login = useCallback((token: string, user: UserProfile) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
     setState({ token, user, isLoggedIn: true });
   }, []);
 
   const logout = useCallback(() => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setState({ token: null, user: null, isLoggedIn: false });
   }, []);
 
   const updateUser = useCallback((partial: Partial<UserProfile>) => {
-    setState((prev) => ({
-      ...prev,
-      user: prev.user ? { ...prev.user, ...partial } : null,
-    }));
+    setState((prev) => {
+      if (!prev.user) return prev;
+      const newUser = { ...prev.user, ...partial };
+      localStorage.setItem("user", JSON.stringify(newUser));
+      return { ...prev, user: newUser };
+    });
   }, []);
 
   return (
