@@ -17,11 +17,11 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	"quiz-service/internal/handler"
-	"quiz-service/internal/repository"
-	"quiz-service/internal/service"
-	"quiz-service/pkg/kafka"
-	pb "quiz-service/proto"
+	"github.com/pawfiler/backend/services/quiz/internal/handler"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/service"
+	"github.com/pawfiler/backend/services/quiz/pkg/kafka"
+	pb "github.com/pawfiler/backend/services/quiz/proto"
 )
 
 // Config holds the application configuration loaded from environment variables

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"quiz-service/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 )
 
 // AnswerValidator defines the interface for validating quiz answers

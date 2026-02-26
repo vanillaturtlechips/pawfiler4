@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	pb "quiz-service/proto"
-	"quiz-service/internal/repository"
+	pb "github.com/pawfiler/backend/services/quiz/proto"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 )
 
 // QuizService defines the interface for quiz business logic operations

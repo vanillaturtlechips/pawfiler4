@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"quiz-service/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/stretchr/testify/assert"
 )
 

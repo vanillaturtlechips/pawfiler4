@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"quiz-service/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 )
 
 // MockQuizRepository is a mock implementation of QuizRepository

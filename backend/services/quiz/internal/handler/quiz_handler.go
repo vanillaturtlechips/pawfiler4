@@ -8,9 +8,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "quiz-service/proto"
-	"quiz-service/internal/repository"
-	"quiz-service/internal/service"
+	pb "github.com/pawfiler/backend/services/quiz/proto"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/service"
 )
 
 // QuizHandler implements the gRPC QuizService server

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"quiz-service/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 )
 
 // StatsTracker defines the interface for tracking and managing user quiz statistics

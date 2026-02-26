@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	pb "quiz-service/proto"
-	"quiz-service/internal/repository"
+	pb "github.com/pawfiler/backend/services/quiz/proto"
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
