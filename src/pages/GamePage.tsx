@@ -82,7 +82,7 @@ const GamePage = () => {
   }, [gameFinished]);
 
   const loadQuestion = async () => {
-    if (questionCount >= 1) {  // 임시로 1개로 변경 (원래는 10)
+    if (questionCount >= 10) {
       setGameFinished(true);
       await fetchUserStats().then(setStats).catch(console.error);
       return;
