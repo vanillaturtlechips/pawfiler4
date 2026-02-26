@@ -8,6 +8,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
 import ParallaxBackground from "@/components/ParallaxBackground";
 import Header from "@/components/Header";
+import UserProfile from "@/components/UserProfile";
+import TreasureChest from "@/components/TreasureChest";
 import HomePage from "@/pages/HomePage";
 import GamePage from "@/pages/GamePage";
 import AnalysisPage from "@/pages/AnalysisPage";
@@ -27,6 +29,8 @@ const App = () => (
         <AuthProvider>
           <ParallaxBackground>
             <Header />
+            <UserProfile />
+            <TreasureChest />
             <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none">
               <div className="mx-auto h-full w-full max-w-[1500px] px-5">
                 <AnimatePresence mode="wait">

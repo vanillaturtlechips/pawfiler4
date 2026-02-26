@@ -26,7 +26,7 @@ const delay = (min = 500, max = 1500) =>
 
 const fakeJwt = (payload: Record<string, unknown>) => {
   const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = btoa(JSON.stringify(payload));
+  const body = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   const sig = btoa("mock-signature");
   return `${header}.${body}.${sig}`;
 };
