@@ -43,33 +43,17 @@ type SubmitResult struct {
 
 // quizServiceImpl implements the QuizService interface
 type quizServiceImpl struct {
-	repo           repository.QuizRepository
-	statsTracker   StatsTracker
-	validator      AnswerValidator
-	eventPublisher EventPublisher
-}
-
-// EventPublisher defines the interface for publishing quiz events
-type EventPublisher interface {
-	PublishQuizAnswered(ctx context.Context, event *QuizAnsweredEvent) error
-}
-
-// QuizAnsweredEvent represents a quiz answer event
-type QuizAnsweredEvent struct {
-	UserID      string
-	QuestionID  string
-	Correct     bool
-	XPEarned    int32
-	CoinsEarned int32
+	repo         repository.QuizRepository
+	statsTracker StatsTracker
+	validator    AnswerValidator
 }
 
 // NewQuizService creates a new QuizService instance
-func NewQuizService(repo repository.QuizRepository, statsTracker StatsTracker, validator AnswerValidator, eventPublisher EventPublisher) QuizService {
+func NewQuizService(repo repository.QuizRepository, statsTracker StatsTracker, validator AnswerValidator) QuizService {
 	return &quizServiceImpl{
-		repo:           repo,
-		statsTracker:   statsTracker,
-		validator:      validator,
-		eventPublisher: eventPublisher,
+		repo:         repo,
+		statsTracker: statsTracker,
+		validator:    validator,
 	}
 }
 
@@ -149,7 +133,7 @@ func convertProtoToRepoQuestionType(protoType pb.QuestionType) repository.Questi
 // 2. Calculate rewards
 // 3. Save answer to database
 // 4. Update user statistics
-// 5. Publish event to Kafka
+// 5. Return result
 // Requirements: 5.1~5.4, 6.1~6.3, 7.1~7.5, 8.1~8.4, 9.1~9.4, 10.1~10.4, 11.1~11.8, 13.1~13.4, 15.1~15.5
 func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, questionID string, answer repository.Answer) (*SubmitResult, error) {
 	// Step 1: Get the question by ID
@@ -272,27 +256,10 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 	if err != nil {
 		// Requirement 15.3: Return INTERNAL for database errors
 		// Note: Answer is already saved, but stats update failed
-		// Log the error but continue to event publishing
 		fmt.Printf("Warning: failed to update user stats: %v\n", err)
 	}
 
-	// Step 6: Publish event to Kafka
-	// Requirements 13.1, 13.2, 13.3, 13.4: Publish quiz.answered event
-	event := &QuizAnsweredEvent{
-		UserID:      userID,
-		QuestionID:  questionID,
-		Correct:     isCorrect,
-		XPEarned:    xpEarned,
-		CoinsEarned: coinsEarned,
-	}
-
-	err = s.eventPublisher.PublishQuizAnswered(ctx, event)
-	if err != nil {
-		// Requirement 13.4: Log error but don't fail answer processing
-		fmt.Printf("Warning: failed to publish quiz answered event: %v\n", err)
-	}
-
-	// Step 7: Return result
+	// Step 6: Return result
 	// Requirement 10.4: Include xp_earned and coins_earned in response
 	return &SubmitResult{
 		IsCorrect:   isCorrect,

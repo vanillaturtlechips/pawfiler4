@@ -41,11 +41,8 @@ func main() {
 	statsTracker := service.NewStatsTracker(repo)
 	validator := service.NewAnswerValidator()
 	
-	// Create a no-op event publisher (no Kafka)
-	eventPublisher := &noOpEventPublisher{}
-	
 	// Initialize service
-	svc := service.NewQuizService(repo, statsTracker, validator, eventPublisher)
+	svc := service.NewQuizService(repo, statsTracker, validator)
 	
 	// Initialize handler
 	quizHandler := handler.NewQuizHandler(svc)
@@ -62,14 +59,4 @@ func main() {
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
-}
-
-// noOpEventPublisher is a no-op implementation of EventPublisher
-type noOpEventPublisher struct{}
-
-func (p *noOpEventPublisher) PublishQuizAnswered(ctx context.Context, event *service.QuizAnsweredEvent) error {
-	// No-op: just log the event
-	log.Printf("Quiz answered event (no Kafka): UserID=%s, QuestionID=%s, Correct=%v", 
-		event.UserID, event.QuestionID, event.Correct)
-	return nil
 }
