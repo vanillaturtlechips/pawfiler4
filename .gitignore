@@ -22,8 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-<<<<<<< HEAD
-=======
 
 # Go
 *.tar.gz
@@ -40,4 +38,3 @@ community-service.exe
 main
 main.exe
 node_modules
->>>>>>> ed833e4 (feat: 커뮤니티 페이지 CRUD 및 UI 개선)
