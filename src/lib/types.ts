@@ -39,7 +39,59 @@ export interface UserProfile {
 }
 
 // --- Quiz Service ---
-export interface QuizQuestion {
+export type QuestionType = "multiple_choice" | "true_false" | "region_select" | "comparison";
+
+export type MediaType = "video" | "image";
+
+export interface BaseQuizQuestion {
+  id: string;
+  type: QuestionType;
+  mediaType: MediaType;
+  mediaUrl: string;
+  thumbnailEmoji: string;
+  difficulty: "easy" | "medium" | "hard";
+  category: string;
+  explanation: string;
+}
+
+// 객관식 (Multiple Choice)
+export interface MultipleChoiceQuestion extends BaseQuizQuestion {
+  type: "multiple_choice";
+  options: string[];
+  correctIndex: number;
+}
+
+// OX 퀴즈 (True/False)
+export interface TrueFalseQuestion extends BaseQuizQuestion {
+  type: "true_false";
+  correctAnswer: boolean; // true = 진짜, false = 가짜
+}
+
+// 영역 선택 (Region Select) - 이미지만
+export interface RegionSelectQuestion extends BaseQuizQuestion {
+  type: "region_select";
+  mediaType: "image";
+  correctRegions: { x: number; y: number; radius: number }[]; // 정답 영역들 (원형)
+  tolerance: number; // 허용 오차 (픽셀)
+}
+
+// 비교 문제 (Comparison) - 이미지만
+export interface ComparisonQuestion extends BaseQuizQuestion {
+  type: "comparison";
+  mediaType: "image";
+  mediaUrl: string; // 첫 번째 이미지
+  comparisonMediaUrl: string; // 두 번째 이미지
+  correctSide: "left" | "right"; // 어느 쪽이 진짜인지
+}
+
+export type QuizQuestion =
+  | MultipleChoiceQuestion
+  | TrueFalseQuestion
+  | RegionSelectQuestion
+  | ComparisonQuestion;
+
+// 기존 호환성을 위한 레거시 타입 (deprecated)
+export interface LegacyQuizQuestion {
   id: string;
   videoUrl: string;
   thumbnailEmoji: string;
@@ -51,7 +103,10 @@ export interface QuizQuestion {
 
 export interface QuizSubmitRequest {
   questionId: string;
-  selectedIndex: number;
+  selectedIndex?: number; // multiple_choice용
+  selectedAnswer?: boolean; // true_false용
+  selectedRegion?: { x: number; y: number }; // region_select용
+  selectedSide?: "left" | "right"; // comparison용
 }
 
 export interface QuizSubmitResponse {

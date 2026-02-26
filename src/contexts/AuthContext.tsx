@@ -22,45 +22,50 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  // localStorage에서 초기 상태 복원
   const [state, setState] = useState<AuthState>(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const user = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-    if (token && user) {
+    const savedToken = localStorage.getItem("auth_token");
+    const savedUser = localStorage.getItem("auth_user");
+    
+    if (savedToken && savedUser) {
       try {
         return {
-          token,
-          user: JSON.parse(user),
+          token: savedToken,
+          user: JSON.parse(savedUser),
           isLoggedIn: true,
         };
-      } catch (e) {
+      } catch {
         return { token: null, user: null, isLoggedIn: false };
       }
     }
-    return {
-      token: null,
-      user: null,
-      isLoggedIn: false,
-    };
+    
+    return { token: null, user: null, isLoggedIn: false };
   });
 
   const login = useCallback((token: string, user: UserProfile) => {
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
+    // localStorage에 저장
+    localStorage.setItem("auth_token", token);
+    localStorage.setItem("auth_user", JSON.stringify(user));
     setState({ token, user, isLoggedIn: true });
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    // localStorage에서 제거
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
     setState({ token: null, user: null, isLoggedIn: false });
   }, []);
 
   const updateUser = useCallback((partial: Partial<UserProfile>) => {
     setState((prev) => {
-      if (!prev.user) return prev;
-      const newUser = { ...prev.user, ...partial };
-      localStorage.setItem("user", JSON.stringify(newUser));
-      return { ...prev, user: newUser };
+      const newUser = prev.user ? { ...prev.user, ...partial } : null;
+      if (newUser) {
+        localStorage.setItem("auth_user", JSON.stringify(newUser));
+      }
+      return {
+        ...prev,
+        user: newUser,
+      };
     });
   }, []);
 

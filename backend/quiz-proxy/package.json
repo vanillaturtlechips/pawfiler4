@@ -1,0 +1,15 @@
+{
+  "name": "quiz-proxy",
+  "version": "1.0.0",
+  "description": "HTTP REST proxy for Quiz gRPC service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.4",
+    "@grpc/proto-loader": "^0.7.15",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
