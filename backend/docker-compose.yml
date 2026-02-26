@@ -73,21 +73,21 @@ services:
   #       condition: service_started
 
   # Quiz Service
-  quiz-service:
-    build:
-      context: ./services/quiz
-      dockerfile: Dockerfile
-    container_name: pawfiler-quiz
-    environment:
-      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
-      KAFKA_BROKERS: kafka:29092
-    ports:
-      - "50052:50052"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
+  # quiz-service:
+  #   build:
+  #     context: ./services/quiz
+  #     dockerfile: Dockerfile
+  #   container_name: pawfiler-quiz
+  #   environment:
+  #     DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+  #     KAFKA_BROKERS: kafka:29092
+  #   ports:
+  #     - "50052:50052"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_started
 
   # Community Service
   # community-service:
@@ -107,24 +107,24 @@ services:
   #       condition: service_started
 
   # Video Analysis Service (Python)
-  video-analysis-service:
-    build:
-      context: ./services/video-analysis
-      dockerfile: Dockerfile
-    container_name: pawfiler-video-analysis
-    environment:
-      DATABASE_URL: postgresql://pawfiler:dev_password@postgres:5432/pawfiler
-      KAFKA_BROKERS: kafka:29092
-      AWS_REGION: ap-northeast-2
-    ports:
-      - "50054:50054"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
-    volumes:
-      - ./services/video-analysis/models:/app/models
+  # video-analysis-service:
+  #   build:
+  #     context: ./services/video-analysis
+  #     dockerfile: Dockerfile
+  #   container_name: pawfiler-video-analysis
+  #   environment:
+  #     DATABASE_URL: postgresql://pawfiler:dev_password@postgres:5432/pawfiler
+  #     KAFKA_BROKERS: kafka:29092
+  #     AWS_REGION: ap-northeast-2
+  #   ports:
+  #     - "50054:50054"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_started
+  #   volumes:
+  #     - ./services/video-analysis/models:/app/models
 
   # Payment Service
   # payment-service:
