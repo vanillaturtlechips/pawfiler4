@@ -25,10 +25,8 @@ const delay = (min = 500, max = 1500) =>
   new Promise<void>((r) => setTimeout(r, min + Math.random() * (max - min)));
 
 const fakeJwt = (payload: Record<string, unknown>) => {
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = btoa(JSON.stringify(payload));
-  const sig = btoa("mock-signature");
-  return `${header}.${body}.${sig}`;
+  // 간단한 mock JWT - Base64 인코딩 없이 그냥 문자열로
+  return `mock.${JSON.stringify(payload)}.signature`;
 };
 
 const uuid = () => crypto.randomUUID();

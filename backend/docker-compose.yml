@@ -19,6 +19,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - pawfiler-network
 
   # Kafka (Event Bus)
   zookeeper:
@@ -27,6 +29,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - pawfiler-network
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -42,6 +46,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - pawfiler-network
 
   # Envoy Proxy (API Gateway)
   envoy:
@@ -53,6 +59,8 @@ services:
     volumes:
       - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
     command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
+    networks:
+      - pawfiler-network
 
   # Auth Service
   auth-service:
@@ -71,6 +79,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pawfiler-network
 
   # Quiz Service
   quiz-service:
@@ -79,8 +89,13 @@ services:
       dockerfile: Dockerfile
     container_name: pawfiler-quiz
     environment:
-      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: pawfiler
+      DB_PASSWORD: dev_password
+      DB_NAME: pawfiler
       KAFKA_BROKERS: kafka:29092
+      GRPC_PORT: "50052"
     ports:
       - "50052:50052"
     depends_on:
@@ -88,6 +103,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pawfiler-network
 
   # Community Service
   community-service:
@@ -105,6 +122,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pawfiler-network
 
   # Video Analysis Service (Python)
   video-analysis-service:
@@ -125,6 +144,8 @@ services:
         condition: service_started
     volumes:
       - ./services/video-analysis/models:/app/models
+    networks:
+      - pawfiler-network
 
   # Payment Service
   payment-service:
@@ -142,6 +163,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+    networks:
+      - pawfiler-network
 
   # Dashboard BFF
   dashboard-bff:
@@ -159,6 +182,12 @@ services:
       - auth-service
       - quiz-service
       - community-service
+    networks:
+      - pawfiler-network
 
 volumes:
   postgres_data:
+
+networks:
+  pawfiler-network:
+    driver: bridge

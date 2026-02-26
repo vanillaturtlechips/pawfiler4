@@ -1,71 +1,147 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import confetti from "canvas-confetti";
 import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchQuizQuestion, submitQuizAnswer } from "@/lib/api";
-import type { QuizQuestion, QuizSubmitResponse, LegacyQuizQuestion } from "@/lib/types";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats } from "@/lib/api";
+import type { QuizQuestion, QuizSubmitResponse, LegacyQuizQuestion, QuizStats } from "@/lib/types";
 import MultipleChoiceQuestion from "@/components/quiz/MultipleChoiceQuestion";
 import TrueFalseQuestion from "@/components/quiz/TrueFalseQuestion";
 import RegionSelectQuestion from "@/components/quiz/RegionSelectQuestion";
 import ComparisonQuestion from "@/components/quiz/ComparisonQuestion";
 
 const GamePage = () => {
-  const { token } = useAuth();
+  const navigate = useNavigate();
   const [question, setQuestion] = useState<QuizQuestion | LegacyQuizQuestion | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<QuizStats | null>(null);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [gameFinished, setGameFinished] = useState(false);
   
-  // Multiple Choice & Legacy
+  // 현재 세션 통계 (로컬)
+  const [sessionCorrect, setSessionCorrect] = useState(0);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionStreak, setSessionStreak] = useState(0);
+  const [sessionBestStreak, setSessionBestStreak] = useState(0);
+  
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  
-  // True/False
   const [selectedAnswer, setSelectedAnswer] = useState<boolean | null>(null);
-  
-  // Region Select
   const [selectedRegion, setSelectedRegion] = useState<{ x: number; y: number } | null>(null);
-  
-  // Comparison
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(null);
   
   const [result, setResult] = useState<QuizSubmitResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [score, setScore] = useState(1240);
-  const [lives, setLives] = useState(2);
   const [videoOrientation, setVideoOrientation] = useState<"landscape" | "portrait">("landscape");
 
-  const loadQuestion = useCallback(async () => {
+  // 초기 로드
+  useEffect(() => {
+    const initGame = async () => {
+      setLoading(true);
+      try {
+        const [q, userStats] = await Promise.all([
+          fetchQuizQuestion(),
+          fetchUserStats()
+        ]);
+        setQuestion(q);
+        setQuestionCount(1);
+        setStats(userStats);
+      } catch (error) {
+        console.error("Failed to initialize game:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initGame();
+  }, []);
+
+  // 게임 완료 시 폭죽 효과
+  useEffect(() => {
+    if (gameFinished) {
+      const interval = setInterval(() => {
+        confetti({
+          particleCount: 2,
+          angle: 60,
+          spread: 50,
+          origin: { x: 0.1, y: 0.6 },
+          colors: ['#ff6b6b', '#4ecdc4', '#ffe66d', '#ff6bff', '#6bffa3']
+        });
+        confetti({
+          particleCount: 2,
+          angle: 120,
+          spread: 50,
+          origin: { x: 0.9, y: 0.6 },
+          colors: ['#ff6b6b', '#4ecdc4', '#ffe66d', '#ff6bff', '#6bffa3']
+        });
+      }, 300);
+
+      return () => clearInterval(interval);
+    }
+  }, [gameFinished]);
+
+  const loadQuestion = async () => {
+    if (questionCount >= 1) {  // 임시로 1개로 변경 (원래는 10)
+      setGameFinished(true);
+      await fetchUserStats().then(setStats).catch(console.error);
+      return;
+    }
+    
     setLoading(true);
     setSelectedIndex(null);
     setSelectedAnswer(null);
     setSelectedRegion(null);
     setSelectedSide(null);
     setResult(null);
+    
     try {
       const q = await fetchQuizQuestion();
       setQuestion(q);
-      setVideoOrientation("landscape");
+      setQuestionCount(prev => prev + 1);
     } catch (error) {
       console.error("Failed to load question:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    loadQuestion();
-  }, [loadQuestion]);
-
+  const restartGame = () => {
+    setQuestionCount(0);
+    setGameFinished(false);
+    setQuestion(null);
+    setLoading(true);
+    
+    // 세션 통계 초기화
+    setSessionCorrect(0);
+    setSessionTotal(0);
+    setSessionStreak(0);
+    setSessionBestStreak(0);
+    
+    // 선택 및 결과 초기화
+    setSelectedIndex(null);
+    setSelectedAnswer(null);
+    setSelectedRegion(null);
+    setSelectedSide(null);
+    setResult(null);
+    
+    fetchQuizQuestion()
+      .then(q => {
+        setQuestion(q);
+        setQuestionCount(1);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
   const handleSubmit = async () => {
     if (!question) return;
     
-    // Check if answer is selected based on question type
     const hasAnswer = 
       ('type' in question && question.type === 'multiple_choice' && selectedIndex !== null) ||
       ('type' in question && question.type === 'true_false' && selectedAnswer !== null) ||
       ('type' in question && question.type === 'region_select' && selectedRegion !== null) ||
       ('type' in question && question.type === 'comparison' && selectedSide !== null) ||
-      (!('type' in question) && selectedIndex !== null); // Legacy support
+      (!('type' in question) && selectedIndex !== null);
     
     if (!hasAnswer) return;
     
@@ -79,11 +155,23 @@ const GamePage = () => {
         selectedSide: selectedSide ?? undefined,
       });
       setResult(res);
+      
+      // 세션 통계 업데이트
+      setSessionTotal(prev => prev + 1);
       if (res.correct) {
-        setScore((s) => s + res.coinsEarned);
+        setSessionCorrect(prev => prev + 1);
+        setSessionStreak(prev => {
+          const newStreak = prev + 1;
+          setSessionBestStreak(current => Math.max(current, newStreak));
+          return newStreak;
+        });
       } else {
-        setLives((l) => Math.max(0, l - 1));
+        setSessionStreak(0);
       }
+      
+      // 백엔드 통계도 로드 (나중에 사용할 수 있음)
+      const userStats = await fetchUserStats();
+      setStats(userStats);
     } finally {
       setSubmitting(false);
     }
@@ -128,9 +216,133 @@ const GamePage = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
+      style={gameFinished ? {
+        position: 'fixed',
+        inset: 0,
+        padding: 0,
+        margin: 0,
+        zIndex: 50
+      } : undefined}
     >
-      {/* Left: Video Section - Region Select와 Comparison일 때는 숨김 */}
-      {!(question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')) && (
+      {/* 게임 종료 화면 */}
+      {gameFinished ? (
+        <div 
+          className="col-span-full flex items-center justify-center h-screen w-screen relative overflow-hidden"
+          style={{
+            backgroundImage: 'url(/celebration-background.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          {/* 왼쪽 캐릭터 - 축하하는 여우 */}
+          <motion.img
+            src="/fox-celebration.png"
+            alt="Fox Celebration"
+            className="absolute left-10 bottom-0 h-1/2 object-contain"
+            initial={{ x: -200, opacity: 0 }}
+            animate={{ 
+              x: 0, 
+              opacity: 1,
+              y: [0, -30, 0]
+            }}
+            transition={{ 
+              x: { duration: 0.8, delay: 0.2 },
+              opacity: { duration: 0.8, delay: 0.2 },
+              y: { 
+                duration: 0.6,
+                repeat: Infinity,
+                repeatDelay: 2.5,
+                ease: "easeInOut"
+              }
+            }}
+          />
+          
+          {/* 오른쪽 캐릭터 - 너구리 */}
+          <motion.img
+            src="/nuguri-celebration.png"
+            alt="Nuguri Celebration"
+            className="absolute right-10 bottom-0 h-1/2 object-contain"
+            initial={{ x: 200, opacity: 0 }}
+            animate={{ 
+              x: 0, 
+              opacity: 1,
+              y: [0, -30, 0]
+            }}
+            transition={{ 
+              x: { duration: 0.8, delay: 0.2 },
+              opacity: { duration: 0.8, delay: 0.2 },
+              y: { 
+                duration: 0.6,
+                repeat: Infinity,
+                repeatDelay: 2.5,
+                delay: 0.8,
+                ease: "easeInOut"
+              }
+            }}
+          />
+          
+          {/* 결과 대시보드 */}
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="relative z-10"
+          >
+            <WoodPanel className="flex flex-col items-center justify-center gap-5 p-10 max-w-2xl">
+              <motion.h2 
+                className="font-jua text-5xl text-shadow-deep"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              >
+                🎉 축하해! 퀴즈 완료! 🎉
+              </motion.h2>
+              
+              <div className="flex flex-col gap-3 text-center w-full">
+                <div className="grid grid-cols-2 gap-4 w-full">
+                  <div className="bg-wood-dark rounded-xl p-4">
+                    <p className="font-jua text-lg opacity-70">총 문제</p>
+                    <p className="font-jua text-3xl">{sessionTotal}개</p>
+                  </div>
+                  <div className="bg-wood-dark rounded-xl p-4">
+                    <p className="font-jua text-lg opacity-70">정답</p>
+                    <p className="font-jua text-3xl text-green-500">
+                      {sessionCorrect}개
+                    </p>
+                  </div>
+                  <div className="bg-wood-dark rounded-xl p-4">
+                    <p className="font-jua text-lg opacity-70">정답률</p>
+                    <p className="font-jua text-3xl">{sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0}%</p>
+                  </div>
+                  <div className="bg-wood-dark rounded-xl p-4">
+                    <p className="font-jua text-lg opacity-70">최고 연속</p>
+                    <p className="font-jua text-3xl text-yellow-500">{sessionBestStreak}개</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-row gap-4 mt-4 justify-center">
+                <GameButton 
+                  variant="green" 
+                  onClick={restartGame}
+                  className="whitespace-nowrap"
+                >
+                  다시 시작
+                </GameButton>
+                <GameButton 
+                  variant="blue" 
+                  onClick={() => navigate('/')}
+                  className="whitespace-nowrap"
+                >
+                  마을 입구로
+                </GameButton>
+              </div>
+            </WoodPanel>
+          </motion.div>
+        </div>
+      ) : (
+        <>
+          {/* Left: Video Section - Region Select와 Comparison일 때는 숨김 */}
+          {!(question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')) && (
         <WoodPanel className="flex flex-col">
           {loading ? (
             <Skeleton className="flex-1 rounded-2xl bg-wood-dark" />
@@ -213,8 +425,12 @@ const GamePage = () => {
               : "🎬 가짜를 찾아라!"}
           </h2>
           <div className="flex items-center gap-4">
-            <div className="font-jua text-lg text-shadow-deep">📊 정답률 78%</div>
-            <div className="font-jua text-lg text-shadow-deep">📈 3/10</div>
+            <div className="font-jua text-lg text-shadow-deep">
+              📊 정답률 {sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0}%
+            </div>
+            <div className="font-jua text-lg text-shadow-deep">
+              📈 {questionCount}/10
+            </div>
           </div>
         </div>
 
@@ -369,6 +585,8 @@ const GamePage = () => {
           </div>
         ) : null}
       </WoodPanel>
+      </>
+      )}
     </motion.div>
   );
 };
