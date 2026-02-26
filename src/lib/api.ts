@@ -43,13 +43,18 @@ const request = async <T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> => {
-  const token = localStorage.getItem("token");
-  const isGrpc = endpoint.includes("Service/");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const isCommunity = endpoint.includes(":50053");
+  const isGrpc = endpoint.includes("Service/") && !isCommunity;
+  
   const headers: HeadersInit = {
-    "Content-Type": isGrpc ? "application/grpc-web+json" : "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
+
+  if (!headers["Content-Type"] && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = isGrpc ? "application/grpc-web+json" : "application/json";
+  }
 
   const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
   const res = await fetch(url, {
@@ -170,7 +175,7 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
 
 export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubmitResponse> => {
   if (USE_MOCK) {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("auth_token");
     return mockSubmitQuizAnswer(token || "", req);
   }
   
@@ -247,10 +252,40 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
   };
 };
 
-export const fetchCommunityFeed = () =>
+export const fetchCommunityFeed = (page = 1, pageSize = 20) =>
   request<CommunityFeed>("http://localhost:50053/community.CommunityService/GetFeed", {
     method: "POST",
-    body: JSON.stringify({ page: 1, limit: 20 }),
+    body: JSON.stringify({ page, page_size: pageSize }),
+  });
+
+export const createCommunityPost = (req: {
+  userId: string;
+  authorNickname: string;
+  authorEmoji: string;
+  title: string;
+  body: string;
+  tags: string[];
+}) =>
+  request<CommunityPost>("http://localhost:50053/community.CommunityService/CreatePost", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+
+export const updateCommunityPost = (req: {
+  postId: string;
+  title: string;
+  body: string;
+  tags: string[];
+}) =>
+  request<CommunityPost>("http://localhost:50053/community.CommunityService/UpdatePost", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+
+export const deleteCommunityPost = (postId: string) =>
+  request<{ success: boolean }>("http://localhost:50053/community.CommunityService/DeletePost", {
+    method: "POST",
+    body: JSON.stringify({ postId }),
   });
 
 export const runVideoAnalysis = (videoFile: File) => {

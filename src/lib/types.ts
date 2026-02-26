@@ -136,6 +136,7 @@ export interface CommunityPost {
   comments: number;
   createdAt: string;
   tags: string[];
+  userId?: string;
 }
 
 export interface CommunityFeed {

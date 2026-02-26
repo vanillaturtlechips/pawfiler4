@@ -33,7 +33,7 @@ const Header = () => {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
-        <span className="text-4xl drop-shadow-lg">🌲</span> DeepFind
+        <span className="text-4xl drop-shadow-lg">🐾</span> PawFiler
       </motion.div>
 
       <nav className="flex gap-2.5 items-center">

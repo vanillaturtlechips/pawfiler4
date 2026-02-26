@@ -1,14 +1,23 @@
-FROM golang:1.23-alpine AS builder
-RUN apk add --no-cache git
+FROM golang:1.22-alpine AS builder
+
 WORKDIR /app
-COPY go.mod main.go ./
-RUN go mod tidy && go mod download
+
+# Copy go mod and sum files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
 COPY . .
-RUN go mod tidy
-RUN go build -o community-service .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o community-service .
 
 FROM alpine:latest
+
 WORKDIR /app
+
 COPY --from=builder /app/community-service .
+
 EXPOSE 50053
+
 CMD ["./community-service"]

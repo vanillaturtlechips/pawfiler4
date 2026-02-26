@@ -63,9 +63,6 @@ static_resources:
                 expose_headers: "x-request-id"
                 max_age: "86400"
           http_filters:
-          - name: envoy.filters.http.grpc_web
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
           - name: envoy.filters.http.cors
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
@@ -78,6 +75,7 @@ static_resources:
     connect_timeout: 5s
     type: STRICT_DNS
     lb_policy: ROUND_ROBIN
+    http2_protocol_options: {}
     load_assignment:
       cluster_name: auth_service
       endpoints:

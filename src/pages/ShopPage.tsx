@@ -1,31 +1,25 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import WoodPanel from "@/components/WoodPanel";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { getSubscriptionPlans, checkout } from "@/lib/api";
+import { getSubscriptionPlans, mockCheckout } from "@/lib/mockApi";
 import type { SubscriptionPlan } from "@/lib/types";
+
+const plans = getSubscriptionPlans();
 
 const ShopPage = () => {
   const { token, user, updateUser } = useAuth();
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>(plans[0]);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    getSubscriptionPlans().then((res) => {
-      setPlans(res.plans);
-      setSelectedPlan(res.plans[0]);
-    });
-  }, []);
-
   const handleCheckout = async () => {
-    if (!token || !selectedPlan) return;
+    if (!token) return;
     setProcessing(true);
     try {
-      const res = await checkout({ planId: selectedPlan.id });
+      const res = await mockCheckout(token, { planId: selectedPlan.id });
       if (res.success) {
         updateUser({ subscriptionType: res.newSubscriptionType });
         setSuccess(true);
@@ -109,7 +103,7 @@ const ShopPage = () => {
               </motion.div>
               <h2 className="font-jua text-3xl text-shadow-deep">비밀 상점</h2>
               <p className="text-lg leading-relaxed opacity-80">
-                {selectedPlan?.name} 플랜을 선택했어요!<br />
+                {selectedPlan.name} 플랜을 선택했어요!<br />
                 프리미엄 탐정이 되어 무제한 분석을 즐기세요!
               </p>
               {user?.subscriptionType === "premium" ? (
@@ -122,7 +116,7 @@ const ShopPage = () => {
                   onClick={handleCheckout}
                   className={processing ? "opacity-50 pointer-events-none" : ""}
                 >
-                  {processing ? "⏳ 결제 중..." : `💳 ₩${selectedPlan?.price.toLocaleString()} 결제하기`}
+                  {processing ? "⏳ 결제 중..." : `💳 ₩${selectedPlan.price.toLocaleString()} 결제하기`}
                 </GameButton>
               )}
             </WoodPanel>

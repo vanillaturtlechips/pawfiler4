@@ -1,4 +1,4 @@
-module quiz-service
+module github.com/pawfiler/backend/services/quiz
 
 go 1.24.0
 
