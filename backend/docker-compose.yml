@@ -109,8 +109,8 @@ services:
   # Video Analysis Service (Python)
   video-analysis-service:
     build:
-      context: ./services/video-analysis
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/video-analysis/Dockerfile
     container_name: pawfiler-video-analysis
     environment:
       DATABASE_URL: postgresql://pawfiler:dev_password@postgres:5432/pawfiler
