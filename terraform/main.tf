@@ -20,21 +20,21 @@ resource "aws_internet_gateway" "main" {
 }
 
 resource "aws_eip" "nat_gateway" {
-  count  = length(var.public_subnet_cidrs)
+
   domain = "vpc"
 
   tags = {
-    Name = "${var.project_name}-nat-eip-${count.index}"
+    Name = "${var.project_name}-nat-eip"
   }
 }
 
 resource "aws_nat_gateway" "main" {
-  count         = length(var.public_subnet_cidrs)
-  allocation_id = aws_eip.nat_gateway[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
+
+  allocation_id = aws_eip.nat_gateway.id
+  subnet_id     = aws_subnet.public[0].id
 
   tags = {
-    Name = "${var.project_name}-nat-gateway-${count.index}"
+    Name = "${var.project_name}-nat-gateway"
   }
   depends_on = [aws_internet_gateway.main]
 }
@@ -86,23 +86,22 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_route_table" "private" {
-  count  = length(aws_subnet.private)
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
+    nat_gateway_id = aws_nat_gateway.main.id
   }
 
   tags = {
-    Name = "${var.project_name}-private-rt-${count.index}"
+    Name = "${var.project_name}-private-rt"
   }
 }
 
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+  route_table_id = aws_route_table.private.id
 }
 
 data "aws_availability_zones" "available" {
@@ -122,6 +121,19 @@ resource "aws_iam_role" "eks_cluster_role" {
         Effect = "Allow"
         Principal = {
           Service = "eks.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          # 명시된 사용자들이 관리 목적으로 이 역할을 맡을 수 있음
+          AWS = [
+            "arn:aws:iam::009946608368:user/SGO-Junghan",
+            "arn:aws:iam::009946608368:user/SGO-Jaewon",
+            "arn:aws:iam::009946608368:user/RAPA_Admin",
+            "arn:aws:iam::009946608368:user/SGO-Moonjae"
+          ]
         }
         Action = "sts:AssumeRole"
       }
