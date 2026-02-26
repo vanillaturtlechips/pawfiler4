@@ -15,38 +15,59 @@ import CommunityPage from "@/pages/CommunityPage";
 import ShopPage from "@/pages/ShopPage";
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "./pages/NotFound";
+import { useState, useCallback } from "react";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <ParallaxBackground>
-            <Header />
-            <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none">
-              <div className="mx-auto h-full w-full max-w-[1500px] px-5">
-                <AnimatePresence mode="wait">
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/game" element={<AuthGuard><GamePage /></AuthGuard>} />
-                    <Route path="/analysis" element={<AuthGuard><AnalysisPage /></AuthGuard>} />
-                    <Route path="/community" element={<AuthGuard><CommunityPage /></AuthGuard>} />
-                    <Route path="/shop" element={<AuthGuard><ShopPage /></AuthGuard>} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </AnimatePresence>
+const App = () => {
+  const [showHeader, setShowHeader] = useState(false);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const { clientY } = e;
+    // 화면 상단 50px 이내로 마우스가 들어오면 헤더 표시
+    if (clientY < 50) {
+      setShowHeader(true);
+    } else {
+      // 화면 상단을 벗어나면 헤더 숨김
+      setShowHeader(false);
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <ParallaxBackground>
+              <div 
+                className="min-h-screen"
+                onMouseMove={handleMouseMove}
+              >
+                <Header isVisible={showHeader} />
+                <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none pt-20">
+                  <div className="mx-auto h-full w-full max-w-[1500px] px-5">
+                    <AnimatePresence mode="wait">
+                      <Routes>
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/game" element={<AuthGuard><GamePage /></AuthGuard>} />
+                        <Route path="/analysis" element={<AuthGuard><AnalysisPage /></AuthGuard>} />
+                        <Route path="/community" element={<AuthGuard><CommunityPage /></AuthGuard>} />
+                        <Route path="/shop" element={<AuthGuard><ShopPage /></AuthGuard>} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </AnimatePresence>
+                  </div>
+                </main>
               </div>
-            </main>
-          </ParallaxBackground>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+            </ParallaxBackground>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
