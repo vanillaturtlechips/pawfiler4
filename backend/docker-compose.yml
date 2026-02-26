@@ -63,24 +63,24 @@ services:
       - pawfiler-network
 
   # Auth Service
-  auth-service:
-    build:
-      context: ./services/auth
-      dockerfile: Dockerfile
-    container_name: pawfiler-auth
-    environment:
-      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
-      JWT_SECRET: dev_jwt_secret_change_in_production
-      KAFKA_BROKERS: kafka:29092
-    ports:
-      - "50051:50051"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
-    networks:
-      - pawfiler-network
+  # auth-service:
+  #   build:
+  #     context: ./services/auth
+  #     dockerfile: Dockerfile
+  #   container_name: pawfiler-auth
+  #   environment:
+  #     DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+  #     JWT_SECRET: dev_jwt_secret_change_in_production
+  #     KAFKA_BROKERS: kafka:29092
+  #   ports:
+  #     - "50051:50051"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_started
+  #   networks:
+  #     - pawfiler-network
 
   # Quiz Service
   quiz-service:
@@ -148,42 +148,42 @@ services:
       - pawfiler-network
 
   # Payment Service
-  payment-service:
-    build:
-      context: ./services/payment
-      dockerfile: Dockerfile
-    container_name: pawfiler-payment
-    environment:
-      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
-      KAFKA_BROKERS: kafka:29092
-    ports:
-      - "50055:50055"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_started
-    networks:
-      - pawfiler-network
+  # payment-service:
+  #   build:
+  #     context: ./services/payment
+  #     dockerfile: Dockerfile
+  #   container_name: pawfiler-payment
+  #   environment:
+  #     DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+  #     KAFKA_BROKERS: kafka:29092
+  #   ports:
+  #     - "50055:50055"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_started
+  #   networks:
+  #     - pawfiler-network
 
   # Dashboard BFF
-  dashboard-bff:
-    build:
-      context: ./services/dashboard-bff
-      dockerfile: Dockerfile
-    container_name: pawfiler-dashboard-bff
-    environment:
-      AUTH_SERVICE_URL: auth-service:50051
-      QUIZ_SERVICE_URL: quiz-service:50052
-      COMMUNITY_SERVICE_URL: community-service:50053
-    ports:
-      - "50056:50056"
-    depends_on:
-      - auth-service
-      - quiz-service
-      - community-service
-    networks:
-      - pawfiler-network
+  # dashboard-bff:
+  #   build:
+  #     context: ./services/dashboard-bff
+  #     dockerfile: Dockerfile
+  #   container_name: pawfiler-dashboard-bff
+  #   environment:
+  #     AUTH_SERVICE_URL: auth-service:50051
+  #     QUIZ_SERVICE_URL: quiz-service:50052
+  #     COMMUNITY_SERVICE_URL: community-service:50053
+  #   ports:
+  #     - "50056:50056"
+  #   depends_on:
+  #     - auth-service
+  #     - quiz-service
+  #     - community-service
+  #   networks:
+  #     - pawfiler-network
 
 volumes:
   postgres_data:

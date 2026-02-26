@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -26,6 +27,11 @@ type FeedResponse struct {
 	Posts      []Post `json:"posts"`
 	TotalCount int    `json:"totalCount"`
 	Page       int    `json:"page"`
+}
+
+type FeedRequest struct {
+	Page     int `json:"page"`
+	PageSize int `json:"page_size"`
 }
 
 type CreatePostRequest struct {
@@ -68,10 +74,35 @@ var (
 )
 
 func getFeedHandler(w http.ResponseWriter, r *http.Request) {
+	var req FeedRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 20
+	}
+	if req.PageSize > 100 {
+		req.PageSize = 100
+	}
+
 	postsMu.RLock()
-	defer postsMu.RUnlock()
+	total := len(posts)
+	start := (req.Page - 1) * req.PageSize
+	if start > total {
+		start = total
+	}
+	end := start + req.PageSize
+	if end > total {
+		end = total
+	}
+	pageSlice := make([]Post, end-start)
+	copy(pageSlice, posts[start:end])
+	postsMu.RUnlock()
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(FeedResponse{Posts: posts, TotalCount: len(posts), Page: 1})
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
+	json.NewEncoder(w).Encode(FeedResponse{Posts: pageSlice, TotalCount: total, Page: req.Page})
 }
 
 func createPostHandler(w http.ResponseWriter, r *http.Request) {

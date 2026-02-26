@@ -1,6 +1,6 @@
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -43,13 +43,8 @@ const CommunityPage = () => {
   const { token, user } = useAuth();
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Feed & Pagination State
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const pageSize = 10;
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const pageSize = 20;
+  const [activeTab, setActiveTab] = useState<"popular" | "latest">("popular");
 
   // Search State
   const [query, setQuery] = useState("");
@@ -61,36 +56,26 @@ const CommunityPage = () => {
   const [formBody, setFormBody] = useState("");
   const [formTags, setFormTags] = useState("");
 
-  const fetchFeed = async (p: number, reset = false) => {
+  const fetchFeed = async () => {
     try {
-      if (reset) setLoading(true);
-      else setLoadingMore(true);
+      setLoading(true);
 
-      const feed = await fetchCommunityFeed(p, pageSize);
-      setTotalCount(feed.totalCount);
-      
-      if (reset) {
-        setPage(1);
-        setPosts(feed.posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      } else {
-        setPage(p);
-        setPosts((prev) => {
-          const merged = [...prev, ...feed.posts];
-          const unique = Array.from(new Map(merged.map((p) => [p.id, p])).values());
-          return unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        });
-      }
+      const feed = await fetchCommunityFeed(1, pageSize);
+      setPosts(
+        feed.posts.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      );
     } catch (error) {
       toast.error("피드를 불러오는데 실패했습니다.");
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
     if (!token) return;
-    fetchFeed(1, true);
+    fetchFeed();
   }, [token]);
 
   const handleOpenCreate = () => {
@@ -164,36 +149,33 @@ const CommunityPage = () => {
   };
 
   const normalizedQuery = query.trim().toLowerCase();
-  const visiblePosts = normalizedQuery
+  const filtered = normalizedQuery
     ? posts.filter((p) => {
         const hay = `${p.title} ${p.body} ${p.tags.join(" ")}`.toLowerCase();
         return hay.includes(normalizedQuery);
       })
     : posts;
-
-  useEffect(() => {
-    if (!token) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        const canLoadMore = posts.length < totalCount;
-        if (entry.isIntersecting && !loading && !loadingMore && canLoadMore) {
-          fetchFeed(page + 1);
-        }
-      },
-      { threshold: 0.1 }
-    );
-    const el = sentinelRef.current;
-    if (el) observer.observe(el);
-    return () => {
-      if (el) observer.unobserve(el);
-      observer.disconnect();
-    };
-  }, [token, loading, loadingMore, posts.length, totalCount, page]);
+  const visiblePosts =
+    activeTab === "popular"
+      ? [...filtered].sort((a, b) => b.likes - a.likes)
+      : [...filtered].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+  const tagCounts = posts
+    .flatMap((p) => p.tags)
+    .reduce<Record<string, number>>((acc, t) => {
+      acc[t] = (acc[t] || 0) + 1;
+      return acc;
+    }, {});
+  const trendingTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([t]) => t);
 
   return (
     <motion.div
-      className="min-h-screen flex flex-col gap-6 p-6 max-w-[1200px] mx-auto overflow-x-hidden"
+      className="min-h-screen flex flex-col gap-6 px-6 pb-6 pt-0 w-full mx-auto overflow-x-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
@@ -231,10 +213,29 @@ const CommunityPage = () => {
             </button>
           )}
         </div>
+        <div className="flex gap-2">
+          <Button
+            variant={activeTab === "popular" ? "default" : "ghost"}
+            onClick={() => setActiveTab("popular")}
+            className="font-jua rounded-xl"
+          >
+            🔥 인기
+          </Button>
+          <Button
+            variant={activeTab === "latest" ? "default" : "ghost"}
+            onClick={() => setActiveTab("latest")}
+            className="font-jua rounded-xl"
+          >
+            ⏱ 최신
+          </Button>
+        </div>
       </header>
 
       {/* Main Content Layout */}
-      <div className="flex gap-8 relative">
+      <div
+        className="flex gap-8 relative overflow-y-auto pr-1"
+        style={{ maxHeight: "calc(100vh - 8rem)" }}
+      >
         {/* Left: Feed */}
         <div className="flex-1 flex flex-col gap-6">
           {loading ? (
@@ -346,6 +347,7 @@ const CommunityPage = () => {
                                 key={t} 
                                 variant="secondary" 
                                 className="bg-white/50 hover:bg-orange-100 text-orange-700 border-none px-4 py-1.5 text-sm font-jua rounded-xl transition-colors cursor-pointer"
+                                onClick={() => setQuery(t)}
                               >
                                 #{t}
                               </Badge>
@@ -377,19 +379,6 @@ const CommunityPage = () => {
               </div>
             </AnimatePresence>
           )}
-          
-          <div ref={sentinelRef} className="h-10 w-full" />
-          {loadingMore && (
-            <div className="flex justify-center py-10">
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                className="text-4xl"
-              >
-                🦉
-              </motion.div>
-            </div>
-          )}
         </div>
 
         {/* Right: Sidebar */}
@@ -412,6 +401,24 @@ const CommunityPage = () => {
                     <span>💬 {item.comments}</span>
                   </div>
                 </div>
+              ))}
+            </div>
+          </ParchmentPanel>
+
+          <ParchmentPanel className="p-6 rounded-3xl border-4">
+            <h4 className="font-jua text-2xl mb-4 flex items-center gap-2">
+              인기 태그
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {trendingTags.map((t) => (
+                <Badge
+                  key={t}
+                  variant="secondary"
+                  onClick={() => setQuery(t)}
+                  className="cursor-pointer bg-white/50 hover:bg-orange-100 text-orange-700 border-none px-4 py-1.5 rounded-xl"
+                >
+                  #{t}
+                </Badge>
               ))}
             </div>
           </ParchmentPanel>
