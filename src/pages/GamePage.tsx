@@ -7,6 +7,7 @@ import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats } from "@/lib/api";
+import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, LegacyQuizQuestion, QuizStats } from "@/lib/types";
 import MultipleChoiceQuestion from "@/components/quiz/MultipleChoiceQuestion";
 import TrueFalseQuestion from "@/components/quiz/TrueFalseQuestion";
@@ -82,7 +83,7 @@ const GamePage = () => {
   }, [gameFinished]);
 
   const loadQuestion = async () => {
-    if (questionCount >= 1) {  // 임시로 1개로 변경 (원래는 10)
+    if (questionCount >= config.quizQuestionsPerGame) {
       setGameFinished(true);
       await fetchUserStats().then(setStats).catch(console.error);
       return;
@@ -204,30 +205,17 @@ const GamePage = () => {
   };
 
   return (
-    <motion.div
-      className={`grid h-full gap-7 p-5 ${
-        // Region Select와 Comparison은 전체 화면 사용
-        question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')
-          ? "grid-cols-1"
-          : videoOrientation === "portrait" 
-          ? "grid-cols-1 grid-rows-[1fr_auto]" 
-          : "grid-cols-[1fr_2fr]"
-      }`}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-      style={gameFinished ? {
-        position: 'fixed',
-        inset: 0,
-        padding: 0,
-        margin: 0,
-        zIndex: 50
-      } : undefined}
-    >
-      {/* 게임 종료 화면 */}
+    <div className="h-[calc(100vh-5rem)] w-full overflow-hidden">
       {gameFinished ? (
+        /* 게임 종료 화면 */
+        <motion.div
+          className="fixed inset-0 z-50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        >
         <div 
-          className="col-span-full flex items-center justify-center h-screen w-screen relative overflow-hidden"
+          className="flex items-center justify-center h-full w-full relative"
           style={{
             backgroundImage: 'url(/celebration-background.png)',
             backgroundSize: 'cover',
@@ -238,12 +226,18 @@ const GamePage = () => {
           <motion.img
             src="/fox-celebration.png"
             alt="Fox Celebration"
-            className="absolute left-10 bottom-0 h-1/2 object-contain"
+            className="absolute left-0 object-contain"
+            style={{ 
+              maxWidth: '45%',
+              height: '55%',
+              bottom: '-15%',
+              top: 'auto'
+            }}
             initial={{ x: -200, opacity: 0 }}
             animate={{ 
               x: 0, 
               opacity: 1,
-              y: [0, -30, 0]
+              y: [0, -20, 0]
             }}
             transition={{ 
               x: { duration: 0.8, delay: 0.2 },
@@ -261,12 +255,18 @@ const GamePage = () => {
           <motion.img
             src="/nuguri-celebration.png"
             alt="Nuguri Celebration"
-            className="absolute right-10 bottom-0 h-1/2 object-contain"
+            className="absolute right-0 object-contain"
+            style={{ 
+              maxWidth: '45%',
+              height: '55%',
+              bottom: '-15%',
+              top: 'auto'
+            }}
             initial={{ x: 200, opacity: 0 }}
             animate={{ 
               x: 0, 
               opacity: 1,
-              y: [0, -30, 0]
+              y: [0, -20, 0]
             }}
             transition={{ 
               x: { duration: 0.8, delay: 0.2 },
@@ -339,8 +339,23 @@ const GamePage = () => {
             </WoodPanel>
           </motion.div>
         </div>
+        </motion.div>
       ) : (
-        <>
+        /* 일반 퀴즈 화면 */
+        <motion.div
+          className="grid h-full gap-8 p-6"
+          style={{
+            gridTemplateColumns: 
+              question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')
+                ? '1fr'
+                : videoOrientation === "portrait" 
+                ? '1fr'
+                : '1.5fr 2fr'
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        >
           {/* Left: Video Section - Region Select와 Comparison일 때는 숨김 */}
           {!(question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')) && (
         <WoodPanel className="flex flex-col">
@@ -413,23 +428,27 @@ const GamePage = () => {
             </>
           ) : null}
         </WoodPanel>
-      )}
+          )}
 
-      {/* Right: Quiz Section */}
+          {/* Right: Quiz Section */}
       <WoodPanel className="flex flex-col relative z-30">
         {/* Header - 모든 유형 통일 */}
-        <div className="flex items-center justify-between mb-5 relative z-40">
-          <h2 className="font-jua text-3xl text-shadow-deep">
+        <div className="flex items-center justify-between mb-5 relative z-40 flex-wrap gap-2">
+          <h2 className="font-jua text-2xl sm:text-3xl text-shadow-deep flex-shrink-0">
             {question && 'type' in question && question.type === 'region_select' 
               ? "🔍 의심 부분 찾기"
+              : question && 'type' in question && question.type === 'comparison'
+              ? "⚖️ 가짜 비교하기"
+              : question && 'type' in question && question.type === 'true_false'
+              ? "✅ 진짜 가짜 판별"
               : "🎬 가짜를 찾아라!"}
           </h2>
-          <div className="flex items-center gap-4">
-            <div className="font-jua text-lg text-shadow-deep">
-              📊 정답률 {sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0}%
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
+              📊 {sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0}%
             </div>
-            <div className="font-jua text-lg text-shadow-deep">
-              📈 {questionCount}/10
+            <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
+              📈 {questionCount}/{config.quizQuestionsPerGame}
             </div>
           </div>
         </div>
@@ -444,7 +463,7 @@ const GamePage = () => {
         ) : question ? (
           <div className="flex flex-1 flex-col gap-4 min-h-0">
             {/* Render appropriate question type */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-hidden px-1">
               {(() => {
                 if ('type' in question) {
                   switch (question.type) {
@@ -470,35 +489,41 @@ const GamePage = () => {
                       );
                     case 'region_select':
                       return (
-                        <RegionSelectQuestion
-                          question={question}
-                          selectedRegion={selectedRegion}
-                          onSelect={setSelectedRegion}
-                          showResult={result !== null}
-                          isCorrect={result?.correct}
-                          onSubmit={result ? undefined : handleSubmit}
-                          canSubmit={selectedRegion !== null}
-                          submitting={submitting}
-                          onNext={loadQuestion}
-                          resultExplanation={result?.explanation}
-                          coinsEarned={result?.coinsEarned}
-                        />
+                        <div className="flex flex-col gap-3">
+                          <p className="font-jua text-xl text-center">🔍 딥페이크가 의심되는 부분을 클릭하세요</p>
+                          <RegionSelectQuestion
+                            question={question}
+                            selectedRegion={selectedRegion}
+                            onSelect={setSelectedRegion}
+                            showResult={result !== null}
+                            isCorrect={result?.correct}
+                            onSubmit={result ? undefined : handleSubmit}
+                            canSubmit={selectedRegion !== null}
+                            submitting={submitting}
+                            onNext={loadQuestion}
+                            resultExplanation={result?.explanation}
+                            coinsEarned={result?.coinsEarned}
+                          />
+                        </div>
                       );
                     case 'comparison':
                       return (
-                        <ComparisonQuestion
-                          question={question}
-                          selectedSide={selectedSide}
-                          onSelect={setSelectedSide}
-                          showResult={result !== null}
-                          isCorrect={result?.correct}
-                          onSubmit={result ? undefined : handleSubmit}
-                          canSubmit={selectedSide !== null}
-                          submitting={submitting}
-                          onNext={loadQuestion}
-                          resultExplanation={result?.explanation}
-                          coinsEarned={result?.coinsEarned}
-                        />
+                        <div className="flex flex-col gap-3">
+                          <p className="font-jua text-xl text-center">⚖️ 어느 쪽이 진짜 영상인지 선택하세요</p>
+                          <ComparisonQuestion
+                            question={question}
+                            selectedSide={selectedSide}
+                            onSelect={setSelectedSide}
+                            showResult={result !== null}
+                            isCorrect={result?.correct}
+                            onSubmit={result ? undefined : handleSubmit}
+                            canSubmit={selectedSide !== null}
+                            submitting={submitting}
+                            onNext={loadQuestion}
+                            resultExplanation={result?.explanation}
+                            coinsEarned={result?.coinsEarned}
+                          />
+                        </div>
                       );
                     default:
                       return null;
@@ -540,7 +565,7 @@ const GamePage = () => {
               })()}
             </div>
 
-            {/* Submit / Result - 항상 하단에 고정 (RegionSelect, Comparison 제외) */}
+            {/* Submit / Result - 항상 하단에 고정 (Region Select, Comparison 제외) */}
             {!(question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')) && (
               <AnimatePresence mode="wait">
                 {result ? (
@@ -585,9 +610,9 @@ const GamePage = () => {
           </div>
         ) : null}
       </WoodPanel>
-      </>
+        </motion.div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

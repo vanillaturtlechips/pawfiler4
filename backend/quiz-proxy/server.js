@@ -21,10 +21,13 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const quizProto = grpc.loadPackageDefinition(packageDefinition).quiz;
 
 // Create gRPC client
+const QUIZ_SERVICE_URL = process.env.QUIZ_SERVICE_URL || 'localhost:50052';
 const client = new quizProto.QuizService(
-  'localhost:50052',
+  QUIZ_SERVICE_URL,
   grpc.credentials.createInsecure()
 );
+
+console.log(`Connecting to Quiz Service at ${QUIZ_SERVICE_URL}`);
 
 // REST endpoints
 app.post('/api/quiz/random', (req, res) => {

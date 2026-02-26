@@ -55,25 +55,120 @@ const MOCK_USER: UserProfile = {
 };
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
+  // Multiple Choice 문제
   {
     id: "q1",
-    videoUrl: "",
+    type: "multiple_choice",
+    mediaType: "video",
+    mediaUrl: "https://example.com/video1.mp4",
     thumbnailEmoji: "🎬",
+    difficulty: "easy",
+    category: "deepfake-detection",
     options: ["입 모양이 어색해요", "눈 깜빡임이 없어요", "머리카락이 흔들려요", "목소리가 달라요"],
     correctIndex: 1,
     explanation: "딥페이크 영상에서는 눈 깜빡임이 부자연스러운 경우가 많아요!",
-    difficulty: "easy",
   },
   {
     id: "q2",
-    videoUrl: "",
+    type: "multiple_choice",
+    mediaType: "video",
+    mediaUrl: "https://example.com/video2.mp4",
     thumbnailEmoji: "🎥",
+    difficulty: "medium",
+    category: "deepfake-detection",
     options: ["배경이 자연스러워요", "얼굴 경계가 번져요", "음성이 정확해요", "조명이 일치해요"],
     correctIndex: 1,
     explanation: "얼굴 합성 경계 부분이 번지거나 흐릿한 건 딥페이크의 대표 특징이에요!",
-    difficulty: "medium",
   },
-];
+  {
+    id: "q3",
+    type: "multiple_choice",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image1.jpg",
+    thumbnailEmoji: "🖼️",
+    difficulty: "hard",
+    category: "deepfake-detection",
+    options: ["조명 방향이 일치해요", "그림자가 부자연스러워요", "색감이 자연스러워요", "해상도가 높아요"],
+    correctIndex: 1,
+    explanation: "딥페이크는 조명과 그림자를 정확하게 재현하기 어려워요!",
+  },
+  
+  // True/False 문제
+  {
+    id: "q4",
+    type: "true_false",
+    mediaType: "video",
+    mediaUrl: "https://example.com/video3.mp4",
+    thumbnailEmoji: "🦊",
+    difficulty: "easy",
+    category: "deepfake-detection",
+    correctAnswer: true,
+    explanation: "이 영상은 딥페이크입니다. 얼굴 경계선이 부자연스럽고 조명 방향이 일치하지 않습니다.",
+  },
+  {
+    id: "q5",
+    type: "true_false",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image2.jpg",
+    thumbnailEmoji: "🐻",
+    difficulty: "medium",
+    category: "deepfake-detection",
+    correctAnswer: false,
+    explanation: "이 이미지는 실제 사진입니다. 모든 요소가 자연스럽게 일치합니다.",
+  },
+  
+  // Region Select 문제
+  {
+    id: "q6",
+    type: "region_select",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image3.jpg",
+    thumbnailEmoji: "🔍",
+    difficulty: "hard",
+    category: "deepfake-detection",
+    correctRegions: [{ x: 150, y: 200, radius: 30 }],
+    tolerance: 20,
+    explanation: "귀 주변 경계선이 부자연스럽습니다. 합성 흔적이 명확하게 보입니다.",
+  },
+  {
+    id: "q7",
+    type: "region_select",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image4.jpg",
+    thumbnailEmoji: "🎯",
+    difficulty: "medium",
+    category: "deepfake-detection",
+    correctRegions: [{ x: 200, y: 150, radius: 25 }],
+    tolerance: 20,
+    explanation: "눈 주변의 픽셀 왜곡이 발견됩니다. AI 생성 이미지의 전형적인 특징입니다.",
+  },
+  
+  // Comparison 문제
+  {
+    id: "q8",
+    type: "comparison",
+    mediaType: "image",
+    mediaUrl: "https://example.com/compare1_left.jpg",
+    thumbnailEmoji: "⚖️",
+    difficulty: "medium",
+    category: "deepfake-detection",
+    comparisonMediaUrl: "https://example.com/compare1_right.jpg",
+    correctSide: "left",
+    explanation: "왼쪽 이미지가 딥페이크입니다. 눈동자 반사가 부자연스럽고 피부 텍스처가 과도하게 매끄럽습니다.",
+  },
+  {
+    id: "q9",
+    type: "comparison",
+    mediaType: "image",
+    mediaUrl: "https://example.com/compare2_left.jpg",
+    thumbnailEmoji: "🎭",
+    difficulty: "hard",
+    category: "deepfake-detection",
+    comparisonMediaUrl: "https://example.com/compare2_right.jpg",
+    correctSide: "right",
+    explanation: "오른쪽 이미지가 딥페이크입니다. 머리카락 경계가 흐릿하고 배경과의 경계선이 부자연스럽습니다.",
+  },
+] as QuizQuestion[];
 
 const MOCK_COMMUNITY_POSTS = [
   { id: "p1", authorNickname: "꼬마 탐정", authorEmoji: "🐱", title: "딥페이크 찾는 꿀팁 공유!", body: "눈 깜빡임을 잘 보세요...", likes: 42, comments: 7, createdAt: "2026-02-20T10:00:00Z", tags: ["팁", "초보"] },
@@ -143,13 +238,51 @@ export async function fetchQuizQuestion(token: string): Promise<QuizQuestion> {
 export async function submitQuizAnswer(token: string, req: QuizSubmitRequest): Promise<QuizSubmitResponse> {
   withAuth(token);
   await delay(400, 700);
-  const q = MOCK_QUIZ_QUESTIONS.find((q) => q.id === req.questionId);
-  const correct = q ? req.selectedIndex === q.correctIndex : false;
+  
+  const q = MOCK_QUIZ_QUESTIONS.find((question) => question.id === req.questionId);
+  if (!q) {
+    return {
+      correct: false,
+      xpEarned: 0,
+      coinsEarned: 0,
+      explanation: "문제를 찾을 수 없습니다.",
+      streakCount: 0,
+    };
+  }
+
+  let correct = false;
+
+  // 타입별 정답 체크
+  if ('type' in q) {
+    switch (q.type) {
+      case 'multiple_choice':
+        correct = req.selectedIndex === q.correctIndex;
+        break;
+      case 'true_false':
+        correct = req.selectedAnswer === q.correctAnswer;
+        break;
+      case 'region_select':
+        // 간단한 거리 계산
+        if (req.selectedRegion && q.correctRegions.length > 0) {
+          const region = q.correctRegions[0];
+          const distance = Math.sqrt(
+            Math.pow(req.selectedRegion.x - region.x, 2) +
+            Math.pow(req.selectedRegion.y - region.y, 2)
+          );
+          correct = distance <= (region.radius + q.tolerance);
+        }
+        break;
+      case 'comparison':
+        correct = req.selectedSide === q.correctSide;
+        break;
+    }
+  }
+
   return {
     correct,
     xpEarned: correct ? 100 : 10,
     coinsEarned: correct ? 25 : 0,
-    explanation: q?.explanation ?? "",
+    explanation: q.explanation,
     streakCount: correct ? 3 : 0,
   };
 }

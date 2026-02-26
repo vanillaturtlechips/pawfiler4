@@ -21,22 +21,43 @@ CREATE INDEX idx_users_email ON auth.users(email);
 -- Quiz Service Schema
 CREATE SCHEMA IF NOT EXISTS quiz;
 
+CREATE TYPE quiz.question_type AS ENUM ('multiple_choice', 'true_false', 'region_select', 'comparison');
+CREATE TYPE quiz.media_type AS ENUM ('video', 'image');
+
 CREATE TABLE quiz.questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    video_url TEXT NOT NULL,
+    type quiz.question_type NOT NULL DEFAULT 'multiple_choice',
+    media_type quiz.media_type NOT NULL DEFAULT 'video',
+    media_url TEXT NOT NULL,
     thumbnail_emoji VARCHAR(10) NOT NULL,
-    options TEXT[] NOT NULL,
-    correct_index INTEGER NOT NULL,
-    explanation TEXT NOT NULL,
     difficulty VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
+    category VARCHAR(100) DEFAULT 'deepfake-detection',
+    explanation TEXT NOT NULL,
+    
+    -- Multiple Choice fields
+    options TEXT[],
+    correct_index INTEGER,
+    
+    -- True/False fields
+    correct_answer BOOLEAN,
+    
+    -- Region Select fields
+    correct_regions JSONB,
+    tolerance INTEGER,
+    
+    -- Comparison fields
+    comparison_media_url TEXT,
+    correct_side VARCHAR(10),
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE quiz.user_answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     question_id UUID NOT NULL,
-    selected_index INTEGER NOT NULL,
+    answer_data JSONB NOT NULL,
     is_correct BOOLEAN NOT NULL,
     xp_earned INTEGER DEFAULT 0,
     coins_earned INTEGER DEFAULT 0,
@@ -56,6 +77,8 @@ CREATE TABLE quiz.user_stats (
 
 CREATE INDEX idx_user_answers_user_id ON quiz.user_answers(user_id);
 CREATE INDEX idx_user_answers_question_id ON quiz.user_answers(question_id);
+CREATE INDEX idx_questions_type ON quiz.questions(type);
+CREATE INDEX idx_questions_difficulty ON quiz.questions(difficulty);
 
 -- Community Service Schema
 CREATE SCHEMA IF NOT EXISTS community;
@@ -155,7 +178,17 @@ CREATE INDEX idx_subscriptions_user_id ON payment.subscriptions(user_id);
 CREATE INDEX idx_transactions_user_id ON payment.transactions(user_id);
 
 -- Insert sample data
-INSERT INTO quiz.questions (video_url, thumbnail_emoji, options, correct_index, explanation, difficulty) VALUES
-('https://example.com/video1.mp4', '🐶', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 1, '이 영상은 AI로 생성된 딥페이크입니다. 눈 깜빡임 패턴이 부자연스럽습니다.', 'easy'),
-('https://example.com/video2.mp4', '🐱', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 0, '이 영상은 실제 촬영된 영상입니다.', 'medium'),
-('https://example.com/video3.mp4', '🐰', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 1, '얼굴 경계선에서 미세한 왜곡이 발견됩니다.', 'hard');
+INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index) VALUES
+('multiple_choice', 'video', 'https://example.com/video1.mp4', '🐶', 'easy', 'deepfake-detection', '이 영상은 AI로 생성된 딥페이크입니다. 눈 깜빡임 패턴이 부자연스럽습니다.', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 1),
+('multiple_choice', 'video', 'https://example.com/video2.mp4', '🐱', 'medium', 'deepfake-detection', '이 영상은 실제 촬영된 영상입니다.', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 0),
+('multiple_choice', 'video', 'https://example.com/video3.mp4', '🐰', 'hard', 'deepfake-detection', '얼굴 경계선에서 미세한 왜곡이 발견됩니다.', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 1);
+
+INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, correct_answer) VALUES
+('true_false', 'video', 'https://example.com/video4.mp4', '🦊', 'easy', 'deepfake-detection', '이 영상은 딥페이크입니다. 조명 방향이 일치하지 않습니다.', true),
+('true_false', 'image', 'https://example.com/image1.jpg', '🐻', 'medium', 'deepfake-detection', '이 이미지는 실제 사진입니다.', false);
+
+INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, correct_regions, tolerance) VALUES
+('region_select', 'image', 'https://example.com/image2.jpg', '🔍', 'hard', 'deepfake-detection', '귀 주변 경계선이 부자연스럽습니다.', '[{"x": 150, "y": 200, "radius": 30}]'::jsonb, 20);
+
+INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, comparison_media_url, correct_side) VALUES
+('comparison', 'image', 'https://example.com/compare1_left.jpg', '⚖️', 'medium', 'deepfake-detection', '왼쪽 이미지가 딥페이크입니다. 눈동자 반사가 부자연스럽습니다.', 'https://example.com/compare1_right.jpg', 'left');

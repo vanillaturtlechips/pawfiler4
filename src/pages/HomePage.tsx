@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import MagicDoor from "@/components/MagicDoor";
 import { useState, useEffect } from "react";
+import { config } from "@/lib/config";
 
 const HomePage = () => {
   const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     // localStorage에서 첫 접속 여부 확인
-    const hasSeenTutorial = localStorage.getItem('pawfiler_tutorial_seen');
+    const hasSeenTutorial = localStorage.getItem(config.tutorialStorageKey);
     
     if (!hasSeenTutorial) {
       // 첫 접속이면 튜토리얼 표시
@@ -16,14 +17,14 @@ const HomePage = () => {
       // 30초 후 튜토리얼 자동 숨김
       const timer = setTimeout(() => {
         setShowTutorial(false);
-        localStorage.setItem('pawfiler_tutorial_seen', 'true');
+        localStorage.setItem(config.tutorialStorageKey, 'true');
       }, 30000);
 
       // ESC 키로 튜토리얼 닫기
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           setShowTutorial(false);
-          localStorage.setItem('pawfiler_tutorial_seen', 'true');
+          localStorage.setItem(config.tutorialStorageKey, 'true');
         }
       };
 
@@ -38,7 +39,7 @@ const HomePage = () => {
 
   const handleCloseTutorial = () => {
     setShowTutorial(false);
-    localStorage.setItem('pawfiler_tutorial_seen', 'true');
+    localStorage.setItem(config.tutorialStorageKey, 'true');
   };
 
   return (

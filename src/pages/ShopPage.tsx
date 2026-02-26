@@ -1,25 +1,42 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import WoodPanel from "@/components/WoodPanel";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { getSubscriptionPlans, mockCheckout } from "@/lib/mockApi";
+import { getSubscriptionPlans, checkout } from "@/lib/api";
 import type { SubscriptionPlan } from "@/lib/types";
-
-const plans = getSubscriptionPlans();
 
 const ShopPage = () => {
   const { token, user, updateUser } = useAuth();
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>(plans[0]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPlans = async () => {
+      try {
+        const loadedPlans = await getSubscriptionPlans();
+        setPlans(loadedPlans);
+        if (loadedPlans.length > 0) {
+          setSelectedPlan(loadedPlans[0]);
+        }
+      } catch (error) {
+        console.error('Failed to load plans:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPlans();
+  }, []);
 
   const handleCheckout = async () => {
-    if (!token) return;
+    if (!token || !selectedPlan) return;
     setProcessing(true);
     try {
-      const res = await mockCheckout(token, { planId: selectedPlan.id });
+      const res = await checkout({ planId: selectedPlan.id });
       if (res.success) {
         updateUser({ subscriptionType: res.newSubscriptionType });
         setSuccess(true);
@@ -29,9 +46,13 @@ const ShopPage = () => {
     }
   };
 
+  const handleRestart = () => {
+    setSuccess(false);
+  };
+
   return (
     <motion.div
-      className="flex h-full items-center justify-center gap-7 p-5"
+      className="flex h-[calc(100vh-5rem)] items-center justify-center gap-7 p-5"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
@@ -58,8 +79,16 @@ const ShopPage = () => {
               <div className="font-jua text-2xl" style={{ color: "#FFD54F" }}>
                 ⭐ Premium Member
               </div>
+              <GameButton variant="blue" onClick={handleRestart}>
+                다시 둘러보기
+              </GameButton>
             </WoodPanel>
           </motion.div>
+        ) : loading ? (
+          <WoodPanel className="flex flex-col items-center text-center max-w-sm w-full py-10 gap-5">
+            <div className="text-5xl animate-spin">⏳</div>
+            <p className="font-jua text-xl">플랜 로딩 중...</p>
+          </WoodPanel>
         ) : (
           <>
             <motion.div key="plans" className="flex flex-col gap-5 max-w-sm w-full">
@@ -72,7 +101,7 @@ const ShopPage = () => {
                 >
                   <ParchmentPanel
                     className={`cursor-pointer p-5 ${
-                      selectedPlan.id === plan.id ? "ring-4 ring-primary" : ""
+                      selectedPlan?.id === plan.id ? "ring-4 ring-primary" : ""
                     }`}
                   >
                     <div className="flex justify-between items-center mb-2">
@@ -102,15 +131,17 @@ const ShopPage = () => {
                 🛒
               </motion.div>
               <h2 className="font-jua text-3xl text-shadow-deep">비밀 상점</h2>
-              <p className="text-lg leading-relaxed opacity-80">
-                {selectedPlan.name} 플랜을 선택했어요!<br />
-                프리미엄 탐정이 되어 무제한 분석을 즐기세요!
-              </p>
+              {selectedPlan && (
+                <p className="text-lg leading-relaxed opacity-80">
+                  {selectedPlan.name} 플랜을 선택했어요!<br />
+                  프리미엄 탐정이 되어 무제한 분석을 즐기세요!
+                </p>
+              )}
               {user?.subscriptionType === "premium" ? (
                 <div className="font-jua text-xl" style={{ color: "#FFD54F" }}>
                   ⭐ 이미 프리미엄이에요!
                 </div>
-              ) : (
+              ) : selectedPlan ? (
                 <GameButton
                   variant="orange"
                   onClick={handleCheckout}
@@ -118,7 +149,7 @@ const ShopPage = () => {
                 >
                   {processing ? "⏳ 결제 중..." : `💳 ₩${selectedPlan.price.toLocaleString()} 결제하기`}
                 </GameButton>
-              )}
+              ) : null}
             </WoodPanel>
           </>
         )}

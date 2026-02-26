@@ -17,7 +17,7 @@ export default function MultipleChoiceQuestion({
   isCorrect,
 }: Props) {
   return (
-    <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+    <div className="flex flex-col gap-3 flex-1">
       {question.options.map((opt, i) => {
         const isSelected = selectedIndex === i;
         const isCorrectAnswer = showResult && i === question.correctIndex;
@@ -26,7 +26,7 @@ export default function MultipleChoiceQuestion({
         return (
           <motion.button
             key={i}
-            className={`font-jua rounded-2xl p-4 text-lg cursor-pointer border-4 transition-colors flex-shrink-0 ${
+            className={`font-jua rounded-2xl p-4 text-xl cursor-pointer border-4 transition-colors flex-shrink-0 ${
               isCorrectAnswer
                 ? "bg-primary text-primary-foreground border-primary"
                 : isWrong
@@ -35,8 +35,8 @@ export default function MultipleChoiceQuestion({
                 ? "bg-wood-base text-foreground border-foreground"
                 : "bg-wood-dark text-foreground border-wood-darkest"
             }`}
-            whileHover={!showResult ? { scale: 1.02 } : {}}
-            whileTap={!showResult ? { scale: 0.98 } : {}}
+            whileHover={!showResult ? { scale: 1.01 } : {}}
+            whileTap={!showResult ? { scale: 0.99 } : {}}
             onClick={() => !showResult && onSelect(i)}
             disabled={showResult}
           >
