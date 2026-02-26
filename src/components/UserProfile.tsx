@@ -11,24 +11,23 @@ const UserProfile = () => {
 
   return (
     <motion.div
-      className="fixed top-24 right-6 z-50 flex flex-col gap-3 rounded-2xl p-5 wood-grain"
+      className="fixed top-[12vh] right-[2vw] z-50 flex flex-col gap-3 rounded-2xl p-[clamp(16px,1.5vw,20px)] wood-grain w-[clamp(240px,18vw,300px)]"
       style={{
         background: "hsl(var(--wood-base))",
         border: "6px solid hsl(var(--wood-darkest))",
         boxShadow: "10px 10px 20px rgba(0,0,0,0.7), inset 0 5px 10px rgba(255,255,255,0.1)",
-        minWidth: "280px",
       }}
       initial={{ opacity: 0, y: -20, x: 20 }}
       animate={{ opacity: 1, y: 0, x: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
       <div className="flex items-center gap-4">
-        <span className="text-5xl drop-shadow-lg">{user.avatarEmoji}</span>
+        <span className="text-[clamp(2.5rem,4vw,3.5rem)] drop-shadow-lg">{user.avatarEmoji}</span>
         <div className="flex flex-col flex-1">
-          <span className="font-jua text-xl text-foreground text-shadow-deep">
+          <span className="font-jua text-[clamp(1rem,1.5vw,1.25rem)] text-foreground text-shadow-deep">
             {user.nickname}
           </span>
-          <span className="text-sm font-bold mt-1" style={{ color: "#FFCC80" }}>
+          <span className="text-[clamp(0.75rem,1vw,0.875rem)] font-bold mt-1" style={{ color: "#FFCC80" }}>
             ⭐ Lv. {user.level} ({user.levelTitle})
           </span>
         </div>
@@ -36,7 +35,7 @@ const UserProfile = () => {
       
       {/* 경험치 바 */}
       <div className="flex flex-col gap-1">
-        <div className="flex justify-between text-xs font-bold" style={{ color: "#FFCC80" }}>
+        <div className="flex justify-between text-[clamp(0.625rem,0.9vw,0.75rem)] font-bold" style={{ color: "#FFCC80" }}>
           <span>XP: {user.xp} / {(user.level + 1) * 1000}</span>
           <span>{Math.floor((user.xp / ((user.level + 1) * 1000)) * 100)}%</span>
         </div>
@@ -55,7 +54,7 @@ const UserProfile = () => {
       </div>
 
       {/* 코인 */}
-      <div className="font-jua text-lg text-center rounded-lg bg-black/30 px-3 py-2" style={{ color: "#FFD54F" }}>
+      <div className="font-jua text-[clamp(0.875rem,1.2vw,1.125rem)] text-center rounded-lg bg-black/30 px-3 py-2" style={{ color: "#FFD54F" }}>
         💰 {user.coins.toLocaleString()} 닢
       </div>
     </motion.div>

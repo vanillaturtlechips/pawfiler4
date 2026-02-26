@@ -49,11 +49,11 @@ const DailyQuests = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="fixed top-28 left-8 z-10 flex flex-col gap-4">
+    <div className="fixed top-[12vh] left-[2vw] z-10 flex flex-col gap-[2vh] w-[clamp(180px,15vw,250px)]">
       {quests.map((quest, index) => (
         <motion.div
           key={quest.id}
-          className="w-56 cursor-pointer rounded-br-2xl p-4 text-center"
+          className="cursor-pointer rounded-br-2xl p-[clamp(12px,1vw,16px)] text-center"
           style={{
             background: "hsl(var(--parchment))",
             border: "3px solid hsl(var(--parchment-border))",
@@ -90,18 +90,18 @@ const DailyQuests = () => {
           />
 
           {/* Icon */}
-          <div className="text-3xl mb-2">{quest.icon}</div>
+          <div className="text-[clamp(1.5rem,2.5vw,2rem)] mb-2">{quest.icon}</div>
 
           {/* Title */}
-          <div className="font-jua text-base border-b-2 border-dashed border-parchment-border pb-2 mb-2">
+          <div className="font-jua text-[clamp(0.875rem,1.2vw,1rem)] border-b-2 border-dashed border-parchment-border pb-2 mb-2">
             {quest.title}
           </div>
 
           {/* Description */}
-          <div className="text-xs font-bold mb-2">{quest.description}</div>
+          <div className="text-[clamp(0.625rem,0.9vw,0.75rem)] font-bold mb-2">{quest.description}</div>
 
           {/* Progress */}
-          <div className="text-xs mb-2" style={{ color: "hsl(var(--magic-blue))" }}>
+          <div className="text-[clamp(0.625rem,0.9vw,0.75rem)] mb-2" style={{ color: "hsl(var(--magic-blue))" }}>
             진행도: {quest.progress} / {quest.total}
           </div>
 
@@ -118,7 +118,7 @@ const DailyQuests = () => {
 
           {/* Reward */}
           <div
-            className="font-jua rounded-xl border-2 border-parchment-border bg-white p-1.5 text-sm"
+            className="font-jua rounded-xl border-2 border-parchment-border bg-white p-1.5 text-[clamp(0.75rem,1vw,0.875rem)]"
             style={{ color: "hsl(var(--magic-orange))" }}
           >
             보상: {quest.reward}

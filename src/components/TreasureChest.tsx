@@ -10,7 +10,7 @@ const TreasureChest = () => {
 
   return (
     <motion.div
-      className="fixed bottom-8 right-8 z-50 cursor-pointer"
+      className="fixed bottom-[5vh] right-[2vw] z-50 cursor-pointer"
       onClick={() => navigate("/shop")}
       whileHover={{ scale: 1.1, y: -10 }}
       whileTap={{ scale: 0.95 }}
@@ -22,7 +22,7 @@ const TreasureChest = () => {
       }}
     >
       <motion.div
-        className="relative flex flex-col items-center gap-2 rounded-2xl p-5 wood-grain"
+        className="relative flex flex-col items-center gap-2 rounded-2xl p-[clamp(16px,1.5vw,20px)] wood-grain"
         style={{
           background: "hsl(var(--wood-base))",
           border: "6px solid hsl(var(--wood-darkest))",
@@ -34,7 +34,7 @@ const TreasureChest = () => {
       >
         {/* 반짝이는 효과 */}
         <motion.div
-          className="absolute -top-2 -right-2 text-3xl"
+          className="absolute -top-2 -right-2 text-[clamp(1.5rem,2.5vw,2rem)]"
           animate={{ 
             scale: [1, 1.3, 1],
             rotate: [0, 20, 0]
@@ -49,10 +49,10 @@ const TreasureChest = () => {
         </motion.div>
 
         {/* 보물상자 */}
-        <span className="text-6xl drop-shadow-lg">🎁</span>
+        <span className="text-[clamp(3rem,5vw,4rem)] drop-shadow-lg">🎁</span>
         
         {/* 텍스트 */}
-        <span className="font-jua text-lg text-foreground text-shadow-deep whitespace-nowrap">
+        <span className="font-jua text-[clamp(0.875rem,1.2vw,1.125rem)] text-foreground text-shadow-deep whitespace-nowrap">
           상점
         </span>
       </motion.div>
