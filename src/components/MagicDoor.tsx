@@ -8,6 +8,8 @@ interface MagicDoorProps {
   description: string;
   color: "green" | "blue" | "orange";
   to: string;
+  scenery?: "playground" | "detective" | "plaza";
+  backgroundImage?: string;
 }
 
 const colorMap = {
@@ -31,10 +33,26 @@ const colorMap = {
   },
 };
 
-const MagicDoor = ({ icon, title, description, color, to }: MagicDoorProps) => {
+const MagicDoor = ({ icon, title, description, color, to, scenery, backgroundImage }: MagicDoorProps) => {
   const [isHovered, setHovered] = useState(false);
   const navigate = useNavigate();
   const c = colorMap[color];
+
+  // 풍경 이모지 설정
+  const getSceneryEmojis = () => {
+    switch (scenery) {
+      case "playground":
+        return ["🎪", "🎠", "🎡", "🎢", "🎈"];
+      case "detective":
+        return ["🔍", "🕵️", "📋", "🔦", "🗂️"];
+      case "plaza":
+        return ["⛲", "🌳", "🏛️", "🕊️", "🌸"];
+      default:
+        return [];
+    }
+  };
+
+  const sceneryEmojis = getSceneryEmojis();
 
   return (
     <motion.div
@@ -71,21 +89,81 @@ const MagicDoor = ({ icon, title, description, color, to }: MagicDoorProps) => {
           animate={{ opacity: isHovered ? 1 : 0 }}
           transition={{ duration: 0.4 }}
         >
-          <motion.span
-            className="text-[90px] drop-shadow-[0_0_20px_white]"
-            animate={
-              isHovered
-                ? { scale: 1.15, y: [-5, 5, -5] }
-                : { scale: 0.5, y: 0 }
-            }
-            transition={
-              isHovered
-                ? { y: { repeat: Infinity, duration: 2 }, scale: { type: "spring", stiffness: 300 } }
-                : { duration: 0.3 }
-            }
-          >
-            {icon}
-          </motion.span>
+          {/* 배경 이미지 */}
+          {backgroundImage && (
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${backgroundImage})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+              initial={{ scale: 1.2, opacity: 0 }}
+              animate={isHovered ? { scale: 1, opacity: 1 } : { scale: 1.2, opacity: 0 }}
+              transition={{ duration: 0.6 }}
+            />
+          )}
+          
+          {/* 그라데이션 오버레이 (이미지가 있을 때 더 잘 보이도록) */}
+          {backgroundImage && (
+            <div 
+              className="absolute inset-0" 
+              style={{ 
+                background: `radial-gradient(circle, transparent 30%, ${c.bg.split(',')[0].split('(')[1]} 100%)`,
+                opacity: 0.4
+              }} 
+            />
+          )}
+          
+          {/* 풍경 배경 (이미지가 없을 때만) */}
+          {scenery && isHovered && !backgroundImage && (
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+              {sceneryEmojis.map((emoji, idx) => (
+                <motion.span
+                  key={idx}
+                  className="absolute text-4xl opacity-60"
+                  initial={{ 
+                    x: (idx - 2) * 60,
+                    y: 50,
+                    scale: 0.5,
+                    opacity: 0 
+                  }}
+                  animate={{ 
+                    y: [50, -20, 50],
+                    scale: [0.5, 1, 0.5],
+                    opacity: [0, 0.6, 0]
+                  }}
+                  transition={{
+                    duration: 3,
+                    delay: idx * 0.2,
+                    repeat: Infinity,
+                    repeatDelay: 1
+                  }}
+                >
+                  {emoji}
+                </motion.span>
+              ))}
+            </div>
+          )}
+          
+          {/* 아이콘 (이미지가 없을 때만) */}
+          {!backgroundImage && (
+            <motion.span
+              className="text-[90px] drop-shadow-[0_0_20px_white] relative z-10"
+              animate={
+                isHovered
+                  ? { scale: 1.15, y: [-5, 5, -5] }
+                  : { scale: 0.5, y: 0 }
+              }
+              transition={
+                isHovered
+                  ? { y: { repeat: Infinity, duration: 2 }, scale: { type: "spring", stiffness: 300 } }
+                  : { duration: 0.3 }
+              }
+            >
+              {icon}
+            </motion.span>
+          )}
         </motion.div>
 
         {/* Left door panel */}
