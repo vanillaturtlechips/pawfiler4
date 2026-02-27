@@ -4,7 +4,7 @@
 
 ## 개요
 
-이 서비스는 4가지 질문 타입(객관식, OX, 영역선택, 비교)을 지원하며, 사용자 답변 검증, 통계 추적, 보상 계산, 이벤트 발행 기능을 제공합니다.
+이 서비스는 4가지 질문 타입(객관식, OX, 영역선택, 비교)을 지원하며, 사용자 답변 검증, 통계 추적, 보상 계산 기능을 제공합니다.
 
 ### 주요 기능
 
@@ -12,14 +12,12 @@
 - **답변 검증**: 각 질문 타입에 맞는 답변 검증 로직
 - **통계 추적**: 사용자별 정답률, 연속 정답, 생명 관리
 - **보상 시스템**: 정답 시 XP와 코인 부여
-- **이벤트 발행**: Kafka를 통한 퀴즈 이벤트 발행
 
 ### 기술 스택
 
 - **언어**: Go 1.24+
 - **프로토콜**: gRPC (Protocol Buffers)
 - **데이터베이스**: PostgreSQL 16+
-- **메시지 브로커**: Apache Kafka
 - **컨테이너화**: Docker, Docker Compose
 
 ## 아키텍처
@@ -49,7 +47,6 @@
 │  │  ┌──────────────────────────┐  │ │
 │  │  │ Answer Validator         │  │ │
 │  │  │ Stats Tracker            │  │ │
-│  │  │ Event Publisher          │  │ │
 │  │  └──────────────────────────┘  │ │
 │  └────────────┬───────────────────┘ │
 │               │                      │
@@ -58,12 +55,10 @@
 │  └────────────┬───────────────────┘ │
 └───────────────┼──────────────────────┘
                 │
-       ┌────────┴────────┐
-       │                 │
-       ▼                 ▼
-┌─────────────┐   ┌─────────────┐
-│ PostgreSQL  │   │    Kafka    │
-└─────────────┘   └─────────────┘
+                ▼
+         ┌─────────────┐
+         │ PostgreSQL  │
+         └─────────────┘
 ```
 
 ### 레이어 구조
@@ -71,13 +66,14 @@
 1. **Handler Layer** (`internal/handler`): gRPC 요청/응답 처리
 2. **Service Layer** (`internal/service`): 비즈니스 로직 구현
 3. **Repository Layer** (`internal/repository`): 데이터베이스 접근
-4. **Infrastructure Layer** (`pkg`): Kafka, 로깅 등 인프라 컴포넌트
 
 ### 디렉토리 구조
 
 ```
 backend/services/quiz/
-├── main.go                    # 서비스 진입점
+├── cmd/
+│   └── server/
+│       └── main.go            # 서비스 진입점
 ├── Dockerfile                 # 컨테이너 이미지 정의
 ├── go.mod                     # Go 모듈 정의
 ├── go.sum                     # 의존성 체크섬
@@ -86,7 +82,8 @@ backend/services/quiz/
 │   ├── quiz.pb.go
 │   └── quiz_grpc.pb.go
 ├── migrations/                # 데이터베이스 마이그레이션
-│   └── 001_create_schema.sql
+│   ├── 001_create_schema.sql
+│   └── 002_insert_sample_data.sql
 ├── internal/
 │   ├── handler/              # gRPC 핸들러
 │   │   ├── quiz_handler.go
@@ -100,10 +97,8 @@ backend/services/quiz/
 │   │   └── stats_tracker_test.go
 │   └── repository/           # 데이터 접근
 │       ├── quiz_repository.go
+│       ├── quiz_repository_test.go
 │       └── models.go
-└── pkg/
-    └── kafka/                # Kafka 프로듀서
-        └── producer.go
 ```
 
 ## 로컬 개발 환경 설정
@@ -151,9 +146,6 @@ export DB_USER=pawfiler
 export DB_PASSWORD=dev_password
 export DB_NAME=pawfiler
 
-# Kafka 설정
-export KAFKA_BROKERS=localhost:9092
-
 # 서버 설정
 export GRPC_PORT=50052
 ```
@@ -178,7 +170,7 @@ psql -h localhost -U pawfiler -d pawfiler
 
 ```bash
 # 빌드
-go build -o quiz-service ./main.go
+go build -o quiz-service ./cmd/server
 
 # 실행
 ./quiz-service
@@ -197,7 +189,6 @@ docker run -p 50052:50052 \
   -e DB_USER=pawfiler \
   -e DB_PASSWORD=dev_password \
   -e DB_NAME=pawfiler \
-  -e KAFKA_BROKERS=host.docker.internal:9092 \
   pawfiler-quiz:latest
 ```
 
@@ -220,7 +211,6 @@ docker-compose down
 서비스는 다음 포트에서 실행됩니다:
 - Quiz Service: `50052`
 - PostgreSQL: `5432`
-- Kafka: `9092`
 - Envoy Proxy: `8080`
 
 ## 테스트
@@ -519,33 +509,6 @@ grpcurl -plaintext -d '{
 | lives | INTEGER | 남은 생명 |
 | updated_at | TIMESTAMP | 업데이트 시각 |
 
-## 이벤트 발행
-
-서비스는 답변이 성공적으로 처리되면 Kafka를 통해 `quiz.answered` 이벤트를 발행합니다.
-
-### 이벤트 구조
-
-```json
-{
-  "user_id": "user-123",
-  "question_id": "550e8400-e29b-41d4-a716-446655440000",
-  "correct": true,
-  "xp_earned": 10,
-  "coins_earned": 5,
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-### 토픽
-
-- **토픽 이름**: `pawfiler-events`
-- **파티션**: 1 (개발 환경)
-- **복제 팩터**: 1 (개발 환경)
-
-### 에러 처리
-
-이벤트 발행이 실패하더라도 답변 처리는 성공으로 간주됩니다. 실패한 이벤트는 로그에 기록되며, 재시도 로직이 적용됩니다 (최대 3회, 지수 백오프).
-
 ## 모니터링 및 로깅
 
 ### 헬스체크
@@ -574,7 +537,6 @@ grpcurl -plaintext localhost:50052 grpc.health.v1.Health/Check
 - RPC 응답 시간
 - 에러 발생 수
 - 데이터베이스 쿼리 시간
-- Kafka 이벤트 발행 성공/실패 수
 
 ## 트러블슈팅
 
@@ -588,17 +550,6 @@ Failed to initialize database: failed to ping database
 1. PostgreSQL이 실행 중인지 확인: `docker-compose ps postgres`
 2. 연결 정보가 올바른지 확인: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`
 3. 네트워크 연결 확인: `ping <DB_HOST>`
-
-### Kafka 연결 실패
-
-```
-Failed to publish event: kafka: client has run out of available brokers
-```
-
-**해결 방법**:
-1. Kafka가 실행 중인지 확인: `docker-compose ps kafka`
-2. Kafka 브로커 주소 확인: `KAFKA_BROKERS`
-3. Zookeeper가 실행 중인지 확인: `docker-compose ps zookeeper`
 
 ### 포트 충돌
 
