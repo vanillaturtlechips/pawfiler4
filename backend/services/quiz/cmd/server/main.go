@@ -14,7 +14,6 @@ import (
 	"github.com/pawfiler/backend/services/quiz/internal/handler"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
-	"github.com/pawfiler/backend/services/quiz/pkg/kafka"
 )
 
 func main() {
@@ -29,17 +28,24 @@ func main() {
 	}
 	defer db.Close()
 
-	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
-	if kafkaBrokers == "" {
-		kafkaBrokers = "kafka:29092"
+	// Test database connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
 	}
+	log.Println("Successfully connected to PostgreSQL")
 
-	producer := kafka.NewProducer(kafkaBrokers)
-	defer producer.Close()
-
+	// Initialize repository
 	repo := repository.NewQuizRepository(db)
-	svc := service.NewQuizService(repo, producer)
-	handler := handler.NewQuizHandler(svc)
+	
+	// Initialize service components
+	statsTracker := service.NewStatsTracker(repo)
+	validator := service.NewAnswerValidator()
+	
+	// Initialize service
+	svc := service.NewQuizService(repo, statsTracker, validator)
+	
+	// Initialize handler
+	quizHandler := handler.NewQuizHandler(svc)
 
 	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
@@ -47,7 +53,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterQuizServiceServer(grpcServer, handler)
+	pb.RegisterQuizServiceServer(grpcServer, quizHandler)
 
 	log.Println("Quiz Service started on :50052")
 	if err := grpcServer.Serve(lis); err != nil {

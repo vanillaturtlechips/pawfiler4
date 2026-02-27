@@ -30,7 +30,12 @@ const AnalysisPage = () => {
     if (log.message.includes("업로드")) setStage("UPLOADING");
     if (log.message.includes("MCP")) setStage("MCP_CONNECTING");
     if (log.message.includes("SageMaker") || log.message.includes("프레임")) setStage("SAGEMAKER_PROCESSING");
-    setTimeout(() => logEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    // 로그 컨테이너 내부에서만 스크롤 (페이지 전체 스크롤 방지)
+    setTimeout(() => {
+      if (logEndRef.current) {
+        logEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      }
+    }, 50);
   };
 
   const handleAnalyze = async () => {
@@ -54,13 +59,14 @@ const AnalysisPage = () => {
   };
 
   return (
-    <motion.div
-      className="grid h-full grid-cols-[1.2fr_1fr] gap-7 items-stretch p-5"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-    >
-      <ParchmentPanel className="flex flex-col gap-5">
+    <div className="h-[calc(100vh-5rem)] w-full overflow-hidden">
+      <motion.div
+        className="grid h-full grid-cols-[1.2fr_1fr] gap-7 items-stretch p-6 overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4 }}
+      >
+      <ParchmentPanel className="flex flex-col gap-5 overflow-y-auto">
         <h2 className="font-jua text-4xl" style={{ color: "hsl(var(--wood-darkest))" }}>
           🔮 마법 구슬 분석기
         </h2>
@@ -117,7 +123,7 @@ const AnalysisPage = () => {
       </ParchmentPanel>
 
       {/* Right panel: Log terminal / Report */}
-      <WoodPanel className="flex h-full flex-col">
+      <WoodPanel className="flex h-full flex-col overflow-hidden">
         <AnimatePresence mode="wait">
           {report ? (
             <motion.div
@@ -160,12 +166,12 @@ const AnalysisPage = () => {
               key="logs"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex flex-col flex-1"
+              className="flex flex-col h-full"
             >
-              <h2 className="font-jua text-2xl mb-3 text-shadow-deep">🖥️ 분석 터미널</h2>
+              <h2 className="font-jua text-2xl mb-3 text-shadow-deep flex-shrink-0">🖥️ 분석 터미널</h2>
               <div
-                className="flex-1 rounded-xl p-4 overflow-y-auto font-mono text-sm"
-                style={{ background: "#0a0a0a", color: "#4ade80", maxHeight: 400 }}
+                className="flex-1 rounded-xl p-4 overflow-y-auto font-mono text-sm min-h-0"
+                style={{ background: "#0a0a0a", color: "#4ade80" }}
               >
                 {logs.map((log, i) => (
                   <motion.div
@@ -213,7 +219,8 @@ const AnalysisPage = () => {
           )}
         </AnimatePresence>
       </WoodPanel>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 };
 

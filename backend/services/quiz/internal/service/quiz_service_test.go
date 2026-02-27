@@ -60,12 +60,9 @@ func (m *MockAnswerValidator) ValidateComparison(selectedSide string, correctSid
 	return args.Bool(0), args.Error(1)
 }
 
-// MockEventPublisher is a mock implementation of EventPublisher
-type MockEventPublisher struct {
 	mock.Mock
 }
 
-func (m *MockEventPublisher) PublishQuizAnswered(ctx context.Context, event *QuizAnsweredEvent) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
@@ -76,8 +73,6 @@ func TestGetRandomQuestion_Success(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -114,8 +109,6 @@ func TestGetRandomQuestion_WithDifficulty(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -143,8 +136,6 @@ func TestGetRandomQuestion_WithType(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -172,8 +163,6 @@ func TestGetQuestionById_Success(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	questionID := "question-123"
@@ -205,8 +194,6 @@ func TestGetQuestionById_NotFound(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	questionID := "non-existent-id"
@@ -227,8 +214,6 @@ func TestGetUserStats_ExistingUser(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -262,8 +247,6 @@ func TestGetUserStats_NewUser(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "new-user-123"
@@ -337,8 +320,6 @@ func TestSubmitAnswer_MultipleChoice_Correct(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.WithValue(context.Background(), "timestamp", time.Now())
 	userID := "user-123"
@@ -365,7 +346,6 @@ func TestSubmitAnswer_MultipleChoice_Correct(t *testing.T) {
 			ua.CoinsEarned == 5
 	})).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
-	mockEventPublisher.On("PublishQuizAnswered", ctx, mock.MatchedBy(func(e *QuizAnsweredEvent) bool {
 		return e.UserID == userID &&
 			e.QuestionID == questionID &&
 			e.Correct == true &&
@@ -386,7 +366,6 @@ func TestSubmitAnswer_MultipleChoice_Correct(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
 	mockStatsTracker.AssertExpectations(t)
-	mockEventPublisher.AssertExpectations(t)
 }
 
 // TestSubmitAnswer_MultipleChoice_Incorrect tests submitting an incorrect multiple choice answer
@@ -395,8 +374,6 @@ func TestSubmitAnswer_MultipleChoice_Incorrect(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.WithValue(context.Background(), "timestamp", time.Now())
 	userID := "user-123"
@@ -423,7 +400,6 @@ func TestSubmitAnswer_MultipleChoice_Incorrect(t *testing.T) {
 			ua.CoinsEarned == 0
 	})).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, false).Return(&repository.UserStats{}, nil)
-	mockEventPublisher.On("PublishQuizAnswered", ctx, mock.MatchedBy(func(e *QuizAnsweredEvent) bool {
 		return e.UserID == userID &&
 			e.QuestionID == questionID &&
 			e.Correct == false &&
@@ -443,7 +419,6 @@ func TestSubmitAnswer_MultipleChoice_Incorrect(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
 	mockStatsTracker.AssertExpectations(t)
-	mockEventPublisher.AssertExpectations(t)
 }
 
 // TestSubmitAnswer_TrueFalse tests submitting a true/false answer
@@ -452,8 +427,6 @@ func TestSubmitAnswer_TrueFalse(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.WithValue(context.Background(), "timestamp", time.Now())
 	userID := "user-123"
@@ -473,7 +446,6 @@ func TestSubmitAnswer_TrueFalse(t *testing.T) {
 	mockValidator.On("ValidateTrueFalse", true, true).Return(true)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
-	mockEventPublisher.On("PublishQuizAnswered", ctx, mock.AnythingOfType("*service.QuizAnsweredEvent")).Return(nil)
 
 	// Execute
 	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
@@ -492,8 +464,6 @@ func TestSubmitAnswer_RegionSelect(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.WithValue(context.Background(), "timestamp", time.Now())
 	userID := "user-123"
@@ -521,7 +491,6 @@ func TestSubmitAnswer_RegionSelect(t *testing.T) {
 		int32(10)).Return(true)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
-	mockEventPublisher.On("PublishQuizAnswered", ctx, mock.AnythingOfType("*service.QuizAnsweredEvent")).Return(nil)
 
 	// Execute
 	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
@@ -540,8 +509,6 @@ func TestSubmitAnswer_Comparison(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.WithValue(context.Background(), "timestamp", time.Now())
 	userID := "user-123"
@@ -561,7 +528,6 @@ func TestSubmitAnswer_Comparison(t *testing.T) {
 	mockValidator.On("ValidateComparison", "left", "left").Return(true, nil)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
-	mockEventPublisher.On("PublishQuizAnswered", ctx, mock.AnythingOfType("*service.QuizAnsweredEvent")).Return(nil)
 
 	// Execute
 	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
@@ -580,8 +546,6 @@ func TestSubmitAnswer_QuestionNotFound(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -608,8 +572,6 @@ func TestSubmitAnswer_InvalidIndex(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -645,8 +607,6 @@ func TestSubmitAnswer_EventPublishFailure(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
 	mockStatsTracker := new(MockStatsTracker)
 	mockValidator := new(MockAnswerValidator)
-	mockEventPublisher := new(MockEventPublisher)
-	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator, mockEventPublisher)
 
 	ctx := context.WithValue(context.Background(), "timestamp", time.Now())
 	userID := "user-123"
@@ -667,7 +627,6 @@ func TestSubmitAnswer_EventPublishFailure(t *testing.T) {
 	mockValidator.On("ValidateMultipleChoice", int32(0), int32(0), 2).Return(true, nil)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
-	mockEventPublisher.On("PublishQuizAnswered", ctx, mock.AnythingOfType("*service.QuizAnsweredEvent")).Return(errors.New("kafka connection failed"))
 
 	// Execute
 	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
@@ -677,5 +636,4 @@ func TestSubmitAnswer_EventPublishFailure(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.True(t, result.IsCorrect)
 	mockRepo.AssertExpectations(t)
-	mockEventPublisher.AssertExpectations(t)
 }

@@ -21,7 +21,7 @@ export default function TrueFalseQuestion({
     const resultImage = isCorrect ? "/ox-rabbit-correct.png" : "/ox-fox-wrong.png";
     
     return (
-      <div className="flex gap-8 flex-1 items-center px-8">
+      <div className="flex gap-8 flex-1 items-center px-8" style={{ paddingTop: '15%' }}>
         {/* 왼쪽: 결과 캐릭터 */}
         <motion.div 
           className="flex-shrink-0 w-64"
@@ -68,7 +68,7 @@ export default function TrueFalseQuestion({
     return (
       <motion.button
         className="relative cursor-pointer flex-1 flex flex-col items-center gap-3 max-w-xs"
-        whileHover={{ scale: 1.1, y: -10 }}
+        whileHover={{ scale: 1.05, y: -5 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => onSelect(answer)}
       >
@@ -130,7 +130,7 @@ export default function TrueFalseQuestion({
   };
 
   return (
-    <div className="flex gap-8 flex-1 items-center justify-center px-8">
+    <div className="flex gap-8 flex-1 items-center justify-center px-8" style={{ paddingTop: '15%' }}>
       {renderButton(true, "진짜 (Real)", "/ox-rabbit.png")}
       {renderButton(false, "가짜 (Fake)", "/ox-fox.png")}
     </div>

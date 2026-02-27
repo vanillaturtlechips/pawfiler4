@@ -319,3 +319,8 @@ func (r *PostgresQuizRepository) CreateUserStats(ctx context.Context, userID str
 
 	return &stats, nil
 }
+
+// NewQuizRepository creates a new QuizRepository instance (alias for NewPostgresQuizRepository)
+func NewQuizRepository(db *sql.DB) QuizRepository {
+	return NewPostgresQuizRepository(db)
+}
