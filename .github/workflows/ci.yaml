@@ -1,0 +1,126 @@
+name: EKS MSA CI/CD Pipeline (Native Multi-Arch)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+
+jobs:
+  # ---------------------------------------------------------
+  # Job 1: Path Filtering & 동적 매트릭스 생성
+  # ---------------------------------------------------------
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      # Job 2에서 사용할 최종 매트릭스 JSON
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      is_empty: ${{ steps.filter.outputs.changes == '[]' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Path Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            community: 'backend/services/community/**'
+            quiz: 'backend/services/quiz/**'
+            video-analysis: 'backend/services/video-analysis/**'
+
+      # 💡 핵심 포인트: 감지된 서비스 배열을 jq를 이용해 러너와 플랫폼 정보가 담긴 객체 배열로 변환!
+      - name: Generate Dynamic Matrix
+        id: set-matrix
+        run: |
+          SERVICES='${{ steps.filter.outputs.changes }}'
+          
+          # video-analysis는 amd64(ubuntu-latest), 나머지는 네이티브 arm64(ubuntu-24.04-arm) 할당
+          MATRIX_JSON=$(echo $SERVICES | jq -c 'map({
+            service: .,
+            runner: (if . == "video-analysis" then "ubuntu-latest" else "ubuntu-24.04-arm" end),
+            platform: (if . == "video-analysis" then "linux/amd64" else "linux/arm64" end)
+          })')
+          
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+
+  # ---------------------------------------------------------
+  # Job 2: Native Build, Scan, and Push
+  # ---------------------------------------------------------
+  build-and-push:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.is_empty == 'false' }}
+    # 💡 핵심 포인트: matrix에서 넘겨준 네이티브 하드웨어(runner)를 동적으로 할당!
+    runs-on: ${{ matrix.config.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+        
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Semgrep (SAST) 코드 스캔
+      - name: Run Semgrep Code Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: "p/default"
+          generateSarif: "1"
+        env:
+          SEMGREP_INCLUDE: "backend/services/${{ matrix.config.service }}/**"
+
+      # 2. AWS OIDC 자격 증명 가져오기
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsECRRole
+          aws-region: ap-northeast-2
+
+      # 3. Amazon ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 4. Docker Buildx 셋업 (QEMU는 완전히 제거됨! 속도 극대화 🚀)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 5. Native Docker 빌드 (에뮬레이터 없이 본인 하드웨어에서 직접 컴파일)
+      - name: Build Docker Image
+        id: build-image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/services/${{ matrix.config.service }}
+          platforms: ${{ matrix.config.platform }}
+          load: true 
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ matrix.config.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 6. Trivy 이미지 취약점 스캔
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ steps.login-ecr.outputs.registry }}/${{ matrix.config.service }}:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # 7. ECR 최종 Push
+      - name: Push Docker Image to ECR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/services/${{ matrix.config.service }}
+          platforms: ${{ matrix.config.platform }}
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ matrix.config.service }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ matrix.config.service }}:latest
