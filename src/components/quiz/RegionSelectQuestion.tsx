@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import type { RegionSelectQuestion } from "@/lib/types";
+import GameButton from "@/components/GameButton";
 
 interface Props {
   question: RegionSelectQuestion;
@@ -43,6 +44,7 @@ export default function RegionSelectQuestion({
   };
 
   return (
+<<<<<<< HEAD
 <<<<<<< Updated upstream
     <div className="absolute inset-0 flex flex-col pt-20">
       {/* 배경 이미지 - 항상 전체 화면 */}
@@ -60,33 +62,23 @@ export default function RegionSelectQuestion({
         }}
       >
 >>>>>>> Stashed changes
+=======
+    <div className="flex flex-col gap-3 flex-1 min-h-0">
+      {/* 클릭 가능한 이미지 영역 */}
+      <div
+        ref={imageRef}
+        className="relative flex-1 cursor-crosshair rounded-2xl overflow-hidden bg-black"
+        onClick={handleClick}
+        style={{ minHeight: '400px' }}
+      >
+>>>>>>> origin/main
         <img
           src={question.mediaUrl}
           alt="Quiz"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           onLoad={() => setImageLoaded(true)}
         />
-      </div>
 
-      {/* 안내 텍스트 - 정답 확인 전에만 표시 */}
-      {!showResult && (
-        <div className="relative z-10 text-center font-jua text-xl py-4 px-6" style={{
-          background: "transparent"
-        }}>
-          <span className="text-white font-bold" style={{
-            textShadow: "2px 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.8)"
-          }}>
-            🔍 딥페이크가 의심되는 부분을 클릭하세요
-          </span>
-        </div>
-      )}
-
-      {/* 클릭 가능한 영역 */}
-      <div
-        ref={imageRef}
-        className="relative z-10 flex-1 cursor-crosshair"
-        onClick={handleClick}
-      >
         {/* Selected Point */}
         {selectedRegion && imageLoaded && (
           <motion.div
@@ -106,7 +98,11 @@ export default function RegionSelectQuestion({
                   ? "rgba(34, 197, 94, 0.3)"
                   : "rgba(239, 68, 68, 0.3)"
                 : "rgba(255, 255, 255, 0.3)",
-              boxShadow: "0 0 20px rgba(0,0,0,0.5)",
+              boxShadow: showResult
+                ? isCorrect
+                  ? "0 0 30px rgba(34, 197, 94, 0.8)"
+                  : "0 0 30px rgba(239, 68, 68, 0.8)"
+                : "0 0 30px rgba(255, 255, 255, 0.8)",
             }}
           >
             <div className="w-full h-full flex items-center justify-center text-3xl">
@@ -137,49 +133,43 @@ export default function RegionSelectQuestion({
           ))}
       </div>
 
+<<<<<<< HEAD
 <<<<<<< Updated upstream
       {/* 버튼 영역 - 황토색 배경 제거 */}
       <div className="relative z-20 p-6">
+=======
+      {/* 결과 표시 및 버튼 */}
+      <AnimatePresence mode="wait">
+>>>>>>> origin/main
         {showResult ? (
           <motion.div 
+            key="result"
             className="flex flex-col gap-3"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            {/* 결과 패널 */}
-            <div className="p-4 rounded-2xl" style={{
-              background: isCorrect ? "rgba(34, 197, 94, 0.25)" : "rgba(239, 68, 68, 0.25)",
-              border: `3px solid ${isCorrect ? "#22c55e" : "#ef4444"}`,
-              backdropFilter: "blur(10px)"
-            }}>
-              <p className="font-jua text-2xl" style={{ color: isCorrect ? "#22c55e" : "#ef4444" }}>
+            <div className="p-4 rounded-2xl bg-wood-base border-4 border-wood-darkest">
+              <p className="font-jua text-2xl" style={{ color: isCorrect ? "hsl(var(--magic-green))" : "hsl(var(--destructive))" }}>
                 {isCorrect ? `🎉 정답! +${coinsEarned}닢` : "😢 아쉬워요..."}
               </p>
-              <p className="text-base mt-2 text-white font-semibold" style={{ textShadow: "2px 2px 4px rgba(0,0,0,0.8)" }}>
-                {resultExplanation}
-              </p>
+              <p className="text-base mt-2 text-foreground">{resultExplanation}</p>
             </div>
-            {/* 다음 문제 버튼 */}
-            <button
-              onClick={onNext}
-              className="w-full font-jua text-2xl py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-lg"
-            >
+            <GameButton variant="blue" onClick={onNext}>
               다음 문제 →
-            </button>
+            </GameButton>
           </motion.div>
         ) : (
-          <button
-            onClick={onSubmit}
-            disabled={!canSubmit || submitting}
-            className={`w-full font-jua text-2xl py-4 px-6 rounded-2xl transition-all shadow-lg ${
-              canSubmit && !submitting
-                ? "bg-green-600 hover:bg-green-700 text-white cursor-pointer"
-                : "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-            }`}
-          >
-            {submitting ? "⏳ 채점 중..." : "✅ 정답 확인!"}
-          </button>
+          <motion.div key="submit">
+            <GameButton
+              variant="green"
+              onClick={onSubmit}
+              className={!canSubmit || submitting ? "opacity-50 pointer-events-none" : ""}
+            >
+              {submitting ? "⏳ 채점 중..." : "✅ 정답 확인!"}
+            </GameButton>
+          </motion.div>
         )}
+<<<<<<< HEAD
 =======
       {/* 결과 표시 및 버튼 - flex-shrink-0으로 고정 */}
       <div className="flex-shrink-0">
@@ -215,6 +205,9 @@ export default function RegionSelectQuestion({
         </AnimatePresence>
 >>>>>>> Stashed changes
       </div>
+=======
+      </AnimatePresence>
+>>>>>>> origin/main
     </div>
   );
 }

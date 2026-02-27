@@ -20,8 +20,9 @@ const GameButton = ({ children, variant = "green", className = "", onClick }: Ga
     style={{
       textShadow: "2px 2px 0 rgba(0,0,0,0.3)",
     }}
-    whileHover={{ scale: 1.05, y: -2 }}
-    whileTap={{ scale: 0.95, y: 4, boxShadow: "none" }}
+    whileHover={{ scale: 1.02, y: -1 }}
+    whileTap={{ scale: 0.98, y: 2, boxShadow: "none" }}
+    transition={{ type: "spring", stiffness: 400, damping: 17 }}
     onClick={onClick}
   >
     {children}

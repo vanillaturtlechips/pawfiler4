@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import type { UserProfile, AuthTokenPayload } from "@/lib/types";
+import type { UserProfile } from "@/lib/types";
+import { config } from "@/lib/config";
 
 interface AuthState {
   token: string | null;
@@ -24,8 +25,8 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // localStorage에서 초기 상태 복원
   const [state, setState] = useState<AuthState>(() => {
-    const savedToken = localStorage.getItem("auth_token");
-    const savedUser = localStorage.getItem("auth_user");
+    const savedToken = localStorage.getItem(config.storageKeys.authToken);
+    const savedUser = localStorage.getItem(config.storageKeys.authUser);
     
     if (savedToken && savedUser) {
       try {
@@ -44,15 +45,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = useCallback((token: string, user: UserProfile) => {
     // localStorage에 저장
-    localStorage.setItem("auth_token", token);
-    localStorage.setItem("auth_user", JSON.stringify(user));
+    localStorage.setItem(config.storageKeys.authToken, token);
+    localStorage.setItem(config.storageKeys.authUser, JSON.stringify(user));
     setState({ token, user, isLoggedIn: true });
   }, []);
 
   const logout = useCallback(() => {
     // localStorage에서 제거
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
+    localStorage.removeItem(config.storageKeys.authToken);
+    localStorage.removeItem(config.storageKeys.authUser);
     setState({ token: null, user: null, isLoggedIn: false });
   }, []);
 
@@ -60,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setState((prev) => {
       const newUser = prev.user ? { ...prev.user, ...partial } : null;
       if (newUser) {
-        localStorage.setItem("auth_user", JSON.stringify(newUser));
+        localStorage.setItem(config.storageKeys.authUser, JSON.stringify(newUser));
       }
       return {
         ...prev,

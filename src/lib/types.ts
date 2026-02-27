@@ -139,6 +139,16 @@ export interface CommunityPost {
   userId?: string;
 }
 
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  authorNickname: string;
+  authorEmoji: string;
+  body: string;
+  createdAt: string;
+  userId?: string;
+}
+
 export interface CommunityFeed {
   posts: CommunityPost[];
   totalCount: number;

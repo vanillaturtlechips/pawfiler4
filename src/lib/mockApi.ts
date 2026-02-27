@@ -25,16 +25,18 @@ const delay = (min = 500, max = 1500) =>
   new Promise<void>((r) => setTimeout(r, min + Math.random() * (max - min)));
 
 const fakeJwt = (payload: Record<string, unknown>) => {
-  // 간단한 mock JWT - Base64 인코딩 없이 그냥 문자열로
-  return `mock.${JSON.stringify(payload)}.signature`;
+  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  const sig = btoa("mock-signature");
+  return `${header}.${body}.${sig}`;
 };
 
 const uuid = () => crypto.randomUUID();
 
 /** Simulates attaching gRPC metadata (authorization header) */
 const withAuth = (token: string | null) => {
-  // Mock에서는 token 체크 완화
-  return { authorization: token ? `Bearer ${token}` : "", "x-request-id": uuid() };
+  if (!token) throw new Error("UNAUTHENTICATED: No token provided");
+  return { authorization: `Bearer ${token}`, "x-request-id": uuid() };
 };
 
 // --------------- Mock data ---------------
@@ -53,71 +55,120 @@ const MOCK_USER: UserProfile = {
 };
 
 const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
-  // 1. Multiple Choice (객관식)
+  // Multiple Choice 문제
   {
     id: "q1",
     type: "multiple_choice",
     mediaType: "video",
-    mediaUrl: "",
+    mediaUrl: "https://example.com/video1.mp4",
     thumbnailEmoji: "🎬",
     difficulty: "easy",
-    category: "딥페이크 탐지",
-    explanation: "딥페이크 영상에서는 눈 깜빡임이 부자연스러운 경우가 많아요!",
+    category: "deepfake-detection",
     options: ["입 모양이 어색해요", "눈 깜빡임이 없어요", "머리카락이 흔들려요", "목소리가 달라요"],
     correctIndex: 1,
+    explanation: "딥페이크 영상에서는 눈 깜빡임이 부자연스러운 경우가 많아요!",
   },
-  // 2. True/False (OX 퀴즈)
   {
     id: "q2",
-    type: "true_false",
+    type: "multiple_choice",
     mediaType: "video",
-    mediaUrl: "",
+    mediaUrl: "https://example.com/video2.mp4",
     thumbnailEmoji: "🎥",
     difficulty: "medium",
-    category: "딥페이크 탐지",
-    explanation: "이 영상은 AI로 생성된 가짜 영상입니다. 얼굴 경계가 부자연스럽게 번져있어요!",
-    correctAnswer: false,
+    category: "deepfake-detection",
+    options: ["배경이 자연스러워요", "얼굴 경계가 번져요", "음성이 정확해요", "조명이 일치해요"],
+    correctIndex: 1,
+    explanation: "얼굴 합성 경계 부분이 번지거나 흐릿한 건 딥페이크의 대표 특징이에요!",
   },
-  // 3. Region Select (영역 선택 - 이미지)
   {
     id: "q3",
-    type: "region_select",
-    mediaType: "image",
-    mediaUrl: "https://via.placeholder.com/800x600/333/fff?text=Deepfake+Image",
-    thumbnailEmoji: "🖼️",
-    difficulty: "hard",
-    category: "딥페이크 탐지",
-    explanation: "얼굴 주변 경계 부분이 조작되었습니다!",
-    correctRegions: [{ x: 400, y: 250, radius: 80 }],
-    tolerance: 100,
-  },
-  // 4. Comparison (비교 문제 - 이미지)
-  {
-    id: "q4",
-    type: "comparison",
-    mediaType: "image",
-    mediaUrl: "https://via.placeholder.com/600x800/444/fff?text=Image+A",
-    comparisonMediaUrl: "https://via.placeholder.com/600x800/555/fff?text=Image+B",
-    thumbnailEmoji: "🔍",
-    difficulty: "medium",
-    category: "딥페이크 탐지",
-    explanation: "왼쪽 이미지가 진짜입니다. 오른쪽은 AI가 생성한 가짜예요!",
-    correctSide: "left",
-  },
-  // 5. Multiple Choice (객관식 - 이미지)
-  {
-    id: "q5",
     type: "multiple_choice",
     mediaType: "image",
-    mediaUrl: "https://via.placeholder.com/800x600/666/fff?text=Suspicious+Photo",
-    thumbnailEmoji: "📸",
-    difficulty: "easy",
-    category: "딥페이크 탐지",
-    explanation: "배경과 조명이 일치하지 않는 것이 가장 큰 단서입니다!",
-    options: ["얼굴 표정이 자연스러워요", "배경과 조명이 안 맞아요", "옷이 선명해요", "머리카락이 자연스러워요"],
+    mediaUrl: "https://example.com/image1.jpg",
+    thumbnailEmoji: "🖼️",
+    difficulty: "hard",
+    category: "deepfake-detection",
+    options: ["조명 방향이 일치해요", "그림자가 부자연스러워요", "색감이 자연스러워요", "해상도가 높아요"],
     correctIndex: 1,
+    explanation: "딥페이크는 조명과 그림자를 정확하게 재현하기 어려워요!",
   },
-];
+  
+  // True/False 문제
+  {
+    id: "q4",
+    type: "true_false",
+    mediaType: "video",
+    mediaUrl: "https://example.com/video3.mp4",
+    thumbnailEmoji: "🦊",
+    difficulty: "easy",
+    category: "deepfake-detection",
+    correctAnswer: true,
+    explanation: "이 영상은 딥페이크입니다. 얼굴 경계선이 부자연스럽고 조명 방향이 일치하지 않습니다.",
+  },
+  {
+    id: "q5",
+    type: "true_false",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image2.jpg",
+    thumbnailEmoji: "🐻",
+    difficulty: "medium",
+    category: "deepfake-detection",
+    correctAnswer: false,
+    explanation: "이 이미지는 실제 사진입니다. 모든 요소가 자연스럽게 일치합니다.",
+  },
+  
+  // Region Select 문제
+  {
+    id: "q6",
+    type: "region_select",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image3.jpg",
+    thumbnailEmoji: "🔍",
+    difficulty: "hard",
+    category: "deepfake-detection",
+    correctRegions: [{ x: 150, y: 200, radius: 30 }],
+    tolerance: 20,
+    explanation: "귀 주변 경계선이 부자연스럽습니다. 합성 흔적이 명확하게 보입니다.",
+  },
+  {
+    id: "q7",
+    type: "region_select",
+    mediaType: "image",
+    mediaUrl: "https://example.com/image4.jpg",
+    thumbnailEmoji: "🎯",
+    difficulty: "medium",
+    category: "deepfake-detection",
+    correctRegions: [{ x: 200, y: 150, radius: 25 }],
+    tolerance: 20,
+    explanation: "눈 주변의 픽셀 왜곡이 발견됩니다. AI 생성 이미지의 전형적인 특징입니다.",
+  },
+  
+  // Comparison 문제
+  {
+    id: "q8",
+    type: "comparison",
+    mediaType: "image",
+    mediaUrl: "https://example.com/compare1_left.jpg",
+    thumbnailEmoji: "⚖️",
+    difficulty: "medium",
+    category: "deepfake-detection",
+    comparisonMediaUrl: "https://example.com/compare1_right.jpg",
+    correctSide: "left",
+    explanation: "왼쪽 이미지가 딥페이크입니다. 눈동자 반사가 부자연스럽고 피부 텍스처가 과도하게 매끄럽습니다.",
+  },
+  {
+    id: "q9",
+    type: "comparison",
+    mediaType: "image",
+    mediaUrl: "https://example.com/compare2_left.jpg",
+    thumbnailEmoji: "🎭",
+    difficulty: "hard",
+    category: "deepfake-detection",
+    comparisonMediaUrl: "https://example.com/compare2_right.jpg",
+    correctSide: "right",
+    explanation: "오른쪽 이미지가 딥페이크입니다. 머리카락 경계가 흐릿하고 배경과의 경계선이 부자연스럽습니다.",
+  },
+] as QuizQuestion[];
 
 const MOCK_COMMUNITY_POSTS = [
   { id: "p1", authorNickname: "꼬마 탐정", authorEmoji: "🐱", title: "딥페이크 찾는 꿀팁 공유!", body: "눈 깜빡임을 잘 보세요...", likes: 42, comments: 7, createdAt: "2026-02-20T10:00:00Z", tags: ["팁", "초보"] },
@@ -130,20 +181,49 @@ const MOCK_PLANS: SubscriptionPlan[] = [
   { id: "yearly", name: "연간 프리미엄", price: 39000, currency: "KRW", features: ["무제한 분석", "광고 제거", "프리미엄 뱃지", "우선 분석 큐", "보너스 코인 500닢"] },
 ];
 
+// 회원가입한 사용자 저장소
+const registeredUsers = new Map<string, { email: string; password: string; nickname: string; avatarEmoji: string }>();
+
 // --------------- Auth Service ---------------
 
 export async function mockLogin(req: LoginRequest): Promise<{ token: string; user: UserProfile }> {
   await delay(600, 1000);
-  if (req.email && req.password) {
-    const user = { ...MOCK_USER, email: req.email };
-    const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: user.subscriptionType, iat: Date.now(), exp: Date.now() + 3600000 });
-    return { token, user };
+  
+  // 기본 계정
+  const defaultCredentials = [
+    { email: "detective@deepfind.io", password: "password123", nickname: "탐정", avatarEmoji: "🦊" },
+    { email: "test@test.com", password: "test123", nickname: "테스터", avatarEmoji: "🐱" }
+  ];
+  
+  // 회원가입한 계정 확인
+  const registered = registeredUsers.get(req.email);
+  const validCred = defaultCredentials.find(c => c.email === req.email) || registered;
+  
+  if (!validCred || validCred.password !== req.password) {
+    throw new Error("이메일 또는 비밀번호가 올바르지 않습니다");
   }
-  throw new Error("INVALID_CREDENTIALS");
+  
+  const user = { ...MOCK_USER, email: req.email, nickname: validCred.nickname, avatarEmoji: validCred.avatarEmoji };
+  const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: user.subscriptionType, iat: Date.now(), exp: Date.now() + 3600000 });
+  return { token, user };
 }
 
 export async function mockSignup(req: SignupRequest): Promise<{ token: string; user: UserProfile }> {
   await delay(800, 1200);
+  
+  // 이미 존재하는 이메일 체크
+  if (registeredUsers.has(req.email)) {
+    throw new Error("이미 사용 중인 이메일입니다");
+  }
+  
+  // 회원가입 정보 저장
+  registeredUsers.set(req.email, {
+    email: req.email,
+    password: req.password,
+    nickname: req.nickname,
+    avatarEmoji: req.avatarEmoji
+  });
+  
   const user: UserProfile = { ...MOCK_USER, id: uuid(), email: req.email, nickname: req.nickname, avatarEmoji: req.avatarEmoji, coins: 100, level: 1, levelTitle: "새싹 탐정", xp: 0 };
   const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: "free", iat: Date.now(), exp: Date.now() + 3600000 });
   return { token, user };
@@ -187,8 +267,8 @@ export async function fetchQuizQuestion(token: string): Promise<QuizQuestion> {
 export async function submitQuizAnswer(token: string, req: QuizSubmitRequest): Promise<QuizSubmitResponse> {
   withAuth(token);
   await delay(400, 700);
-  const q = MOCK_QUIZ_QUESTIONS.find((question) => question.id === req.questionId);
   
+  const q = MOCK_QUIZ_QUESTIONS.find((question) => question.id === req.questionId);
   if (!q) {
     return {
       correct: false,
@@ -201,7 +281,7 @@ export async function submitQuizAnswer(token: string, req: QuizSubmitRequest): P
 
   let correct = false;
 
-  // Check answer based on question type
+  // 타입별 정답 체크
   if ('type' in q) {
     switch (q.type) {
       case 'multiple_choice':
@@ -211,24 +291,20 @@ export async function submitQuizAnswer(token: string, req: QuizSubmitRequest): P
         correct = req.selectedAnswer === q.correctAnswer;
         break;
       case 'region_select':
-        if (req.selectedRegion && q.correctRegions) {
-          // Check if selected point is within any correct region
-          correct = q.correctRegions.some((region) => {
-            const distance = Math.sqrt(
-              Math.pow(req.selectedRegion!.x - region.x, 2) +
-              Math.pow(req.selectedRegion!.y - region.y, 2)
-            );
-            return distance <= region.radius + (q.tolerance || 0);
-          });
+        // 간단한 거리 계산
+        if (req.selectedRegion && q.correctRegions.length > 0) {
+          const region = q.correctRegions[0];
+          const distance = Math.sqrt(
+            Math.pow(req.selectedRegion.x - region.x, 2) +
+            Math.pow(req.selectedRegion.y - region.y, 2)
+          );
+          correct = distance <= (region.radius + q.tolerance);
         }
         break;
       case 'comparison':
         correct = req.selectedSide === q.correctSide;
         break;
     }
-  } else {
-    // Legacy support
-    correct = req.selectedIndex === q.correctIndex;
   }
 
   return {
