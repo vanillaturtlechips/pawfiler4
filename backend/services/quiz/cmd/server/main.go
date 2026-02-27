@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"log"
 	"net"
@@ -10,7 +9,7 @@ import (
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 
-	pb "github.com/pawfiler/backend/services/quiz/pb"
+	pb "github.com/pawfiler/backend/services/quiz/proto"
 	"github.com/pawfiler/backend/services/quiz/internal/handler"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
@@ -38,7 +37,7 @@ func main() {
 	repo := repository.NewQuizRepository(db)
 	
 	// Initialize service components
-	statsTracker := service.NewStatsTracker(repo)
+	statsTracker := service.NewStatsTracker(repo, db)
 	validator := service.NewAnswerValidator()
 	
 	// Initialize service

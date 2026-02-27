@@ -2,10 +2,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY quiz-proxy/package*.json ./
 RUN npm ci --only=production
 
-COPY . .
+COPY quiz-proxy/ .
+COPY proto /proto
 
 EXPOSE 3001
 

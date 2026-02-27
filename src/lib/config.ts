@@ -3,13 +3,13 @@ export const config = {
   // API Endpoints
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
   quizApiUrl: import.meta.env.VITE_QUIZ_API_URL || 'http://localhost:3001/api/quiz',
-  communityApiUrl: import.meta.env.VITE_COMMUNITY_API_URL || 'http://localhost:50053',
-  videoAnalysisApiUrl: import.meta.env.VITE_VIDEO_ANALYSIS_API_URL || 'http://localhost:50054',
-  paymentApiUrl: import.meta.env.VITE_PAYMENT_API_URL || 'http://localhost:50055',
+  communityApiUrl: import.meta.env.VITE_COMMUNITY_API_URL || 'http://localhost:8080/community',
+  videoAnalysisApiUrl: import.meta.env.VITE_VIDEO_ANALYSIS_API_URL || 'http://localhost:8080/video',
+  paymentApiUrl: import.meta.env.VITE_PAYMENT_API_URL || 'http://localhost:8080/payment',
   
   // Feature Flags
-  useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',
-  useMockAuth: import.meta.env.VITE_USE_MOCK_AUTH === 'true',
+  useMockApi: import.meta.env.VITE_USE_MOCK_API !== 'false',
+  useMockAuth: import.meta.env.VITE_USE_MOCK_AUTH !== 'false',
   
   // App Config
   appName: import.meta.env.VITE_APP_NAME || 'PawFiler',

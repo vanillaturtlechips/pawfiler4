@@ -181,20 +181,49 @@ const MOCK_PLANS: SubscriptionPlan[] = [
   { id: "yearly", name: "연간 프리미엄", price: 39000, currency: "KRW", features: ["무제한 분석", "광고 제거", "프리미엄 뱃지", "우선 분석 큐", "보너스 코인 500닢"] },
 ];
 
+// 회원가입한 사용자 저장소
+const registeredUsers = new Map<string, { email: string; password: string; nickname: string; avatarEmoji: string }>();
+
 // --------------- Auth Service ---------------
 
 export async function mockLogin(req: LoginRequest): Promise<{ token: string; user: UserProfile }> {
   await delay(600, 1000);
-  if (req.email && req.password) {
-    const user = { ...MOCK_USER, email: req.email };
-    const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: user.subscriptionType, iat: Date.now(), exp: Date.now() + 3600000 });
-    return { token, user };
+  
+  // 기본 계정
+  const defaultCredentials = [
+    { email: "detective@deepfind.io", password: "password123", nickname: "탐정", avatarEmoji: "🦊" },
+    { email: "test@test.com", password: "test123", nickname: "테스터", avatarEmoji: "🐱" }
+  ];
+  
+  // 회원가입한 계정 확인
+  const registered = registeredUsers.get(req.email);
+  const validCred = defaultCredentials.find(c => c.email === req.email) || registered;
+  
+  if (!validCred || validCred.password !== req.password) {
+    throw new Error("이메일 또는 비밀번호가 올바르지 않습니다");
   }
-  throw new Error("INVALID_CREDENTIALS");
+  
+  const user = { ...MOCK_USER, email: req.email, nickname: validCred.nickname, avatarEmoji: validCred.avatarEmoji };
+  const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: user.subscriptionType, iat: Date.now(), exp: Date.now() + 3600000 });
+  return { token, user };
 }
 
 export async function mockSignup(req: SignupRequest): Promise<{ token: string; user: UserProfile }> {
   await delay(800, 1200);
+  
+  // 이미 존재하는 이메일 체크
+  if (registeredUsers.has(req.email)) {
+    throw new Error("이미 사용 중인 이메일입니다");
+  }
+  
+  // 회원가입 정보 저장
+  registeredUsers.set(req.email, {
+    email: req.email,
+    password: req.password,
+    nickname: req.nickname,
+    avatarEmoji: req.avatarEmoji
+  });
+  
   const user: UserProfile = { ...MOCK_USER, id: uuid(), email: req.email, nickname: req.nickname, avatarEmoji: req.avatarEmoji, coins: 100, level: 1, levelTitle: "새싹 탐정", xp: 0 };
   const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: "free", iat: Date.now(), exp: Date.now() + 3600000 });
   return { token, user };
