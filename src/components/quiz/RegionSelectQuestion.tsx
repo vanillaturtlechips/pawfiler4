@@ -44,13 +44,16 @@ export default function RegionSelectQuestion({
   };
 
   return (
-    <div className="flex flex-col gap-3 flex-1 min-h-0">
+    <div className="flex flex-col gap-3 flex-1 overflow-hidden">
       {/* 클릭 가능한 이미지 영역 */}
       <div
         ref={imageRef}
-        className="relative flex-1 cursor-crosshair rounded-2xl overflow-hidden bg-black"
+        className="relative flex-1 rounded-2xl overflow-hidden bg-black"
         onClick={handleClick}
-        style={{ minHeight: '400px' }}
+        style={{ 
+          minHeight: '300px',
+          cursor: showResult ? 'default' : 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 24 24\'><circle cx=\'10\' cy=\'10\' r=\'7\' fill=\'none\' stroke=\'white\' stroke-width=\'2\'/><line x1=\'15\' y1=\'15\' x2=\'21\' y2=\'21\' stroke=\'white\' stroke-width=\'2\' stroke-linecap=\'round\'/></svg>") 16 16, crosshair'
+        }}
       >
         <img
           src={question.mediaUrl}
@@ -113,37 +116,39 @@ export default function RegionSelectQuestion({
           ))}
       </div>
 
-      {/* 결과 표시 및 버튼 */}
-      <AnimatePresence mode="wait">
-        {showResult ? (
-          <motion.div 
-            key="result"
-            className="flex flex-col gap-3"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="p-4 rounded-2xl bg-wood-base border-4 border-wood-darkest">
-              <p className="font-jua text-2xl" style={{ color: isCorrect ? "hsl(var(--magic-green))" : "hsl(var(--destructive))" }}>
-                {isCorrect ? `🎉 정답! +${coinsEarned}닢` : "😢 아쉬워요..."}
-              </p>
-              <p className="text-base mt-2 text-foreground">{resultExplanation}</p>
-            </div>
-            <GameButton variant="blue" onClick={onNext}>
-              다음 문제 →
-            </GameButton>
-          </motion.div>
-        ) : (
-          <motion.div key="submit">
-            <GameButton
-              variant="green"
-              onClick={onSubmit}
-              className={!canSubmit || submitting ? "opacity-50 pointer-events-none" : ""}
+      {/* 결과 표시 및 버튼 - flex-shrink-0으로 고정 */}
+      <div className="flex-shrink-0">
+        <AnimatePresence mode="wait">
+          {showResult ? (
+            <motion.div 
+              key="result"
+              className="flex flex-col gap-3"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
             >
-              {submitting ? "⏳ 채점 중..." : "✅ 정답 확인!"}
-            </GameButton>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div className="p-4 rounded-2xl bg-wood-base border-4 border-wood-darkest">
+                <p className="font-jua text-2xl" style={{ color: isCorrect ? "hsl(var(--magic-green))" : "hsl(var(--destructive))" }}>
+                  {isCorrect ? `🎉 정답! +${coinsEarned}닢` : "😢 아쉬워요..."}
+                </p>
+                <p className="text-base mt-2 text-foreground">{resultExplanation}</p>
+              </div>
+              <GameButton variant="blue" onClick={onNext}>
+                다음 문제 →
+              </GameButton>
+            </motion.div>
+          ) : (
+            <motion.div key="submit">
+              <GameButton
+                variant="green"
+                onClick={onSubmit}
+                className={!canSubmit || submitting ? "opacity-50 pointer-events-none" : ""}
+              >
+                {submitting ? "⏳ 채점 중..." : "✅ 정답 확인!"}
+              </GameButton>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

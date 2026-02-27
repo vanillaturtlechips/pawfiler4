@@ -436,11 +436,11 @@ const GamePage = () => {
         <div className="flex items-center justify-between mb-5 relative z-40 flex-wrap gap-2">
           <h2 className="font-jua text-2xl sm:text-3xl text-shadow-deep flex-shrink-0">
             {question && 'type' in question && question.type === 'region_select' 
-              ? "🔍 의심 부분 찾기"
+              ? "🔍 조작된 흔적을 찾아라!!"
               : question && 'type' in question && question.type === 'comparison'
               ? "⚖️ 가짜 비교하기"
               : question && 'type' in question && question.type === 'true_false'
-              ? "✅ 진짜 가짜 판별"
+              ? "O/X 퀴즈 - 진짜를 맞춰라!!"
               : "🎬 가짜를 찾아라!"}
           </h2>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -489,8 +489,8 @@ const GamePage = () => {
                       );
                     case 'region_select':
                       return (
-                        <div className="flex flex-col gap-3">
-                          <p className="font-jua text-xl text-center">🔍 딥페이크가 의심되는 부분을 클릭하세요</p>
+                        <div className="flex flex-col gap-3 h-full">
+                          <p className="font-jua text-xl text-center">🔍 조작된 부분을 클릭하세요!</p>
                           <RegionSelectQuestion
                             question={question}
                             selectedRegion={selectedRegion}
