@@ -10,14 +10,12 @@
 - **답변 검증**: 각 질문 타입에 맞는 답변 검증 로직
 - **통계 추적**: 사용자별 정답률, 연속 정답, 생명 관리
 - **보상 시스템**: 정답 시 XP와 코인 부여
-- **이벤트 발행**: Kafka를 통한 퀴즈 이벤트 발행
 
 ### 기술 스택
 
-- **언어**: Go 1.21+
+- **언어**: Go 1.24+
 - **프로토콜**: gRPC (Protocol Buffers)
-- **데이터베이스**: PostgreSQL 15+
-- **메시지 브로커**: Apache Kafka
+- **데이터베이스**: PostgreSQL 16+
 - **컨테이너화**: Docker, Docker Compose
 
 ## Architecture
@@ -33,9 +31,7 @@ graph TB
     Service --> Repository[Data Repository]
     Service --> Validator[Answer Validator]
     Service --> StatsTracker[Stats Tracker]
-    Service --> EventPublisher[Event Publisher]
     Repository --> PostgreSQL[(PostgreSQL)]
-    EventPublisher --> Kafka[Kafka Broker]
 ```
 
 ### 레이어 구조
@@ -45,7 +41,6 @@ graph TB
 1. **Handler Layer** (`internal/handler`): gRPC 요청/응답 처리
 2. **Service Layer** (`internal/service`): 비즈니스 로직 구현
 3. **Repository Layer** (`internal/repository`): 데이터베이스 접근
-4. **Infrastructure Layer** (`pkg`): Kafka, 로깅 등 인프라 컴포넌트
 
 ### 디렉토리 구조
 
@@ -63,12 +58,14 @@ backend/services/quiz/
 │   ├── service/              # 비즈니스 로직
 │   │   ├── quiz_service.go
 │   │   ├── validator.go
-│   │   └── stats_tracker.go
+│   │   ├── validator_test.go
+│   │   ├── stats_tracker.go
+│   │   └── stats_tracker_test.go
 │   └── repository/           # 데이터 접근
-│       └── quiz_repository.go
-└── pkg/
-    └── kafka/                # Kafka 프로듀서
-        └── producer.go
+│       ├── quiz_repository.go
+│       ├── quiz_repository_test.go
+│       └── models.go
+└── README.md
 ```
 
 ## Components and Interfaces
@@ -164,31 +161,7 @@ type QuizRepository interface {
 }
 ```
 
-### 6. Event Publisher
-
-**책임**: Kafka를 통해 퀴즈 이벤트를 발행합니다.
-
-**인터페이스**:
-```go
-type EventPublisher interface {
-    PublishQuizAnswered(ctx context.Context, event *QuizAnsweredEvent) error
-}
-
-type QuizAnsweredEvent struct {
-    UserID       string
-    QuestionID   string
-    Correct      bool
-    XPEarned     int32
-    CoinsEarned  int32
-    Timestamp    time.Time
-}
-```
-
-## Data Models
-
-### 데이터베이스 스키마
-
-#### quiz.questions 테이블
+### 5. Quiz Repository
 
 ```sql
 CREATE TABLE quiz.questions (
@@ -517,31 +490,7 @@ func (ComparisonAnswer) isAnswer()     {}
 
 **Validates: Requirements 12.4**
 
-### Property 25: 퀴즈 이벤트 발행
-
-*임의의* 성공적인 답변 처리에 대해, "quiz.answered" 이벤트가 Kafka에 발행되어야 한다.
-
-**Validates: Requirements 13.1**
-
-### Property 26: 이벤트 필드 포함
-
-*임의의* 발행된 퀴즈 이벤트에 대해, user_id, question_id, correct, xp_earned, coins_earned 필드가 포함되어야 한다.
-
-**Validates: Requirements 13.2**
-
-### Property 27: 이벤트 토픽 라우팅
-
-*임의의* 퀴즈 이벤트에 대해, "pawfiler-events" 토픽으로 발행되어야 한다.
-
-**Validates: Requirements 13.3**
-
-### Property 28: 이벤트 발행 실패 격리
-
-*임의의* 답변 처리에 대해, 이벤트 발행이 실패하더라도 답변 처리는 성공으로 완료되어야 한다.
-
-**Validates: Requirements 13.4**
-
-### Property 29: 데이터베이스 에러 처리
+## Error Handling
 
 *임의의* 데이터베이스 에러 발생 시, INTERNAL 상태 코드가 반환되어야 한다.
 
@@ -608,11 +557,6 @@ func (ComparisonAnswer) isAnswer()     {}
 - 연결 풀 관리를 통한 자동 재연결
 - 트랜잭션 롤백으로 데이터 일관성 보장
 - 헬스체크를 통한 연결 상태 모니터링
-
-**Kafka 에러**
-- 이벤트 발행 실패 시 로깅만 수행 (답변 처리는 성공)
-- 재시도 로직 구현 (최대 3회, 지수 백오프)
-- Dead Letter Queue로 실패한 이벤트 저장
 
 **패닉 복구**
 - gRPC 인터셉터에서 패닉 캐치

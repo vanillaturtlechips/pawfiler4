@@ -2,7 +2,7 @@
 
 ## 소개
 
-퀴즈 백엔드 서비스는 딥페이크 탐지 교육을 위한 퀴즈 시스템을 제공하는 gRPC 기반 마이크로서비스입니다. 4가지 질문 타입(객관식, OX, 영역선택, 비교)을 지원하며, 사용자 통계 추적, 정답 검증, 이벤트 발행 기능을 제공합니다.
+퀴즈 백엔드 서비스는 딥페이크 탐지 교육을 위한 퀴즈 시스템을 제공하는 gRPC 기반 마이크로서비스입니다. 4가지 질문 타입(객관식, OX, 영역선택, 비교)을 지원하며, 사용자 통계 추적, 정답 검증 기능을 제공합니다.
 
 ## 용어 정의
 
@@ -10,7 +10,7 @@
 - **Question**: 사용자에게 제시되는 퀴즈 문제 (4가지 타입 중 하나)
 - **Answer_Validator**: 사용자가 제출한 답변의 정답 여부를 검증하는 컴포넌트
 - **Stats_Tracker**: 사용자의 퀴즈 통계(정답률, 연속 정답 등)를 추적하는 컴포넌트
-- **Event_Publisher**: Kafka를 통해 퀴즈 이벤트를 발행하는 컴포넌트
+
 - **Database**: PostgreSQL 데이터베이스
 - **Proto_Generator**: Protocol Buffer 정의 파일로부터 Go 코드를 생성하는 도구
 - **Multiple_Choice_Question**: 여러 선택지 중 하나를 선택하는 질문 타입
@@ -170,30 +170,18 @@
 3. WHEN 사용자 통계가 존재하지 않으면, THE Quiz_Service SHALL 기본값(total_answered=0, correct_rate=0, current_streak=0, best_streak=0, lives=3)을 반환한다
 4. THE Quiz_Service SHALL correct_rate를 백분율이 아닌 0~1 사이의 소수로 반환한다
 
-### 요구사항 13: 퀴즈 이벤트 발행
-
-**사용자 스토리:** 개발자로서, 퀴즈 답변 이벤트를 다른 서비스에서 구독할 수 있도록 발행하고 싶습니다.
-
-#### 인수 기준
-
-1. WHEN 답변이 성공적으로 처리되면, THE Event_Publisher SHALL "quiz.answered" 이벤트를 Kafka에 발행한다
-2. THE 이벤트 SHALL user_id, question_id, correct, xp_earned, coins_earned 필드를 포함한다
-3. THE Event_Publisher SHALL "pawfiler-events" 토픽에 이벤트를 발행한다
-4. WHEN 이벤트 발행이 실패하면, THE Event_Publisher SHALL 에러를 로깅하되 답변 처리는 성공으로 간주한다
-
-### 요구사항 14: gRPC 서버 초기화
+### 요구사항 13: gRPC 서버 초기화
 
 **사용자 스토리:** 개발자로서, gRPC 서버가 올바르게 초기화되고 실행되어야 합니다.
 
 #### 인수 기준
 
 1. WHEN 서비스가 시작되면, THE Quiz_Service SHALL PostgreSQL 데이터베이스에 연결한다
-2. WHEN 서비스가 시작되면, THE Quiz_Service SHALL Kafka 프로듀서를 초기화한다
-3. WHEN 서비스가 시작되면, THE Quiz_Service SHALL 포트 50052에서 gRPC 서버를 시작한다
-4. WHEN 데이터베이스 연결이 실패하면, THE Quiz_Service SHALL 에러를 로깅하고 종료한다
-5. THE Quiz_Service SHALL 환경 변수로부터 데이터베이스 연결 정보와 Kafka 브로커 주소를 읽어들인다
+2. WHEN 서비스가 시작되면, THE Quiz_Service SHALL 포트 50052에서 gRPC 서버를 시작한다
+3. WHEN 데이터베이스 연결이 실패하면, THE Quiz_Service SHALL 에러를 로깅하고 종료한다
+4. THE Quiz_Service SHALL 환경 변수로부터 데이터베이스 연결 정보를 읽어들인다
 
-### 요구사항 15: 에러 처리
+### 요구사항 14: 에러 처리
 
 **사용자 스토리:** 개발자로서, 명확한 에러 메시지를 통해 문제를 빠르게 파악하고 싶습니다.
 
@@ -205,7 +193,7 @@
 4. THE Quiz_Service SHALL 모든 에러를 로깅하여 디버깅을 지원한다
 5. THE Quiz_Service SHALL 클라이언트에 민감한 정보(스택 트레이스, 데이터베이스 상세 등)를 노출하지 않는다
 
-### 요구사항 16: 데이터베이스 마이그레이션
+### 요구사항 15: 데이터베이스 마이그레이션
 
 **사용자 스토리:** 개발자로서, 데이터베이스 스키마를 버전 관리하고 자동으로 적용하고 싶습니다.
 
@@ -217,7 +205,7 @@
 4. THE 마이그레이션 스크립트 SHALL 적절한 인덱스를 생성하여 쿼리 성능을 최적화한다
 5. THE 마이그레이션 스크립트 SHALL 외래 키 제약조건을 설정하여 데이터 무결성을 보장한다
 
-### 요구사항 17: Docker 컨테이너화
+### 요구사항 16: Docker 컨테이너화
 
 **사용자 스토리:** 개발자로서, 서비스를 Docker 컨테이너로 실행하여 배포를 간소화하고 싶습니다.
 
@@ -226,5 +214,5 @@
 1. THE Quiz_Service SHALL Dockerfile을 제공하여 컨테이너 이미지를 빌드한다
 2. THE Dockerfile SHALL 멀티스테이지 빌드를 사용하여 이미지 크기를 최소화한다
 3. THE Quiz_Service SHALL docker-compose.yml에 정의되어 다른 서비스와 함께 실행된다
-4. THE docker-compose.yml SHALL PostgreSQL, Kafka, Quiz_Service 간의 네트워크를 구성한다
+4. THE docker-compose.yml SHALL PostgreSQL과 Quiz_Service 간의 네트워크를 구성한다
 5. THE Quiz_Service SHALL 컨테이너 시작 시 데이터베이스 연결을 대기하는 헬스체크를 수행한다
