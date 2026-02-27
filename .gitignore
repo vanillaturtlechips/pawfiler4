@@ -45,3 +45,13 @@ community-service.exe
 main
 main.exe
 node_modules
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+!terraform.tfvars.example
+*.pem
+*.key
+.terraform.lock.hcl
