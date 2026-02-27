@@ -21,7 +21,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const quizProto = grpc.loadPackageDefinition(packageDefinition).quiz;
 
 // Create gRPC client
-const QUIZ_SERVICE_URL = process.env.QUIZ_SERVICE_URL || 'localhost:50052';
+const QUIZ_SERVICE_URL = process.env.QUIZ_SERVICE_URL || 'quiz-service:50052';
 const client = new quizProto.QuizService(
   QUIZ_SERVICE_URL,
   grpc.credentials.createInsecure()
@@ -66,7 +66,7 @@ app.post('/api/quiz/stats', (req, res) => {
   });
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Quiz proxy server running on http://localhost:${PORT}`);
+  console.log(`Quiz proxy server running on port ${PORT}`);
 });

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -165,13 +166,18 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "50053"
+	}
+
 	http.HandleFunc("/community.CommunityService/GetFeed", corsMiddleware(getFeedHandler))
 	http.HandleFunc("/community.CommunityService/CreatePost", corsMiddleware(createPostHandler))
 	http.HandleFunc("/community.CommunityService/UpdatePost", corsMiddleware(updatePostHandler))
 	http.HandleFunc("/community.CommunityService/DeletePost", corsMiddleware(deletePostHandler))
 
-	log.Println("Community service listening on :50053")
-	if err := http.ListenAndServe(":50053", nil); err != nil {
+	log.Printf("Community service listening on :%s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }

@@ -82,13 +82,19 @@ aws ecr get-login-password --region ap-northeast-2 | \
 ## 비용 확인
 
 ```bash
-# Infracost 설치 (비용 예측 도구)
+# Infracost 설치 (비용 예측 도구 - 배포 전)
 brew install infracost  # macOS
 # 또는
 curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
 
 # 비용 예측
 infracost breakdown --path .
+
+# Kubecost (실시간 클러스터 비용 모니터링 - 배포 후)
+# Terraform으로 자동 설치됨
+# 대시보드 접속:
+kubectl port-forward -n kubecost svc/kubecost-cost-analyzer 9090:9090
+# 브라우저에서 http://localhost:9090 접속
 ```
 
 ## 트러블슈팅

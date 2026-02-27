@@ -1,27 +1,13 @@
 FROM golang:1.24-alpine AS builder
-
-RUN apk add --no-cache git ca-certificates
-
-WORKDIR /build
-
+WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
-
-COPY cmd/ ./cmd/
-COPY internal/ ./internal/
-COPY proto/ ./proto/
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w" \
-    -o quiz-service \
-    ./cmd/server/main.go
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o quiz-service ./cmd/server
 
 FROM alpine:latest
-
-WORKDIR /app
-
-COPY --from=builder /build/quiz-service .
-
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/quiz-service .
 EXPOSE 50052
-
 CMD ["./quiz-service"]
