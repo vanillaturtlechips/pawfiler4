@@ -12,7 +12,7 @@ variable "cluster_name" {
 variable "eks_version" {
   description = "EKS cluster version"
   type        = string
-  default     = "1.28"
+  default     = "1.34"
 }
 
 variable "node_instance_types" {
@@ -99,6 +99,19 @@ resource "aws_eks_node_group" "main" {
   tags = {
     Name = "${var.project_name}-eks-node-group"
   }
+}
+
+# EBS CSI Driver Addon
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name             = aws_eks_cluster.main.name
+  addon_name               = "aws-ebs-csi-driver"
+  addon_version            = "v1.56.0-eksbuild.1"
+  service_account_role_arn = aws_iam_role.ebs_csi_driver.arn
+
+  depends_on = [
+    aws_eks_node_group.main,
+    aws_iam_role.ebs_csi_driver
+  ]
 }
 
 # Outputs
