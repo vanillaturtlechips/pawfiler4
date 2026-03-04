@@ -55,3 +55,14 @@ terraform.tfvars
 *.pem
 *.key
 .terraform.lock.hcl
+
+# Quiz media files (stored in S3)
+backend/services/quiz/sample-media/images/**/*.jpg
+backend/services/quiz/sample-media/images/**/*.jpeg
+backend/services/quiz/sample-media/images/**/*.png
+backend/services/quiz/sample-media/videos/**/*.mp4
+backend/services/quiz/sample-media/videos/**/*.mov
+backend/services/quiz/sample-media/videos/**/*.avi
+
+# Keep README files
+!backend/services/quiz/sample-media/**/README.md

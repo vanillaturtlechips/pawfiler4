@@ -32,6 +32,7 @@ const GamePage = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<boolean | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<{ x: number; y: number } | null>(null);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(null);
+  const [isComparisonSwapped, setIsComparisonSwapped] = useState(false);
   
   const [result, setResult] = useState<QuizSubmitResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -148,14 +149,32 @@ const GamePage = () => {
     
     setSubmitting(true);
     try {
+      // comparison 문제에서 이미지가 스왑되었으면 선택을 원래 위치로 변환
+      let actualSelectedSide = selectedSide;
+      if ('type' in question && question.type === 'comparison' && isComparisonSwapped && selectedSide) {
+        actualSelectedSide = selectedSide === 'left' ? 'right' : 'left';
+      }
+      
       const res = await submitQuizAnswer({
         questionId: question.id,
         selectedIndex,
         selectedAnswer: selectedAnswer ?? undefined,
         selectedRegion: selectedRegion ?? undefined,
-        selectedSide: selectedSide ?? undefined,
+        selectedSide: actualSelectedSide ?? undefined,
       });
       setResult(res);
+      
+      console.log('[handleSubmit] Result:', res);
+      console.log('[handleSubmit] Question before update:', question);
+      
+      // 객관식 문제의 경우 백엔드에서 받은 정답 인덱스로 업데이트
+      if (res.correctIndex !== undefined && question && 'type' in question && question.type === 'multiple_choice') {
+        console.log('[handleSubmit] Updating correctIndex to:', res.correctIndex);
+        setQuestion({
+          ...question,
+          correctIndex: res.correctIndex,
+        });
+      }
       
       // 세션 통계 업데이트
       setSessionTotal(prev => prev + 1);
@@ -356,13 +375,13 @@ const GamePage = () => {
         >
           {/* Left: Video Section - Region Select와 Comparison일 때는 숨김 */}
           {!(question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')) && (
-        <WoodPanel className="flex flex-col">
+        <div className="flex flex-col h-full overflow-y-auto">
           {loading ? (
-            <Skeleton className="flex-1 rounded-2xl bg-wood-dark" />
+            <Skeleton className="min-h-full rounded-2xl bg-wood-dark" />
           ) : question ? (
             <>
               {/* Category and Difficulty Header */}
-              <div className="flex items-center justify-between mb-3 px-2">
+              <div className="flex items-center justify-between mb-3 px-2 flex-shrink-0">
                 <div className="font-jua text-sm opacity-70">
                   📂 딥페이크 탐지
                 </div>
@@ -381,17 +400,17 @@ const GamePage = () => {
               </div>
               
               <div
-                className="flex-1 flex items-center justify-center rounded-2xl overflow-hidden min-h-0"
+                className="flex items-center justify-center rounded-2xl overflow-hidden flex-shrink-0"
                 style={{ 
-                  background: "#000", 
-                  border: "6px solid hsl(var(--wood-darkest))",
+                  background: "#000",
+                  minHeight: "600px",
                 }}
               >
                 {question && 'type' in question && question.mediaUrl ? (
                   question.mediaType === 'video' ? (
                     <video
                       src={question.mediaUrl}
-                      className="max-w-full max-h-full object-contain"
+                      className="w-full h-auto"
                       controls
                       autoPlay
                       loop
@@ -402,14 +421,14 @@ const GamePage = () => {
                     <img
                       src={question.mediaUrl}
                       alt="Quiz"
-                      className="max-w-full max-h-full object-contain"
+                      className="w-full h-auto"
                     />
                   )
                 ) : question && 'videoUrl' in question && question.videoUrl ? (
                   // Legacy support
                   <video
                     src={question.videoUrl}
-                    className="max-w-full max-h-full object-contain"
+                    className="w-full h-auto"
                     controls
                     autoPlay
                     loop
@@ -428,11 +447,11 @@ const GamePage = () => {
               </div>
             </>
           ) : null}
-        </WoodPanel>
+        </div>
           )}
 
-          {/* Right: Quiz Section */}
-      <WoodPanel className="flex flex-col relative z-30">
+          {/* Right: Quiz Section - 고정 */}
+      <WoodPanel className="flex flex-col relative z-30 overflow-y-auto">
         {/* Header - 모든 유형 통일 */}
         <div className="flex items-center justify-between mb-5 relative z-40 flex-wrap gap-2">
           <h2 className="font-jua text-2xl sm:text-3xl text-shadow-deep flex-shrink-0">
@@ -464,14 +483,17 @@ const GamePage = () => {
         ) : question ? (
           <div className="flex flex-1 flex-col gap-4 min-h-0">
             {/* Render appropriate question type */}
-            <div className="flex-1 min-h-0 overflow-hidden px-1">
+            <div className="flex-1 min-h-0 overflow-y-auto px-1">
               {(() => {
                 if ('type' in question) {
                   switch (question.type) {
                     case 'multiple_choice':
                       return (
                         <MultipleChoiceQuestion
-                          question={question}
+                          question={{
+                            ...question,
+                            correctIndex: result?.correctIndex ?? question.correctIndex
+                          }}
                           selectedIndex={selectedIndex}
                           onSelect={setSelectedIndex}
                           showResult={result !== null}
@@ -510,7 +532,7 @@ const GamePage = () => {
                     case 'comparison':
                       return (
                         <div className="flex flex-col gap-3">
-                          <p className="font-jua text-xl text-center">⚖️ 어느 쪽이 진짜 영상인지 선택하세요</p>
+                          <p className="font-jua text-xl text-center">⚖️ 어느 쪽이 AI가 생성한 가짜 이미지인지 선택하세요</p>
                           <ComparisonQuestion
                             question={question}
                             selectedSide={selectedSide}
@@ -523,6 +545,7 @@ const GamePage = () => {
                             onNext={loadQuestion}
                             resultExplanation={result?.explanation}
                             coinsEarned={result?.coinsEarned}
+                            onSwapChange={setIsComparisonSwapped}
                           />
                         </div>
                       );

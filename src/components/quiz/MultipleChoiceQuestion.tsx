@@ -20,7 +20,11 @@ export default function MultipleChoiceQuestion({
     <div className="flex flex-col gap-3 flex-1">
       {question.options.map((opt, i) => {
         const isSelected = selectedIndex === i;
-        const isCorrectAnswer = showResult && i === question.correctIndex;
+        // 정답 표시: 정답을 맞췄거나, 오답일 때 실제 정답 표시
+        const isCorrectAnswer = showResult && (
+          (isSelected && isCorrect) || // 정답을 맞춘 경우
+          (!isCorrect && question.correctIndex >= 0 && i === question.correctIndex) // 오답인 경우 실제 정답 표시
+        );
         const isWrong = showResult && isSelected && !isCorrect;
 
         return (
