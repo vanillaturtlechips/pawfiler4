@@ -348,9 +348,7 @@ const GamePage = () => {
             gridTemplateColumns: 
               question && 'type' in question && (question.type === 'region_select' || question.type === 'comparison')
                 ? '1fr'
-                : videoOrientation === "portrait" 
-                ? '1fr'
-                : '1.5fr 2fr'
+                : '1fr 1.5fr'
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

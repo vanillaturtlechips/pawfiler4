@@ -145,7 +145,11 @@ func convertQuestionToProto(q *repository.Question, includeAnswers bool) *pb.Qui
 	// Add type-specific fields based on question type
 	switch q.Type {
 	case repository.QuestionTypeMultipleChoice:
-		pbQuestion.Options = q.Options
+		// Copy options array to ensure it's properly set
+		if len(q.Options) > 0 {
+			pbQuestion.Options = make([]string, len(q.Options))
+			copy(pbQuestion.Options, q.Options)
+		}
 		// Requirement 3.5: Only include correct_index if includeAnswers is true
 		if includeAnswers && q.CorrectIndex.Valid {
 			pbQuestion.CorrectIndex = &q.CorrectIndex.Int32
