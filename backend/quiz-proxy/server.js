@@ -50,7 +50,32 @@ app.post('/api/quiz/submit', (req, res) => {
       console.error('gRPC error:', error);
       return res.status(500).json({ error: error.message });
     }
-    res.json(response);
+    console.log('SubmitAnswer response:', JSON.stringify(response, null, 2));
+    console.log('SubmitAnswer response.correct_index:', response.correct_index);
+    console.log('SubmitAnswer response.correctIndex:', response.correctIndex);
+    console.log('SubmitAnswer response keys:', Object.keys(response));
+    
+    // gRPC 응답을 JSON으로 변환하면서 correct_index 필드 명시적으로 포함
+    const jsonResponse = {
+      correct: response.correct,
+      xp_earned: response.xp_earned,
+      coins_earned: response.coins_earned,
+      explanation: response.explanation,
+      streak_count: response.streak_count,
+    };
+    
+    // correct_index가 있으면 포함 (camelCase와 snake_case 둘 다 확인)
+    if (response.correct_index !== undefined && response.correct_index !== null) {
+      jsonResponse.correct_index = response.correct_index;
+      console.log('Added correct_index (snake_case):', response.correct_index);
+    }
+    if (response.correctIndex !== undefined && response.correctIndex !== null) {
+      jsonResponse.correct_index = response.correctIndex;
+      console.log('Added correct_index (camelCase):', response.correctIndex);
+    }
+    
+    console.log('JSON response:', JSON.stringify(jsonResponse, null, 2));
+    res.json(jsonResponse);
   });
 });
 
