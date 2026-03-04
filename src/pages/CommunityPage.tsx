@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,13 +16,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { config } from "@/lib/config";
 import {
   fetchCommunityFeed,
   createCommunityPost,
   updateCommunityPost,
   deleteCommunityPost,
+  fetchNotices,
+  fetchTopDetective,
+  fetchHotTopic,
 } from "@/lib/api";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { CommunityPost } from "@/lib/types";
 import { toast } from "sonner";
@@ -44,14 +47,18 @@ const CommunityPage = () => {
   const [loading, setLoading] = useState(true);
   
   // Feed & Pagination State
-  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const pageSize = 10;
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const pageSize = 15;
 
   // Search State
   const [query, setQuery] = useState("");
+  const [searchType, setSearchType] = useState<"title" | "body" | "all">("title");
+
+  // Dashboard State
+  const [notices, setNotices] = useState<Array<{ id: string; title: string }>>([]);
+  const [topDetective, setTopDetective] = useState<{ authorNickname: string; authorEmoji: string; totalLikes: number }>({ authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 });
+  const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({ tag: "없음", count: 0 });
 
   // CRUD State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,37 +68,52 @@ const CommunityPage = () => {
   const [formTags, setFormTags] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchFeed = async (p: number, reset = false) => {
+  const fetchFeed = async (p: number, search?: string) => {
     try {
-      if (reset) setLoading(true);
-      else setLoadingMore(true);
-
-      const feed = await fetchCommunityFeed(p, config.communityPageSize);
+      setLoading(true);
+      const feed = await fetchCommunityFeed(p, pageSize, search, searchType);
       setTotalCount(feed.totalCount);
-      
-      if (reset) {
-        setPage(1);
-        setPosts(feed.posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      } else {
-        setPage(p);
-        setPosts((prev) => {
-          const merged = [...prev, ...feed.posts];
-          const unique = Array.from(new Map(merged.map((p) => [p.id, p])).values());
-          return unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        });
-      }
+      setPage(p);
+      setPosts(feed.posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error('Failed to fetch feed:', error);
+      toast.error("게시글을 불러오는데 실패했습니다.");
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
     if (!token) return;
-    fetchFeed(1, true);
+    fetchFeed(1);
+    loadDashboardData();
   }, [token]);
+
+  const loadDashboardData = async () => {
+    try {
+      const [noticesData, detectiveData, topicData] = await Promise.all([
+        fetchNotices(),
+        fetchTopDetective(),
+        fetchHotTopic(),
+      ]);
+      setNotices(noticesData);
+      setTopDetective(detectiveData);
+      setHotTopic(topicData);
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    }
+  };
+
+  // 검색어 변경 시 디바운싱 적용
+  useEffect(() => {
+    if (!token) return;
+    
+    const timer = setTimeout(() => {
+      fetchFeed(1, query || undefined);
+    }, 300); // 300ms 디바운싱
+
+    return () => clearTimeout(timer);
+  }, [query, searchType, token]);
 
   const handleOpenCreate = () => {
     setEditingPost(null);
@@ -117,9 +139,11 @@ const CommunityPage = () => {
     try {
       await deleteCommunityPost(postId);
       setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setTotalCount((prev) => Math.max(0, prev - 1));
       toast.success("게시글이 삭제되었습니다.");
     } catch (error) {
       console.error('Failed to delete post:', error);
+      toast.error("게시글 삭제에 실패했습니다.");
     }
   };
 
@@ -155,7 +179,11 @@ const CommunityPage = () => {
           body: formBody,
           tags,
         });
-        setPosts((prev) => [created, ...prev]);
+        // 검색 중이 아닐 때만 목록에 추가
+        if (!query) {
+          setPosts((prev) => [created, ...prev]);
+        }
+        setTotalCount((prev) => prev + 1);
         toast.success("새 게시글이 등록되었습니다.");
       }
       setIsModalOpen(false);
@@ -164,38 +192,14 @@ const CommunityPage = () => {
       setFormTags("");
     } catch (error) {
       console.error('Failed to submit post:', error);
+      toast.error("게시글 처리에 실패했습니다.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const visiblePosts = normalizedQuery
-    ? posts.filter((p) => {
-        const hay = `${p.title} ${p.body} ${p.tags.join(" ")}`.toLowerCase();
-        return hay.includes(normalizedQuery);
-      })
-    : posts;
-
-  useEffect(() => {
-    if (!token) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        const canLoadMore = posts.length < totalCount;
-        if (entry.isIntersecting && !loading && !loadingMore && canLoadMore) {
-          fetchFeed(page + 1);
-        }
-      },
-      { threshold: 0.1 }
-    );
-    const el = sentinelRef.current;
-    if (el) observer.observe(el);
-    return () => {
-      if (el) observer.unobserve(el);
-      observer.disconnect();
-    };
-  }, [token, loading, loadingMore, posts.length, totalCount, page]);
+  // 클라이언트 사이드 필터링 제거 - 서버에서 처리
+  const visiblePosts = posts;
 
   return (
     <div className="h-[calc(100vh-5rem)] w-full overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
@@ -224,22 +228,64 @@ const CommunityPage = () => {
             </Button>
           </div>
 
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-orange-500 transition-colors" size={22} />
-            <Input
-              placeholder="제목, 내용, 태그로 검색..."
-              className="pl-12 py-6 text-lg rounded-2xl border-4 border-parchment-border bg-white text-gray-900 placeholder:text-gray-400 backdrop-blur-sm focus-visible:ring-orange-500/50 font-jua"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-black/5 rounded-full transition-colors"
+          <div className="flex gap-4">
+            <div className="relative group flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-orange-500 transition-colors" size={22} />
+              <Input
+                placeholder={
+                  searchType === "title" ? "제목으로 검색..." :
+                  searchType === "body" ? "내용으로 검색..." :
+                  "제목 + 내용으로 검색..."
+                }
+                className="pl-12 py-6 text-lg rounded-2xl border-4 border-parchment-border bg-white text-gray-900 placeholder:text-gray-400 backdrop-blur-sm focus-visible:ring-orange-500/50 font-jua"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-black/5 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setSearchType("title")}
+                variant={searchType === "title" ? "default" : "outline"}
+                className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
+                  searchType === "title" 
+                    ? "bg-orange-500 hover:bg-orange-600 text-white" 
+                    : "bg-white hover:bg-orange-50 text-wood-darkest"
+                }`}
               >
-                <X size={20} />
-              </button>
-            )}
+                제목
+              </Button>
+              <Button
+                onClick={() => setSearchType("body")}
+                variant={searchType === "body" ? "default" : "outline"}
+                className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
+                  searchType === "body" 
+                    ? "bg-orange-500 hover:bg-orange-600 text-white" 
+                    : "bg-white hover:bg-orange-50 text-wood-darkest"
+                }`}
+              >
+                내용
+              </Button>
+              <Button
+                onClick={() => setSearchType("all")}
+                variant={searchType === "all" ? "default" : "outline"}
+                className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
+                  searchType === "all" 
+                    ? "bg-orange-500 hover:bg-orange-600 text-white" 
+                    : "bg-white hover:bg-orange-50 text-wood-darkest"
+                }`}
+              >
+                전체
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -252,15 +298,19 @@ const CommunityPage = () => {
               <h3 className="font-jua text-xl text-wood-darkest">공지사항</h3>
             </div>
             <div className="space-y-2">
-              <div className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors truncate">
-                • 커뮤니티 이용 규칙 안내
-              </div>
-              <div className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors truncate">
-                • 신규 탐정 환영 이벤트
-              </div>
-              <div className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors truncate">
-                • 주간 우수 제보자 시상
-              </div>
+              {notices.length > 0 ? (
+                notices.map((notice) => (
+                  <div
+                    key={notice.id}
+                    onClick={() => navigate(`/community/${notice.id}`)}
+                    className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors truncate"
+                  >
+                    • {notice.title}
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-wood-dark/50">공지사항이 없습니다</div>
+              )}
             </div>
           </ParchmentPanel>
 
@@ -272,11 +322,13 @@ const CommunityPage = () => {
             </div>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-yellow-100 border-2 border-yellow-400 flex items-center justify-center text-3xl shadow-lg">
-                🦉
+                {topDetective.authorEmoji}
               </div>
               <div>
-                <div className="font-jua text-lg text-wood-darkest">수리 부엉이</div>
-                <div className="text-xs text-orange-600 font-bold">정확도 98.5% 달성</div>
+                <div className="font-jua text-lg text-wood-darkest">{topDetective.authorNickname}</div>
+                <div className="text-xs text-orange-600 font-bold">
+                  {topDetective.totalLikes > 0 ? `좋아요 ${topDetective.totalLikes}개 획득` : '데이터 없음'}
+                </div>
               </div>
             </div>
           </ParchmentPanel>
@@ -288,14 +340,25 @@ const CommunityPage = () => {
               <h3 className="font-jua text-xl text-wood-darkest">오늘의 핫토픽</h3>
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-bold text-red-600">#딥페이크탐지</div>
+              <div 
+                className="text-sm font-bold text-red-600 cursor-pointer hover:text-red-700 transition-colors"
+                onClick={() => {
+                  if (hotTopic.tag !== "없음") {
+                    setQuery(hotTopic.tag);
+                  }
+                }}
+              >
+                #{hotTopic.tag}
+              </div>
               <div className="text-xs text-wood-dark">
-                오늘 가장 많이 언급된 주제
+                {hotTopic.count > 0 ? `${hotTopic.count}개 게시글에서 언급` : '데이터 없음'}
               </div>
-              <div className="flex gap-2 mt-2">
-                <Badge className="bg-red-100 text-red-600 text-xs">+24</Badge>
-                <Badge className="bg-orange-100 text-orange-600 text-xs">인기급상승</Badge>
-              </div>
+              {hotTopic.count > 0 && (
+                <div className="flex gap-2 mt-2">
+                  <Badge className="bg-red-100 text-red-600 text-xs">+{hotTopic.count}</Badge>
+                  <Badge className="bg-orange-100 text-orange-600 text-xs">인기급상승</Badge>
+                </div>
+              )}
             </div>
           </ParchmentPanel>
         </div>
@@ -355,7 +418,7 @@ const CommunityPage = () => {
                       >
                         {/* 번호 */}
                         <div className="text-center font-jua text-lg text-wood-dark flex items-center justify-center">
-                          {totalCount - index}
+                          {totalCount - ((page - 1) * pageSize) - index}
                         </div>
 
                         {/* 제목 */}
@@ -444,16 +507,101 @@ const CommunityPage = () => {
           )}
         </ParchmentPanel>
 
-        <div ref={sentinelRef} className="h-10 w-full" />
-        {loadingMore && (
-          <div className="flex justify-center py-10">
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-              className="text-4xl"
+        {/* Pagination */}
+        {totalCount > pageSize && (
+          <div className="flex items-center justify-center gap-4 py-8">
+            <Button
+              onClick={() => fetchFeed(Math.max(1, page - 1), query || undefined)}
+              disabled={page === 1 || loading}
+              variant="outline"
+              size="lg"
+              className="font-jua text-lg gap-2 rounded-2xl px-6 py-6 border-4 border-wood-darkest"
             >
-              🦉
-            </motion.div>
+              <ChevronLeft size={24} />
+              이전
+            </Button>
+
+            <div className="flex items-center gap-2">
+              {(() => {
+                const totalPages = Math.ceil(totalCount / pageSize);
+                const maxVisiblePages = 10;
+                let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                
+                // Adjust start if we're near the end
+                if (endPage - startPage < maxVisiblePages - 1) {
+                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                }
+
+                const pages = [];
+                
+                // First page
+                if (startPage > 1) {
+                  pages.push(
+                    <Button
+                      key={1}
+                      onClick={() => fetchFeed(1, query || undefined)}
+                      disabled={loading}
+                      className="font-jua text-lg w-12 h-12 rounded-xl transition-all bg-white hover:bg-orange-50 text-wood-darkest border-2 border-wood-darkest"
+                    >
+                      1
+                    </Button>
+                  );
+                  if (startPage > 2) {
+                    pages.push(<span key="ellipsis1" className="px-2">...</span>);
+                  }
+                }
+
+                // Visible pages
+                for (let i = startPage; i <= endPage; i++) {
+                  const isCurrentPage = i === page;
+                  pages.push(
+                    <Button
+                      key={i}
+                      onClick={() => fetchFeed(i, query || undefined)}
+                      disabled={loading}
+                      className={`font-jua text-lg w-12 h-12 rounded-xl transition-all ${
+                        isCurrentPage
+                          ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg'
+                          : 'bg-white hover:bg-orange-50 text-wood-darkest border-2 border-wood-darkest'
+                      }`}
+                    >
+                      {i}
+                    </Button>
+                  );
+                }
+
+                // Last page
+                if (endPage < totalPages) {
+                  if (endPage < totalPages - 1) {
+                    pages.push(<span key="ellipsis2" className="px-2">...</span>);
+                  }
+                  pages.push(
+                    <Button
+                      key={totalPages}
+                      onClick={() => fetchFeed(totalPages, query || undefined)}
+                      disabled={loading}
+                      className="font-jua text-lg w-12 h-12 rounded-xl transition-all bg-white hover:bg-orange-50 text-wood-darkest border-2 border-wood-darkest"
+                    >
+                      {totalPages}
+                    </Button>
+                  );
+                }
+
+                return pages;
+              })()}
+            </div>
+
+            <Button
+              onClick={() => fetchFeed(Math.min(Math.ceil(totalCount / pageSize), page + 1), query || undefined)}
+              disabled={page === Math.ceil(totalCount / pageSize) || loading}
+              variant="outline"
+              size="lg"
+              className="font-jua text-lg gap-2 rounded-2xl px-6 py-6 border-4 border-wood-darkest"
+            >
+              다음
+              <ChevronRight size={24} />
+            </Button>
           </div>
         )}
 
