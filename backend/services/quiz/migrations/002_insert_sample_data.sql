@@ -19,12 +19,12 @@ VALUES
     (
         '550e8400-e29b-41d4-a716-446655440002',
         'multiple_choice',
-        'image',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        'video',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4',
         '🎥',
         'medium',
         'deepfake-detection',
-        '얼굴 합성 경계 부분이 번지거나 흐릿한 건 딥페이크의 대표 특징이에요!',
+        '영상에서 얼굴 합성 경계 부분이 번지거나 흐릿한 건 딥페이크의 대표 특징이에요!',
         ARRAY['배경이 자연스러워요', '얼굴 경계가 번져요', '음성이 정확해요', '조명이 일치해요'],
         1
     ),
@@ -58,12 +58,12 @@ VALUES
     (
         '550e8400-e29b-41d4-a716-446655440005',
         'true_false',
-        'image',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        'video',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4',
         '❌',
         'medium',
         'deepfake-detection',
-        '이 이미지는 딥페이크입니다. 얼굴 경계가 부자연스럽게 번지는 것을 확인할 수 있습니다.',
+        '이 영상은 딥페이크입니다. 얼굴 경계가 부자연스럽게 번지는 것을 확인할 수 있습니다.',
         false
     );
 
@@ -85,12 +85,12 @@ VALUES
     (
         '550e8400-e29b-41d4-a716-446655440007',
         'region_select',
-        'image',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        'video',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4',
         '👄',
         'hard',
         'deepfake-detection',
-        '얼굴 경계 부분의 픽셀 왜곡이 딥페이크의 증거입니다.',
+        '영상에서 얼굴 경계 부분의 픽셀 왜곡이 딥페이크의 증거입니다.',
         '[{"x": 300, "y": 400, "radius": 40}]'::jsonb,
         25
     );
@@ -102,32 +102,33 @@ VALUES
         '550e8400-e29b-41d4-a716-446655440008',
         'comparison',
         'image',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/compare_left_001.jpg',
         '🔄',
         'medium',
         'deepfake-detection',
         '왼쪽 이미지가 딥페이크입니다. 얼굴 경계가 부자연스럽습니다.',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/real/compare_right_001.jpg',
         'left'
     ),
     (
         '550e8400-e29b-41d4-a716-446655440009',
         'comparison',
-        'image',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        'video',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4',
         '⚖️',
         'hard',
         'deepfake-detection',
-        '오른쪽 이미지가 딥페이크입니다. 얼굴 경계의 블러링이 관찰됩니다.',
-        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg',
+        '오른쪽 영상이 딥페이크입니다. 얼굴 경계의 블러링이 관찰됩니다.',
+        'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4',
         'right'
     );
 
 -- Verify insertion
 SELECT 
     type,
+    media_type,
     difficulty,
     COUNT(*) as count
 FROM quiz.questions
-GROUP BY type, difficulty
-ORDER BY type, difficulty;
+GROUP BY type, media_type, difficulty
+ORDER BY type, media_type, difficulty;

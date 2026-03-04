@@ -381,8 +381,11 @@ const GamePage = () => {
               </div>
               
               <div
-                className="flex-1 flex items-center justify-center rounded-2xl overflow-hidden"
-                style={{ background: "#000", border: "6px solid hsl(var(--wood-darkest))" }}
+                className="flex-1 flex items-center justify-center rounded-2xl overflow-hidden min-h-0"
+                style={{ 
+                  background: "#000", 
+                  border: "6px solid hsl(var(--wood-darkest))",
+                }}
               >
                 {question && 'type' in question && question.mediaUrl ? (
                   question.mediaType === 'video' ? (

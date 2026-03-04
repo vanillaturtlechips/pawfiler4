@@ -44,7 +44,7 @@ export default function ComparisonQuestion({
         <img 
           src={imageUrl} 
           alt={`Option ${side}`} 
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           style={{
             border: isCorrectAnswer 
               ? "6px solid #22c55e"
@@ -56,7 +56,6 @@ export default function ComparisonQuestion({
             boxShadow: isSelected && !showResult
               ? "0 0 30px rgba(255, 255, 255, 0.8)"
               : "none",
-            minHeight: '300px'
           }}
         />
 
@@ -92,9 +91,9 @@ export default function ComparisonQuestion({
   };
 
   return (
-    <div className="flex flex-col gap-3 flex-1 min-h-0">
+    <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-hidden">
       {/* 이미지 비교 영역 */}
-      <div className="flex gap-4 flex-1" style={{ minHeight: '300px' }}>
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden" style={{ maxHeight: 'calc(100vh - 450px)' }}>
         {renderImage("left", question.mediaUrl)}
         {renderImage("right", question.comparisonMediaUrl)}
       </div>
