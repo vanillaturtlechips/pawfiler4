@@ -185,7 +185,7 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		isCorrect = s.validator.ValidateRegionSelect(
 			rsAnswer.SelectedRegion,
 			question.CorrectRegions,
-			question.Tolerance.Int32,
+			int32(question.Tolerance.Int32),
 		)
 
 	case repository.QuestionTypeComparison:

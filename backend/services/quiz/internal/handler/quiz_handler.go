@@ -184,7 +184,8 @@ func convertQuestionToProto(q *repository.Question, includeAnswers bool) *pb.Qui
 			pbQuestion.CorrectRegions = convertRegionsToProto(q.CorrectRegions)
 		}
 		if q.Tolerance.Valid {
-			pbQuestion.Tolerance = &q.Tolerance.Int32
+			tolerance := int32(q.Tolerance.Int32)
+			pbQuestion.Tolerance = &tolerance
 		}
 
 	case repository.QuestionTypeComparison:
