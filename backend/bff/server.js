@@ -62,6 +62,20 @@ function toCamelCase(obj) {
   return camelObj;
 }
 
+// Helper function to convert camelCase to snake_case
+function toSnakeCase(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(toSnakeCase);
+  
+  const snakeObj = {};
+  for (const key in obj) {
+    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    snakeObj[snakeKey] = toSnakeCase(obj[key]);
+  }
+  return snakeObj;
+}
+
 // Helper to convert gRPC response to camelCase JSON
 function grpcToCamelCase(grpcResponse) {
   // Convert protobuf object to plain JavaScript object first
@@ -167,7 +181,7 @@ app.get('/api/community/post', (req, res) => {
 
 // Create Post
 app.post('/api/community/post', (req, res) => {
-  communityClient.CreatePost(req.body, (error, response) => {
+  communityClient.CreatePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       const statusCode = error.code === grpc.status.INVALID_ARGUMENT ? 400 : 500;
@@ -179,7 +193,7 @@ app.post('/api/community/post', (req, res) => {
 
 // Update Post
 app.put('/api/community/post', (req, res) => {
-  communityClient.UpdatePost(req.body, (error, response) => {
+  communityClient.UpdatePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       let statusCode = 500;
@@ -193,7 +207,7 @@ app.put('/api/community/post', (req, res) => {
 
 // Delete Post
 app.delete('/api/community/post', (req, res) => {
-  communityClient.DeletePost(req.body, (error, response) => {
+  communityClient.DeletePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       let statusCode = 500;
@@ -220,7 +234,7 @@ app.get('/api/community/comments', (req, res) => {
 
 // Create Comment
 app.post('/api/community/comment', (req, res) => {
-  communityClient.CreateComment(req.body, (error, response) => {
+  communityClient.CreateComment(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       let statusCode = 500;
@@ -234,7 +248,7 @@ app.post('/api/community/comment', (req, res) => {
 
 // Delete Comment
 app.delete('/api/community/comment', (req, res) => {
-  communityClient.DeleteComment(req.body, (error, response) => {
+  communityClient.DeleteComment(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       let statusCode = 500;
@@ -248,7 +262,7 @@ app.delete('/api/community/comment', (req, res) => {
 
 // Like Post
 app.post('/api/community/like', (req, res) => {
-  communityClient.LikePost(req.body, (error, response) => {
+  communityClient.LikePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       return res.status(500).json({ error: error.message });
@@ -259,7 +273,7 @@ app.post('/api/community/like', (req, res) => {
 
 // Unlike Post
 app.post('/api/community/unlike', (req, res) => {
-  communityClient.UnlikePost(req.body, (error, response) => {
+  communityClient.UnlikePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       return res.status(500).json({ error: error.message });
