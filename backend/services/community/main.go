@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 )
 
@@ -100,7 +99,7 @@ type CheckLikeRequest struct {
 func initDB() error {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		databaseURL = "postgres://pawfiler:dev_password@localhost:5432/pawfiler?sslmode=disable"
+		databaseURL = "postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable"
 	}
 
 	var err error
@@ -127,14 +126,18 @@ func getPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	var post Post
 	post.Tags = []string{}
+	var tagsJSON []byte
 
 	err := db.QueryRow(`
 		SELECT id, author_id, author_nickname, author_emoji, title, body, 
-		       likes, comments, created_at, tags
+		       likes, comments, created_at::text, tags
 		FROM community.posts
 		WHERE id = $1
 	`, postID).Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, pq.Array(&post.Tags))
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, &tagsJSON)
+	if len(tagsJSON) > 0 {
+		_ = json.Unmarshal(tagsJSON, &post.Tags)
+	}
 
 	if err == sql.ErrNoRows {
 		http.Error(w, "Post not found", http.StatusNotFound)
@@ -191,8 +194,8 @@ func getFeedHandler(w http.ResponseWriter, r *http.Request) {
 			whereClause = "title ILIKE $1"
 		}
 		
-		// Add tag search for all types
-		whereClause += " OR $2 = ANY(tags)"
+		// Add tag search for all types (JSONB)
+		whereClause += " OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS t(value) WHERE t.value = $2)"
 		
 		// Get total count with search
 		err = db.QueryRow(fmt.Sprintf(`
@@ -208,7 +211,7 @@ func getFeedHandler(w http.ResponseWriter, r *http.Request) {
 		// Get posts with search
 		rows, err = db.Query(fmt.Sprintf(`
 			SELECT id, author_id, author_nickname, author_emoji, title, body, 
-			       likes, comments, created_at, tags
+			       likes, comments, created_at::text, tags
 			FROM community.posts
 			WHERE %s
 			ORDER BY created_at DESC
@@ -226,7 +229,7 @@ func getFeedHandler(w http.ResponseWriter, r *http.Request) {
 		// Get posts without search
 		rows, err = db.Query(`
 			SELECT id, author_id, author_nickname, author_emoji, title, body, 
-			       likes, comments, created_at, tags
+			       likes, comments, created_at::text, tags
 			FROM community.posts
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
@@ -244,11 +247,15 @@ func getFeedHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var post Post
 		post.Tags = []string{}
+		var tagsJSON []byte
 		err := rows.Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
-			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, pq.Array(&post.Tags))
+			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, &tagsJSON)
 		if err != nil {
 			log.Printf("Error scanning post: %v", err)
 			continue
+		}
+		if len(tagsJSON) > 0 {
+			_ = json.Unmarshal(tagsJSON, &post.Tags)
 		}
 
 		post.UserID = post.AuthorID
@@ -272,13 +279,13 @@ func createPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	postID := uuid.New().String()
 	
-	// Convert tags to PostgreSQL TEXT[] array using pq.Array
-	tagsArray := pq.Array(req.Tags)
+	// Store tags as JSONB
+	tagsJSON, _ := json.Marshal(req.Tags)
 
 	_, err := db.Exec(`
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-	`, postID, req.UserID, req.AuthorNickname, req.AuthorEmoji, req.Title, req.Body, tagsArray)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
+	`, postID, req.UserID, req.AuthorNickname, req.AuthorEmoji, req.Title, req.Body, string(tagsJSON))
 
 	if err != nil {
 		log.Printf("Error creating post: %v", err)
@@ -312,14 +319,14 @@ func updatePostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert tags to PostgreSQL TEXT[] array using pq.Array
-	tagsArray := pq.Array(req.Tags)
+	// Update tags as JSONB
+	tagsJSON, _ := json.Marshal(req.Tags)
 
 	_, err := db.Exec(`
 		UPDATE community.posts
-		SET title = $1, body = $2, tags = $3, updated_at = NOW()
+		SET title = $1, body = $2, tags = $3::jsonb, updated_at = NOW()
 		WHERE id = $4
-	`, req.Title, req.Body, tagsArray, req.PostID)
+	`, req.Title, req.Body, string(tagsJSON), req.PostID)
 
 	if err != nil {
 		log.Printf("Error updating post: %v", err)
@@ -330,13 +337,17 @@ func updatePostHandler(w http.ResponseWriter, r *http.Request) {
 	// Fetch updated post
 	var post Post
 	post.Tags = []string{}
+	var tagsJSON2 []byte
 	err = db.QueryRow(`
 		SELECT id, author_id, author_nickname, author_emoji, title, body, 
-		       likes, comments, created_at, tags
+		       likes, comments, created_at::text, tags
 		FROM community.posts
 		WHERE id = $1
 	`, req.PostID).Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, pq.Array(&post.Tags))
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, &tagsJSON2)
+	if len(tagsJSON2) > 0 {
+		_ = json.Unmarshal(tagsJSON2, &post.Tags)
+	}
 
 	if err != nil {
 		log.Printf("Error fetching updated post: %v", err)
@@ -392,7 +403,7 @@ func getCommentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := db.Query(`
-		SELECT id, post_id, author_id, author_nickname, author_emoji, content, created_at
+		SELECT id, post_id, author_id, author_nickname, author_emoji, content, created_at::text
 		FROM community.comments
 		WHERE post_id = $1
 		ORDER BY created_at ASC
@@ -727,7 +738,7 @@ func getNoticesHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
 		SELECT id, title
 		FROM community.posts
-		WHERE '공지' = ANY(tags)
+		WHERE EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS t(value) WHERE t.value = '공지')
 		ORDER BY created_at DESC
 		LIMIT 3
 	`)
