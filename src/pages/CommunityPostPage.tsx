@@ -7,9 +7,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CommunityPost, CommunityComment } from "@/lib/types";
 import { toast } from "sonner";
+import {
+  fetchCommunityComments,
+  createCommunityComment,
+  deleteCommunityComment,
+  likePost,
+  unlikePost,
+  getPost,
+  checkLike,
+} from "@/lib/api";
 import { 
   ArrowLeft, 
   Heart, 
@@ -17,8 +33,9 @@ import {
   Share2, 
   Send,
   Trash2,
-  Eye,
-  Calendar
+  Calendar,
+  Copy,
+  Check
 } from "lucide-react";
 
 const CommunityPostPage = () => {
@@ -30,62 +47,44 @@ const CommunityPostPage = () => {
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const loadPost = async () => {
+      if (!postId) {
+        toast.error("잘못된 게시글 ID입니다.");
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const mockPost: CommunityPost = {
-        id: postId || "1",
-        authorNickname: "영리한 여우",
-        authorEmoji: "🦊",
-        title: "딥페이크 탐지 100% 활용법",
-        body: "안녕하세요 여러분! 오늘은 딥페이크를 효과적으로 탐지하는 방법에 대해 공유하려고 합니다.\n\n1. 눈 깜빡임 패턴 확인\n딥페이크 영상은 자연스러운 눈 깜빡임이 부족한 경우가 많습니다. 실제 사람은 평균 15-20회/분 깜빡이지만, 딥페이크는 이 패턴이 불규칙합니다.\n\n2. 얼굴 경계선 체크\n얼굴과 배경의 경계선이 부자연스럽거나 흐릿한 경우가 많습니다. 특히 머리카락 주변을 주의깊게 살펴보세요.\n\n3. 조명 일관성\n얼굴의 조명이 주변 환경과 일치하지 않는 경우가 있습니다. 그림자의 방향과 강도를 확인하세요.\n\n4. 입술 싱크\n말하는 내용과 입 모양이 정확히 일치하는지 확인하세요. 딥페이크는 종종 립싱크가 어긋납니다.\n\n5. 피부 질감\n지나치게 매끄럽거나 인공적인 피부 질감은 딥페이크의 신호일 수 있습니다.\n\n여러분도 이런 팁들을 활용해서 딥페이크를 잘 찾아내시길 바랍니다!",
-        likes: 1240,
-        comments: 82,
-        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        tags: ["팁", "딥페이크", "탐지기법"],
-        userId: "user_fox"
-      };
+      try {
+        // 실제 API에서 게시글 데이터 로드
+        const loadedPost = await getPost(postId);
+        setPost(loadedPost);
 
-      const mockComments: CommunityComment[] = [
-        {
-          id: "c1",
-          postId: postId || "1",
-          authorNickname: "수리 부엉이",
-          authorEmoji: "🦉",
-          body: "정말 유용한 정보네요! 특히 눈 깜빡임 패턴은 몰랐던 부분이에요. 감사합니다!",
-          createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-          userId: "user_owl"
-        },
-        {
-          id: "c2",
-          postId: postId || "1",
-          authorNickname: "발 빠른 치타",
-          authorEmoji: "🐆",
-          body: "조명 일관성 체크는 정말 중요한 것 같아요. 저도 이걸로 여러 번 딥페이크를 찾아냈습니다.",
-          createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-          userId: "user_cheetah"
-        },
-        {
-          id: "c3",
-          postId: postId || "1",
-          authorNickname: "똑똑한 돌고래",
-          authorEmoji: "🐬",
-          body: "입술 싱크 부분 추가 설명 부탁드려요! 어떻게 정확히 확인하나요?",
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-          userId: "user_dolphin"
+        // 실제 API에서 댓글 로드
+        const loadedComments = await fetchCommunityComments(postId);
+        setComments(loadedComments);
+
+        // 좋아요 상태 확인
+        if (user) {
+          const isLiked = await checkLike(postId, user.id);
+          setLiked(isLiked);
         }
-      ];
-
-      setPost(mockPost);
-      setComments(mockComments);
-      setLoading(false);
+      } catch (error) {
+        console.error('Failed to load post:', error);
+        toast.error("게시글을 불러오는데 실패했습니다.");
+        setPost(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadPost();
-  }, [postId]);
+  }, [postId, user]);
 
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !user) {
@@ -95,17 +94,13 @@ const CommunityPostPage = () => {
 
     setSubmitting(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const newComment: CommunityComment = {
-        id: `c_${Date.now()}`,
+      const newComment = await createCommunityComment({
         postId: postId || "1",
+        userId: user.id,
         authorNickname: user.nickname || "익명 탐정",
         authorEmoji: user.avatarEmoji || "🕵️",
         body: commentText,
-        createdAt: new Date().toISOString(),
-        userId: user.id
-      };
+      });
 
       setComments(prev => [...prev, newComment]);
       setCommentText("");
@@ -126,7 +121,7 @@ const CommunityPostPage = () => {
     if (!confirm("정말 이 댓글을 삭제하시겠습니까?")) return;
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await deleteCommunityComment(commentId);
       
       setComments(prev => prev.filter(c => c.id !== commentId));
       toast.success("댓글이 삭제되었습니다.");
@@ -261,11 +256,47 @@ const CommunityPostPage = () => {
           {/* 액션 버튼 */}
           <div className="border-t-4 border-wood-darkest/20 p-8 bg-wood-dark/10">
             <div className="flex items-center justify-center gap-6">
-              <Button className="gap-2 font-jua text-xl bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl px-10 py-7 border-2 border-red-200">
-                <Heart size={24} />
+              <Button 
+                onClick={async () => {
+                  if (!user) {
+                    toast.error("로그인이 필요합니다.");
+                    return;
+                  }
+                  try {
+                    if (liked) {
+                      await unlikePost(post.id, user.id);
+                      setPost({ ...post, likes: post.likes - 1 });
+                      setLiked(false);
+                      toast.success("좋아요가 취소되었습니다.");
+                    } else {
+                      const result = await likePost(post.id, user.id);
+                      if (result.alreadyLiked) {
+                        toast.info("이미 좋아요를 누른 게시글입니다.");
+                        setLiked(true);
+                      } else {
+                        setPost({ ...post, likes: post.likes + 1 });
+                        setLiked(true);
+                        toast.success("좋아요를 눌렀습니다.");
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Failed to like/unlike:', error);
+                    toast.error("좋아요 처리에 실패했습니다.");
+                  }
+                }}
+                className={`gap-2 font-jua text-xl rounded-2xl px-10 py-7 border-2 transition-all ${
+                  liked
+                    ? 'bg-red-100 hover:bg-red-200 text-red-600 border-red-300'
+                    : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
+                }`}
+              >
+                <Heart size={24} fill={liked ? "currentColor" : "none"} />
                 <span>좋아요 {post.likes}</span>
               </Button>
-              <Button className="gap-2 font-jua text-xl bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl px-10 py-7 border-2 border-orange-200">
+              <Button 
+                onClick={() => setShareModalOpen(true)}
+                className="gap-2 font-jua text-xl bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl px-10 py-7 border-2 border-orange-200"
+              >
                 <Share2 size={24} />
                 <span>공유하기</span>
               </Button>
@@ -297,7 +328,7 @@ const CommunityPostPage = () => {
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
+                        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                           e.preventDefault();
                           handleSubmitComment();
                         }
@@ -380,6 +411,70 @@ const CommunityPostPage = () => {
           </div>
         </ParchmentPanel>
       </motion.div>
+
+      {/* Share Modal */}
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="bg-parchment border-parchment-border sm:max-w-[500px] rounded-[2rem] p-8 border-[6px]">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="font-jua text-3xl text-wood-darkest text-shadow-glow">
+              🔗 게시글 공유하기
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground font-jua text-base mt-2">
+              아래 링크를 복사해서 친구들과 공유하세요!
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-2">
+              <Input
+                value={window.location.href}
+                readOnly
+                className="flex-1 py-6 text-base rounded-xl border-4 border-parchment-border bg-white text-gray-900 font-mono"
+                onClick={(e) => e.currentTarget.select()}
+              />
+              <Button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(window.location.href);
+                    setCopied(true);
+                    toast.success("링크가 복사되었습니다!");
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch (error) {
+                    // Fallback
+                    const input = document.querySelector('input[readonly]') as HTMLInputElement;
+                    input?.select();
+                    document.execCommand('copy');
+                    setCopied(true);
+                    toast.success("링크가 복사되었습니다!");
+                    setTimeout(() => setCopied(false), 2000);
+                  }
+                }}
+                className={`font-jua text-lg rounded-xl px-6 py-6 transition-all ${
+                  copied 
+                    ? "bg-green-500 hover:bg-green-600 text-white" 
+                    : "bg-orange-500 hover:bg-orange-600 text-white"
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <Check size={20} className="mr-2" />
+                    복사됨
+                  </>
+                ) : (
+                  <>
+                    <Copy size={20} className="mr-2" />
+                    복사
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            <div className="text-center text-sm text-wood-dark/70 font-jua">
+              링크를 복사하여 카카오톡, 메신저 등으로 공유할 수 있습니다
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
