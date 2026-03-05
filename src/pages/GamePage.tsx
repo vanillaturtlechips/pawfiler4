@@ -383,7 +383,7 @@ const GamePage = () => {
               {/* Category and Difficulty Header */}
               <div className="flex items-center justify-between mb-3 px-2 flex-shrink-0">
                 <div className="font-jua text-sm opacity-70">
-                  📂 딥페이크 탐지
+                  📂 {question.category === "ai-generated-detection" ? "AI 생성 이미지 탐지" : "영상 합성 탐지 (딥페이크)"}
                 </div>
                 <div className="font-jua text-sm px-3 py-1 rounded-full" style={{
                   background: question.difficulty === "easy" ? "rgba(34, 197, 94, 0.2)" : 
