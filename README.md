@@ -1,4 +1,43 @@
-# Welcome to your Lovable project
+# PawFiler Project
+
+## 프로젝트 구조
+
+```
+pawfiler4/
+├── frontend/          # 메인 사용자 프론트엔드 (React)
+├── admin-frontend/    # 관리자 프론트엔드 (React)
+├── backend/           # 백엔드 마이크로서비스
+│   ├── services/
+│   │   ├── quiz/           # 퀴즈 서비스 (Go)
+│   │   ├── community/      # 커뮤니티 서비스 (Go)
+│   │   ├── admin/          # 관리자 서비스 (Go)
+│   │   └── video-analysis/ # 영상 분석 서비스 (Python)
+│   ├── quiz-proxy/    # Quiz gRPC → REST 프록시 (Node.js)
+│   └── envoy/         # API Gateway
+└── terraform/         # AWS 인프라 (EKS, RDS, ECR)
+```
+
+## 빠른 시작
+
+### Frontend 개발
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Admin Frontend 개발
+```bash
+cd admin-frontend
+npm install
+npm run dev
+```
+
+### Backend 개발
+```bash
+cd backend
+docker-compose up
+```
 
 ## Project info
 

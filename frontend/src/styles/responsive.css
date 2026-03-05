@@ -1,0 +1,120 @@
+/* 반응형 유틸리티 클래스 */
+
+/* 텍스트 크기 - 해상도별 자동 조정 */
+.text-responsive-xs {
+  @apply text-xs sm:text-sm md:text-base;
+}
+
+.text-responsive-sm {
+  @apply text-sm sm:text-base md:text-lg;
+}
+
+.text-responsive-base {
+  @apply text-base sm:text-lg md:text-xl;
+}
+
+.text-responsive-lg {
+  @apply text-lg sm:text-xl md:text-2xl;
+}
+
+.text-responsive-xl {
+  @apply text-xl sm:text-2xl md:text-3xl lg:text-4xl;
+}
+
+.text-responsive-2xl {
+  @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl;
+}
+
+/* 간격 - 해상도별 자동 조정 */
+.gap-responsive {
+  @apply gap-2 sm:gap-3 md:gap-4 lg:gap-6;
+}
+
+.space-y-responsive > * + * {
+  @apply mt-2 sm:mt-3 md:mt-4 lg:mt-6;
+}
+
+.space-x-responsive > * + * {
+  @apply ml-2 sm:ml-3 md:ml-4 lg:ml-6;
+}
+
+/* 패딩 - 해상도별 자동 조정 */
+.p-responsive {
+  @apply p-3 sm:p-4 md:p-6 lg:p-8;
+}
+
+.px-responsive {
+  @apply px-3 sm:px-4 md:px-6 lg:px-8;
+}
+
+.py-responsive {
+  @apply py-3 sm:py-4 md:py-6 lg:py-8;
+}
+
+/* 컨테이너 너비 제한 */
+.container-responsive {
+  @apply w-full max-w-screen-sm sm:max-w-screen-md md:max-w-screen-lg lg:max-w-screen-xl xl:max-w-screen-2xl mx-auto px-4 sm:px-6 md:px-8;
+}
+
+/* 그리드 - 자동 반응형 */
+.grid-responsive {
+  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4;
+}
+
+.grid-responsive-2 {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.grid-responsive-3 {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
+}
+
+/* 카드 크기 */
+.card-responsive {
+  @apply rounded-lg p-4 sm:p-6 md:p-8;
+}
+
+/* 버튼 크기 */
+.btn-responsive {
+  @apply px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base;
+}
+
+/* 이미지/비디오 반응형 */
+.media-responsive {
+  @apply w-full h-auto max-h-[40vh] sm:max-h-[50vh] md:max-h-[60vh] object-contain;
+}
+
+/* 숨김/표시 */
+.hide-mobile {
+  @apply hidden md:block;
+}
+
+.hide-desktop {
+  @apply block md:hidden;
+}
+
+.show-tablet-up {
+  @apply hidden md:block;
+}
+
+/* 노트북 해상도 최적화 (1366x768, 1440x900, 1536x864) */
+@media (min-width: 1024px) and (max-width: 1600px) {
+  .container {
+    @apply px-6;
+  }
+  
+  .text-responsive-xl {
+    @apply text-2xl;
+  }
+  
+  .text-responsive-2xl {
+    @apply text-3xl;
+  }
+}
+
+/* 작은 노트북 (1366x768) */
+@media (min-width: 1024px) and (max-width: 1400px) {
+  .container-responsive {
+    @apply max-w-screen-lg;
+  }
+}

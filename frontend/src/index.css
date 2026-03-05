@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Gothic:wght@400;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import './styles/responsive.css';
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  :root {
+    /* Wood tones */
+    --wood-darkest: 20 68% 9%;
+    --wood-dark: 16 28% 19%;
+    --wood-base: 16 18% 29%;
+    --wood-light: 16 14% 47%;
+
+    /* Parchment */
+    --parchment: 54 100% 95%;
+    --parchment-border: 16 20% 82%;
+    --parchment-text: 16 35% 24%;
+
+    /* Magic colors */
+    --magic-green: 122 52% 33%;
+    --magic-green-glow: 122 38% 64%;
+    --magic-blue: 199 97% 37%;
+    --magic-blue-glow: 199 90% 64%;
+    --magic-orange: 27 100% 47%;
+    --magic-orange-glow: 28 100% 65%;
+
+    /* Shadcn semantic mapping */
+    --background: 20 68% 9%;
+    --foreground: 54 100% 95%;
+
+    --card: 16 28% 19%;
+    --card-foreground: 54 100% 95%;
+
+    --popover: 54 100% 95%;
+    --popover-foreground: 16 35% 24%;
+
+    --primary: 122 52% 33%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 199 97% 37%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 16 18% 29%;
+    --muted-foreground: 16 14% 47%;
+
+    --accent: 27 100% 47%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 16 28% 19%;
+    --input: 16 20% 82%;
+    --ring: 122 52% 33%;
+
+    --radius: 1rem;
+
+    --sidebar-background: 16 28% 19%;
+    --sidebar-foreground: 54 100% 95%;
+    --sidebar-primary: 122 52% 33%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 16 18% 29%;
+    --sidebar-accent-foreground: 54 100% 95%;
+    --sidebar-border: 16 28% 19%;
+    --sidebar-ring: 122 52% 33%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Nanum Gothic', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+}
+
+@layer components {
+  .font-jua {
+    font-family: 'Jua', sans-serif;
+  }
+
+  .wood-texture {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.2) 0px,
+      rgba(0, 0, 0, 0.2) 2px,
+      transparent 2px,
+      transparent 8px
+    );
+  }
+
+  .wood-grain {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.15) 0,
+      rgba(0, 0, 0, 0.15) 3px,
+      transparent 3px,
+      transparent 15px
+    );
+  }
+
+  .text-shadow-deep {
+    text-shadow: 3px 3px 0 hsl(var(--wood-darkest));
+  }
+
+  .text-shadow-glow {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.4), 3px 3px 0 hsl(var(--wood-darkest));
+  }
+
+  .shadow-fairy {
+    box-shadow: 0 20px 30px rgba(0, 0, 0, 0.6), inset 0 2px 5px rgba(255, 255, 255, 0.1);
+  }
+
+  .btn-3d-green {
+    @apply bg-primary text-primary-foreground font-jua;
+    box-shadow: 0 6px 0 hsl(122, 52%, 20%);
+  }
+
+  .btn-3d-blue {
+    background: hsl(var(--magic-blue));
+    @apply text-white font-jua;
+    box-shadow: 0 6px 0 hsl(199, 97%, 22%);
+  }
+
+  .btn-3d-orange {
+    background: hsl(var(--magic-orange));
+    @apply text-white font-jua;
+    box-shadow: 0 6px 0 hsl(27, 100%, 27%);
+  }
+}

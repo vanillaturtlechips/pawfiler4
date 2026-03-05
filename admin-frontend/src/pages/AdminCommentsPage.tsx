@@ -28,7 +28,7 @@ type Feed = {
   page: number;
 };
 
-const BASE = import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community";
+const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community");
 
 export default function AdminCommentsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -75,7 +75,6 @@ export default function AdminCommentsPage() {
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("삭제하시겠습니까?")) return;
-    // 댓글 정보를 먼저 가져와서 userId 확인
     const comment = comments.find(c => c.id === commentId);
     if (!comment) {
       toast.error("댓글을 찾을 수 없습니다");

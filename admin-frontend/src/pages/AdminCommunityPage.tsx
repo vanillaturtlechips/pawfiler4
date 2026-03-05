@@ -11,7 +11,7 @@ import { Loader2, Search, Eye, Edit, Trash2, Home } from "lucide-react";
 import { toast } from "sonner";
 
 type Post = {
-  id: string; title: string; body: string; authorId: string; authorNickname: string; authorEmoji: string;
+  id: string; title: string; body: string; authorNickname: string; authorEmoji: string;
   likes: number; comments: number; createdAt: string; tags: string[];
 };
 type Comment = {
@@ -19,7 +19,7 @@ type Comment = {
 };
 type Feed = { posts: Post[]; totalCount: number; page: number; };
 
-const BASE = import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community";
+const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community");
 
 export default function AdminCommunityPage() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -64,13 +64,7 @@ export default function AdminCommunityPage() {
       const tags = editTags.split(",").map(t=>t.trim()).filter(Boolean);
       const res = await fetch(`${BASE}/post`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          postId: editing.id, 
-          userId: editing.authorId || "admin", // 원래 작성자 ID 사용
-          title: editTitle, 
-          body: editBody, 
-          tags 
-        }),
+        body: JSON.stringify({ postId: editing.id, title: editTitle, body: editBody, tags }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("수정 완료");
@@ -80,16 +74,10 @@ export default function AdminCommunityPage() {
 
   const deletePost = async (postId: string) => {
     if (!confirm("정말 삭제하시겠습니까?")) return;
-    // 게시글 정보를 먼저 가져와서 authorId 확인
-    const post = feed.posts.find(p => p.id === postId);
-    if (!post) {
-      toast.error("게시글을 찾을 수 없습니다");
-      return;
-    }
     try {
       const res = await fetch(`${BASE}/post`, {
         method: "DELETE", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, userId: post.authorId || "admin" }),
+        body: JSON.stringify({ postId }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("삭제 완료"); fetchFeed();
@@ -107,16 +95,9 @@ export default function AdminCommunityPage() {
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("댓글을 삭제하시겠습니까?")) return;
-    // 댓글 정보를 먼저 가져와서 authorId 확인
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) {
-      toast.error("댓글을 찾을 수 없습니다");
-      return;
-    }
     try {
       const res = await fetch(`${BASE}/comment`, {
-        method: "DELETE", headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ commentId, userId: comment.userId || "admin" })
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId })
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("댓글 삭제 완료");
