@@ -75,6 +75,8 @@ resource "helm_release" "kubecost" {
   namespace        = "kubecost"
   create_namespace = true
   version          = "2.4.0"
+  timeout          = 600
+  wait             = false
 
   set {
     name  = "kubecostToken"
@@ -86,7 +88,35 @@ resource "helm_release" "kubecost" {
     value = aws_eks_cluster.main.name
   }
 
-  depends_on = [aws_eks_node_group.main]
+  set {
+    name  = "persistentVolume.storageClass"
+    value = "gp2"
+  }
+
+  set {
+    name  = "prometheus.server.persistentVolume.storageClass"
+    value = "gp2"
+  }
+
+  set {
+    name  = "prometheus.server.image.repository"
+    value = "quay.io/prometheus/prometheus"
+  }
+
+  set {
+    name  = "prometheus.server.image.tag"
+    value = "v2.47.0"
+  }
+
+  set {
+    name  = "grafana.enabled"
+    value = "false"
+  }
+
+  depends_on = [
+    aws_eks_node_group.main,
+    aws_eks_addon.ebs_csi_driver
+  ]
 }
 
 # Metrics Server (HPA용)
