@@ -93,7 +93,7 @@ CREATE TABLE community.posts (
     body TEXT NOT NULL,
     likes INTEGER DEFAULT 0,
     comments INTEGER DEFAULT 0,
-    tags JSONB DEFAULT '[]'::jsonb,
+    tags TEXT[] DEFAULT '{}',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -203,7 +203,7 @@ INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title
 3. 상업적 광고 금지
 4. 개인정보 보호
 
-함께 만드는 건강한 커뮤니티! 협조 부탁드립니다.', 0, 0, '["공지", "규칙", "운영"]'::jsonb, NOW() - INTERVAL '3 days'),
+함께 만드는 건강한 커뮤니티! 협조 부탁드립니다.', 0, 0, ARRAY['공지', '규칙', '운영'], NOW() - INTERVAL '3 days'),
 
 ('550e8400-e29b-41d4-a716-446655440001', 'user_raccoon', '탐정 너구리', '🦝', '딥페이크 탐지 초보자 가이드', '안녕하세요! 딥페이크 탐지를 시작하는 분들을 위한 가이드입니다.
 
@@ -212,7 +212,7 @@ INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title
 3. 조명 일관성 확인
 4. 입술 싱크 분석
 
-이 4가지만 잘 체크하면 대부분의 딥페이크를 찾아낼 수 있습니다!', 0, 0, '["초보자", "가이드", "딥페이크"]'::jsonb, NOW() - INTERVAL '2 hours'),
+이 4가지만 잘 체크하면 대부분의 딥페이크를 찾아낼 수 있습니다!', 0, 0, ARRAY['초보자', '가이드', '딥페이크'], NOW() - INTERVAL '2 hours'),
 
 ('550e8400-e29b-41d4-a716-446655440002', 'user_fox', '명탐정 여우', '🦊', '최신 AI 딥페이크 기술 분석', '최근 GPT-4 기반 딥페이크 생성 기술이 발전하면서 탐지가 더욱 어려워지고 있습니다.
 
@@ -221,7 +221,7 @@ INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title
 - 머리카락 경계선의 부자연스러움
 - 배경과의 조명 불일치
 
-여러분도 조심하세요!', 0, 0, '["AI", "딥페이크", "분석"]'::jsonb, NOW() - INTERVAL '1 hour');
+여러분도 조심하세요!', 0, 0, ARRAY['AI', '딥페이크', '분석'], NOW() - INTERVAL '1 hour');
 
 -- Insert sample comments
 INSERT INTO community.comments (id, post_id, author_id, author_nickname, author_emoji, content, created_at) VALUES

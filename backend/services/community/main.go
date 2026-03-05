@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 var db *sql.DB
@@ -126,7 +126,6 @@ func getPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	var post Post
 	post.Tags = []string{}
-	var tagsJSON []byte
 
 	err := db.QueryRow(`
 		SELECT id, author_id, author_nickname, author_emoji, title, body, 
@@ -134,10 +133,7 @@ func getPostHandler(w http.ResponseWriter, r *http.Request) {
 		FROM community.posts
 		WHERE id = $1
 	`, postID).Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, &tagsJSON)
-	if len(tagsJSON) > 0 {
-		_ = json.Unmarshal(tagsJSON, &post.Tags)
-	}
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, (*pq.StringArray)(&post.Tags))
 
 	if err == sql.ErrNoRows {
 		http.Error(w, "Post not found", http.StatusNotFound)
@@ -194,8 +190,8 @@ func getFeedHandler(w http.ResponseWriter, r *http.Request) {
 			whereClause = "title ILIKE $1"
 		}
 		
-		// Add tag search for all types (JSONB)
-		whereClause += " OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS t(value) WHERE t.value = $2)"
+		// Add tag search for all types (TEXT[])
+		whereClause += " OR $2 = ANY(tags)"
 		
 		// Get total count with search
 		err = db.QueryRow(fmt.Sprintf(`
@@ -247,15 +243,11 @@ func getFeedHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var post Post
 		post.Tags = []string{}
-		var tagsJSON []byte
 		err := rows.Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
-			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, &tagsJSON)
+			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, (*pq.StringArray)(&post.Tags))
 		if err != nil {
 			log.Printf("Error scanning post: %v", err)
 			continue
-		}
-		if len(tagsJSON) > 0 {
-			_ = json.Unmarshal(tagsJSON, &post.Tags)
 		}
 
 		post.UserID = post.AuthorID
@@ -278,14 +270,11 @@ func createPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	postID := uuid.New().String()
-	
-	// Store tags as JSONB
-	tagsJSON, _ := json.Marshal(req.Tags)
 
 	_, err := db.Exec(`
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
-	`, postID, req.UserID, req.AuthorNickname, req.AuthorEmoji, req.Title, req.Body, string(tagsJSON))
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+	`, postID, req.UserID, req.AuthorNickname, req.AuthorEmoji, req.Title, req.Body, pq.Array(req.Tags))
 
 	if err != nil {
 		log.Printf("Error creating post: %v", err)
@@ -319,14 +308,11 @@ func updatePostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update tags as JSONB
-	tagsJSON, _ := json.Marshal(req.Tags)
-
 	_, err := db.Exec(`
 		UPDATE community.posts
-		SET title = $1, body = $2, tags = $3::jsonb, updated_at = NOW()
+		SET title = $1, body = $2, tags = $3, updated_at = NOW()
 		WHERE id = $4
-	`, req.Title, req.Body, string(tagsJSON), req.PostID)
+	`, req.Title, req.Body, pq.Array(req.Tags), req.PostID)
 
 	if err != nil {
 		log.Printf("Error updating post: %v", err)
@@ -337,17 +323,13 @@ func updatePostHandler(w http.ResponseWriter, r *http.Request) {
 	// Fetch updated post
 	var post Post
 	post.Tags = []string{}
-	var tagsJSON2 []byte
 	err = db.QueryRow(`
 		SELECT id, author_id, author_nickname, author_emoji, title, body, 
 		       likes, comments, created_at::text, tags
 		FROM community.posts
 		WHERE id = $1
 	`, req.PostID).Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, &tagsJSON2)
-	if len(tagsJSON2) > 0 {
-		_ = json.Unmarshal(tagsJSON2, &post.Tags)
-	}
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, (*pq.StringArray)(&post.Tags))
 
 	if err != nil {
 		log.Printf("Error fetching updated post: %v", err)
@@ -738,7 +720,7 @@ func getNoticesHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
 		SELECT id, title
 		FROM community.posts
-		WHERE EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS t(value) WHERE t.value = '공지')
+		WHERE '공지' = ANY(tags)
 		ORDER BY created_at DESC
 		LIMIT 3
 	`)
@@ -812,11 +794,10 @@ func getHotTopicHandler(w http.ResponseWriter, r *http.Request) {
 
 	var topic HotTopic
 	err := db.QueryRow(`
-		SELECT t.value AS tag, COUNT(*) AS count
-		FROM community.posts p,
-		     LATERAL jsonb_array_elements_text(p.tags) AS t(value)
-		WHERE p.created_at >= CURRENT_DATE
-		GROUP BY t.value
+		SELECT tag, COUNT(*) as count
+		FROM community.posts, UNNEST(tags) as tag
+		WHERE created_at >= CURRENT_DATE
+		GROUP BY tag
 		ORDER BY count DESC
 		LIMIT 1
 	`).Scan(&topic.Tag, &topic.Count)
@@ -824,10 +805,9 @@ func getHotTopicHandler(w http.ResponseWriter, r *http.Request) {
 	if err == sql.ErrNoRows {
 		// No posts today, get most popular tag overall
 		err = db.QueryRow(`
-			SELECT t.value AS tag, COUNT(*) AS count
-			FROM community.posts p,
-			     LATERAL jsonb_array_elements_text(p.tags) AS t(value)
-			GROUP BY t.value
+			SELECT tag, COUNT(*) as count
+			FROM community.posts, UNNEST(tags) as tag
+			GROUP BY tag
 			ORDER BY count DESC
 			LIMIT 1
 		`).Scan(&topic.Tag, &topic.Count)
