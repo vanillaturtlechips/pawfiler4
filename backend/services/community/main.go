@@ -812,10 +812,11 @@ func getHotTopicHandler(w http.ResponseWriter, r *http.Request) {
 
 	var topic HotTopic
 	err := db.QueryRow(`
-		SELECT tag, COUNT(*) as count
-		FROM community.posts, UNNEST(tags) as tag
-		WHERE created_at >= CURRENT_DATE
-		GROUP BY tag
+		SELECT t.value AS tag, COUNT(*) AS count
+		FROM community.posts p,
+		     LATERAL jsonb_array_elements_text(p.tags) AS t(value)
+		WHERE p.created_at >= CURRENT_DATE
+		GROUP BY t.value
 		ORDER BY count DESC
 		LIMIT 1
 	`).Scan(&topic.Tag, &topic.Count)
@@ -823,9 +824,10 @@ func getHotTopicHandler(w http.ResponseWriter, r *http.Request) {
 	if err == sql.ErrNoRows {
 		// No posts today, get most popular tag overall
 		err = db.QueryRow(`
-			SELECT tag, COUNT(*) as count
-			FROM community.posts, UNNEST(tags) as tag
-			GROUP BY tag
+			SELECT t.value AS tag, COUNT(*) AS count
+			FROM community.posts p,
+			     LATERAL jsonb_array_elements_text(p.tags) AS t(value)
+			GROUP BY t.value
 			ORDER BY count DESC
 			LIMIT 1
 		`).Scan(&topic.Tag, &topic.Count)
