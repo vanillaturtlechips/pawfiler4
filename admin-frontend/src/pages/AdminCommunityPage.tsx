@@ -19,7 +19,7 @@ type Comment = {
 };
 type Feed = { posts: Post[]; totalCount: number; page: number; };
 
-const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:50053");
+const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community");
 
 export default function AdminCommunityPage() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -40,7 +40,7 @@ export default function AdminCommunityPage() {
   const fetchFeed = async () => {
     setLoading(true);
     try {
-      const url = `${BASE}/community.CommunityService/GetFeed?page=${page}&pageSize=${pageSize}` +
+      const url = `${BASE}/feed?page=${page}&pageSize=${pageSize}` +
         (searchInput ? `&search=${encodeURIComponent(searchInput)}&searchType=${searchType}` : "");
       const res = await fetch(url);
       if (!res.ok) throw new Error(await res.text());
@@ -62,8 +62,8 @@ export default function AdminCommunityPage() {
     if (!editing) return;
     try {
       const tags = editTags.split(",").map(t=>t.trim()).filter(Boolean);
-      const res = await fetch(`${BASE}/community.CommunityService/UpdatePost`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const res = await fetch(`${BASE}/post`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId: editing.id, title: editTitle, body: editBody, tags }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -75,8 +75,8 @@ export default function AdminCommunityPage() {
   const deletePost = async (postId: string) => {
     if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`${BASE}/community.CommunityService/DeletePost`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const res = await fetch(`${BASE}/post`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -86,17 +86,18 @@ export default function AdminCommunityPage() {
 
   const fetchComments = async (postId: string) => {
     try {
-      const res = await fetch(`${BASE}/community.CommunityService/GetComments?postId=${encodeURIComponent(postId)}`);
+      const res = await fetch(`${BASE}/comments?postId=${encodeURIComponent(postId)}`);
       if (!res.ok) throw new Error(await res.text());
-      setComments(await res.json());
+      const data = await res.json();
+      setComments(data.comments || []);
     } catch (e:any) { toast.error(e.message ?? "댓글 로드 실패"); }
   };
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("댓글을 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`${BASE}/community.CommunityService/DeleteComment`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId })
+      const res = await fetch(`${BASE}/comment`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId })
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("댓글 삭제 완료");
