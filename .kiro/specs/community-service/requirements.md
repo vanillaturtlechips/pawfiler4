@@ -234,3 +234,49 @@
 3. THE Community_Service SHALL docker-compose.yml에 정의된다
 4. THE Community_Service SHALL PostgreSQL 서비스에 의존성을 가진다
 5. THE Community_Service SHALL 환경 변수로 설정을 주입받는다
+
+
+### 요구사항 18: gRPC 프로토콜 마이그레이션
+
+**사용자 스토리:** 개발자로서, Community Service를 HTTP REST에서 gRPC로 마이그레이션하여 BFF와 일관된 통신 프로토콜을 사용하고 싶습니다.
+
+#### 인수 기준
+
+1. THE Community_Service SHALL gRPC 프로토콜을 사용하여 통신한다
+2. THE Community_Service SHALL community.proto 파일에 정의된 서비스 인터페이스를 구현한다
+3. THE Community_Service SHALL 모든 기존 HTTP 엔드포인트를 gRPC 메서드로 변환한다
+4. THE Community_Service SHALL Protocol Buffers를 사용하여 메시지를 직렬화한다
+5. THE Community_Service SHALL 포트 50053에서 gRPC 서버를 실행한다
+6. THE Community_Service SHALL gRPC 에러 코드를 사용하여 에러를 반환한다
+7. THE Community_Service SHALL 기존 데이터베이스 스키마를 유지한다
+8. THE Community_Service SHALL 기존 비즈니스 로직을 유지한다
+
+### 요구사항 19: Proto 파일 완성
+
+**사용자 스토리:** 개발자로서, 모든 Community API를 정의하는 완전한 proto 파일이 필요합니다.
+
+#### 인수 기준
+
+1. THE community.proto SHALL UpdatePost RPC 메서드를 정의한다
+2. THE community.proto SHALL DeletePost RPC 메서드를 정의한다
+3. THE community.proto SHALL DeleteComment RPC 메서드를 정의한다
+4. THE community.proto SHALL UnlikePost RPC 메서드를 정의한다
+5. THE community.proto SHALL CheckLike RPC 메서드를 정의한다
+6. THE community.proto SHALL GetNotices RPC 메서드를 정의한다
+7. THE community.proto SHALL GetTopDetective RPC 메서드를 정의한다
+8. THE community.proto SHALL GetHotTopic RPC 메서드를 정의한다
+9. THE community.proto SHALL 검색 기능을 위한 필드를 GetFeedRequest에 추가한다
+10. THE community.proto SHALL author_id 필드를 Post 메시지에 추가한다
+
+### 요구사항 20: BFF 통합
+
+**사용자 스토리:** 개발자로서, BFF가 Community Service를 gRPC로 호출할 수 있어야 합니다.
+
+#### 인수 기준
+
+1. THE BFF SHALL community.proto를 사용하여 gRPC 클라이언트를 생성한다
+2. THE BFF SHALL Community Service에 gRPC 연결을 설정한다
+3. THE BFF SHALL 모든 Community API를 REST로 노출한다
+4. THE BFF SHALL gRPC 응답을 JSON으로 변환한다
+5. THE BFF SHALL gRPC 에러를 HTTP 상태 코드로 변환한다
+6. THE BFF SHALL 기존 프론트엔드 API 호환성을 유지한다
