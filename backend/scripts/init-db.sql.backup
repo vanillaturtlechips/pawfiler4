@@ -1,4 +1,5 @@
 -- Auth Service Schema
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE SCHEMA IF NOT EXISTS auth;
 
 CREATE TABLE auth.users (
@@ -96,6 +97,9 @@ CREATE TABLE community.posts (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_posts_tags_gin ON community.posts USING GIN (tags);
 
 CREATE TABLE community.comments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
