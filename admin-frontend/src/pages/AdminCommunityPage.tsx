@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Select } from "../components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Textarea } from "../components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Badge } from "../components/ui/badge";
+import { Loader2, Search, Eye, Edit, Trash2, Home } from "lucide-react";
 import { toast } from "sonner";
 
 type Post = {
@@ -22,7 +27,7 @@ export default function AdminCommunityPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [searchType, setSearchType] = useState<"title"|"body"|"all">("title");
   const [loading, setLoading] = useState(false);
   const [feed, setFeed] = useState<Feed>({ posts: [], totalCount: 0, page: 1 });
@@ -36,7 +41,7 @@ export default function AdminCommunityPage() {
     setLoading(true);
     try {
       const url = `${BASE}/community.CommunityService/GetFeed?page=${page}&pageSize=${pageSize}` +
-        (search ? `&search=${encodeURIComponent(search)}&searchType=${searchType}` : "");
+        (searchInput ? `&search=${encodeURIComponent(searchInput)}&searchType=${searchType}` : "");
       const res = await fetch(url);
       if (!res.ok) throw new Error(await res.text());
       setFeed(await res.json());
@@ -44,7 +49,10 @@ export default function AdminCommunityPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchFeed(); }, [page, pageSize, search, searchType]);
+  useEffect(() => {
+    const timer = setTimeout(() => fetchFeed(), 300);
+    return () => clearTimeout(timer);
+  }, [page, pageSize, searchInput, searchType]);
 
   const openEdit = (p: Post) => {
     setEditing(p); setEditTitle(p.title); setEditBody(p.body); setEditTags(p.tags.join(", "));
@@ -98,107 +106,239 @@ export default function AdminCommunityPage() {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(feed.totalCount / pageSize)), [feed.totalCount, pageSize]);
 
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleString('ko-KR', { 
+        year: 'numeric', month: '2-digit', day: '2-digit', 
+        hour: '2-digit', minute: '2-digit' 
+      });
+    } catch { return dateStr; }
+  };
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">커뮤니티 관리</h1>
-      <div className="flex flex-wrap gap-3 items-center">
-        <Input placeholder="검색어" value={search} onChange={(e)=>setSearch(e.target.value)} className="w-64" />
-        <Select value={searchType} onValueChange={(v)=>setSearchType(v as any)}>
-          <option value="title">제목</option><option value="body">본문</option><option value="all">전체</option>
-        </Select>
-        <Select value={String(pageSize)} onValueChange={(v)=>setPageSize(Number(v))}>
-          <option value="10">10개</option><option value="20">20개</option><option value="50">50개</option>
-        </Select>
-        <Button onClick={()=>{ setPage(1); fetchFeed(); }} disabled={loading}>검색</Button>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <Link to="/admin">
+            <Button variant="outline" size="sm">
+              <Home className="h-4 w-4 mr-2" />
+              메인으로
+            </Button>
+          </Link>
+          <h1 className="text-3xl font-bold">커뮤니티 관리</h1>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          총 {feed.totalCount}개 게시글
+        </div>
       </div>
 
-      <div className="overflow-auto border rounded-md">
-        <table className="min-w-full text-sm">
-          <thead className="bg-muted">
-            <tr><th className="p-2 text-left">제목</th><th className="p-2 text-left">작성자</th><th className="p-2 text-left">좋아요</th><th className="p-2 text-left">댓글</th><th className="p-2 text-left">태그</th><th className="p-2 text-left">작성일</th><th className="p-2 text-left">액션</th></tr>
-          </thead>
-          <tbody>
-            {feed.posts.map(p=>(
-              <tr key={p.id} className="border-t">
-                <td className="p-2">{p.title}</td>
-                <td className="p-2">{p.authorNickname} {p.authorEmoji}</td>
-                <td className="p-2">{p.likes}</td>
-                <td className="p-2">{p.comments}</td>
-                <td className="p-2">{p.tags.join(", ")}</td>
-                <td className="p-2">{p.createdAt}</td>
-                <td className="p-2 space-x-2">
-                  <Button onClick={()=>{ setSelectedPost(p); fetchComments(p.id); setDetailOpen(true); }}>보기</Button>
-                  <Button variant="secondary" onClick={()=>openEdit(p)}>수정</Button>
-                  <Button variant="destructive" onClick={()=>deletePost(p.id)}>삭제</Button>
-                </td>
-              </tr>
-            ))}
-            {feed.posts.length === 0 && (<tr><td className="p-3 text-center" colSpan={7}>결과가 없습니다</td></tr>)}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1||loading}>이전</Button>
-        <span>{page} / {totalPages}</span>
-        <Button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages||loading}>다음</Button>
-      </div>
-
-      {selectedPost && !detailOpen && (
-        <div className="border rounded-md p-4 space-y-3">
-          <h2 className="text-xl font-bold">선택된 게시글</h2>
-          <div><span className="font-semibold">제목:</span> {selectedPost.title}</div>
-          <div><span className="font-semibold">작성자:</span> {selectedPost.authorNickname} {selectedPost.authorEmoji}</div>
-          <div className="whitespace-pre-wrap"><span className="font-semibold">본문:</span> {selectedPost.body}</div>
-          <div><span className="font-semibold">태그:</span> {selectedPost.tags.join(", ")}</div>
-          <h3 className="text-lg font-bold mt-4">댓글</h3>
-          <div className="overflow-auto border rounded-md">
-            <table className="min-w-full text-sm">
-              <thead className="bg-muted">
-                <tr><th className="p-2 text-left">작성자</th><th className="p-2 text-left">내용</th><th className="p-2 text-left">작성일</th><th className="p-2 text-left">액션</th></tr>
-              </thead>
-              <tbody>
-                {comments.map((c: Comment) => (
-                  <tr key={c.id} className="border-t">
-                    <td className="p-2">{c.authorNickname} {c.authorEmoji}</td>
-                    <td className="p-2">{c.body}</td>
-                    <td className="p-2">{c.createdAt}</td>
-                    <td className="p-2"><Button variant="destructive" onClick={()=>deleteComment(c.id)}>삭제</Button></td>
-                  </tr>
-                ))}
-                {comments.length === 0 && (<tr><td className="p-3 text-center" colSpan={4}>댓글이 없습니다</td></tr>)}
-              </tbody>
-            </table>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-sm font-medium mb-2 block">검색</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="검색어 입력..." 
+              value={searchInput} 
+              onChange={(e)=>{ setSearchInput(e.target.value); setPage(1); }} 
+              className="pl-9" 
+            />
           </div>
         </div>
-      )}
+        <div className="w-[140px]">
+          <label className="text-sm font-medium mb-2 block">검색 범위</label>
+          <Select value={searchType} onValueChange={(v)=>{ setSearchType(v as any); setPage(1); }}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="title">제목</SelectItem>
+              <SelectItem value="body">본문</SelectItem>
+              <SelectItem value="all">전체</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-[120px]">
+          <label className="text-sm font-medium mb-2 block">페이지 크기</label>
+          <Select value={String(pageSize)} onValueChange={(v)=>{ setPageSize(Number(v)); setPage(1); }}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10개</SelectItem>
+              <SelectItem value="20">20개</SelectItem>
+              <SelectItem value="50">50개</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-      <Dialog open={detailOpen} onOpenChange={(o)=>setDetailOpen(o)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>게시글 보기</DialogTitle></DialogHeader>
+      <div className="bg-white rounded-lg shadow">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40%]">제목</TableHead>
+                <TableHead>작성자</TableHead>
+                <TableHead className="text-center">좋아요</TableHead>
+                <TableHead className="text-center">댓글</TableHead>
+                <TableHead>태그</TableHead>
+                <TableHead>작성일</TableHead>
+                <TableHead className="text-right">작업</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {feed.posts.map(p=>(
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.title}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <span>{p.authorEmoji}</span>
+                      <span className="text-sm">{p.authorNickname}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">{p.likes}</TableCell>
+                  <TableCell className="text-center">{p.comments}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1 flex-wrap">
+                      {p.tags.slice(0, 2).map((tag, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
+                      ))}
+                      {p.tags.length > 2 && <Badge variant="outline" className="text-xs">+{p.tags.length - 2}</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={()=>{ setSelectedPost(p); fetchComments(p.id); setDetailOpen(true); }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={()=>openEdit(p)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={()=>deletePost(p.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {feed.posts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    검색 결과가 없습니다
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          {page} / {totalPages} 페이지
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={()=>setPage(p=>Math.max(1,p-1))} 
+            disabled={page===1||loading}
+          >
+            이전
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={()=>setPage(p=>Math.min(totalPages,p+1))} 
+            disabled={page>=totalPages||loading}
+          >
+            다음
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>게시글 상세</DialogTitle>
+          </DialogHeader>
           {selectedPost && (
-            <div className="space-y-3">
-              <div><span className="font-semibold">제목:</span> {selectedPost.title}</div>
-              <div><span className="font-semibold">작성자:</span> {selectedPost.authorNickname} {selectedPost.authorEmoji}</div>
-              <div className="whitespace-pre-wrap"><span className="font-semibold">본문:</span> {selectedPost.body}</div>
-              <div><span className="font-semibold">태그:</span> {selectedPost.tags.join(", ")}</div>
-              <div className="overflow-auto border rounded-md">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr><th className="p-2 text-left">작성자</th><th className="p-2 text-left">내용</th><th className="p-2 text-left">작성일</th><th className="p-2 text-left">액션</th></tr>
-                  </thead>
-                  <tbody>
-                    {comments.map((c: Comment) => (
-                      <tr key={c.id} className="border-t">
-                        <td className="p-2">{c.authorNickname} {c.authorEmoji}</td>
-                        <td className="p-2">{c.body}</td>
-                        <td className="p-2">{c.createdAt}</td>
-                        <td className="p-2"><Button variant="destructive" onClick={()=>deleteComment(c.id)}>삭제</Button></td>
-                      </tr>
-                    ))}
-                    {comments.length === 0 && (<tr><td className="p-3 text-center" colSpan={4}>댓글이 없습니다</td></tr>)}
-                  </tbody>
-                </table>
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">제목</div>
+                <div className="text-lg font-semibold">{selectedPost.title}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">작성자</div>
+                <div>{selectedPost.authorEmoji} {selectedPost.authorNickname}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">본문</div>
+                <div className="whitespace-pre-wrap bg-muted p-3 rounded-md">{selectedPost.body}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">태그</div>
+                <div className="flex gap-1 flex-wrap">
+                  {selectedPost.tags.map((tag, i) => (
+                    <Badge key={i} variant="secondary">{tag}</Badge>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-medium mb-2">댓글 ({comments.length})</div>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>작성자</TableHead>
+                        <TableHead>내용</TableHead>
+                        <TableHead>작성일</TableHead>
+                        <TableHead className="text-right">작업</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {comments.map((c: Comment) => (
+                        <TableRow key={c.id}>
+                          <TableCell>{c.authorEmoji} {c.authorNickname}</TableCell>
+                          <TableCell>{c.body}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              size="sm" 
+                              variant="destructive" 
+                              onClick={()=>deleteComment(c.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {comments.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                            댓글이 없습니다
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </div>
           )}
@@ -206,14 +346,29 @@ export default function AdminCommunityPage() {
       </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(o)=>!o&&setEditing(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>게시글 수정</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <Input value={editTitle} onChange={(e)=>setEditTitle(e.target.value)} placeholder="제목" />
-            <textarea value={editBody} onChange={(e)=>setEditBody(e.target.value)} placeholder="본문" className="w-full border rounded-md p-2 h-40" />
-            <Input value={editTags} onChange={(e)=>setEditTags(e.target.value)} placeholder="태그 (쉼표로 구분)" />
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>게시글 수정</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">제목</label>
+              <Input value={editTitle} onChange={(e)=>setEditTitle(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">본문</label>
+              <Textarea 
+                value={editBody} 
+                onChange={(e)=>setEditBody(e.target.value)} 
+                className="min-h-[200px]"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">태그 (쉼표로 구분)</label>
+              <Input value={editTags} onChange={(e)=>setEditTags(e.target.value)} />
+            </div>
             <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={()=>setEditing(null)}>취소</Button>
+              <Button variant="outline" onClick={()=>setEditing(null)}>취소</Button>
               <Button onClick={saveEdit}>저장</Button>
             </div>
           </div>
