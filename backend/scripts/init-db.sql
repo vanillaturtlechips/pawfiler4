@@ -177,21 +177,16 @@ CREATE TABLE payment.transactions (
 CREATE INDEX idx_subscriptions_user_id ON payment.subscriptions(user_id);
 CREATE INDEX idx_transactions_user_id ON payment.transactions(user_id);
 
--- Insert sample data
-INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index) VALUES
-('multiple_choice', 'video', 'https://example.com/video1.mp4', '🐶', 'easy', 'deepfake-detection', '이 영상은 AI로 생성된 딥페이크입니다. 눈 깜빡임 패턴이 부자연스럽습니다.', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 1),
-('multiple_choice', 'video', 'https://example.com/video2.mp4', '🐱', 'medium', 'deepfake-detection', '이 영상은 실제 촬영된 영상입니다.', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 0),
-('multiple_choice', 'video', 'https://example.com/video3.mp4', '🐰', 'hard', 'deepfake-detection', '얼굴 경계선에서 미세한 왜곡이 발견됩니다.', ARRAY['진짜 영상', '딥페이크', '편집된 영상', '잘 모르겠음'], 1);
-
-INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, correct_answer) VALUES
-('true_false', 'video', 'https://example.com/video4.mp4', '🦊', 'easy', 'deepfake-detection', '이 영상은 딥페이크입니다. 조명 방향이 일치하지 않습니다.', true),
-('true_false', 'image', 'https://example.com/image1.jpg', '🐻', 'medium', 'deepfake-detection', '이 이미지는 실제 사진입니다.', false);
-
-INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, correct_regions, tolerance) VALUES
-('region_select', 'image', 'https://example.com/image2.jpg', '🔍', 'hard', 'deepfake-detection', '귀 주변 경계선이 부자연스럽습니다.', '[{"x": 150, "y": 200, "radius": 30}]'::jsonb, 20);
-
-INSERT INTO quiz.questions (type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, comparison_media_url, correct_side) VALUES
-('comparison', 'image', 'https://example.com/compare1_left.jpg', '⚖️', 'medium', 'deepfake-detection', '왼쪽 이미지가 딥페이크입니다. 눈동자 반사가 부자연스럽습니다.', 'https://example.com/compare1_right.jpg', 'left');
+-- Insert sample quiz questions
+INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index, correct_answer, correct_regions, tolerance, comparison_media_url, correct_side, created_at, updated_at) VALUES 
+('550e8400-e29b-41d4-a716-446655440001', 'multiple_choice', 'image', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg', '🎬', 'easy', 'ai-generated-detection', '오른쪽 위 보드의 글씨가 깨지고 왜곡된 것이 AI 생성 이미지의 특징입니다!', '{"얼굴 표정이 부자연스러워요","배경 글씨가 깨져있어요","조명이 완벽해요","그림자가 정확해요"}', 1, NULL, NULL, NULL, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440002', 'multiple_choice', 'video', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4', '🎥', 'medium', 'deepfake-detection', '파티 장면에 고양이를 합성한 영상입니다. 고양이가 책상에 떨어질 때 효과가 부자연스럽고, 불빛 반사가 이상하며, 마지막 손 동작이 어색합니다.', '{"배경 파티가 자연스러워요","고양이 합성이 부자연스러워요","조명이 완벽해요","모든 게 자연스러워요"}', 1, NULL, NULL, NULL, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440003', 'multiple_choice', 'image', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg', '🖼️', 'easy', 'ai-generated-detection', 'AI가 생성한 이미지는 텍스트나 작은 디테일을 제대로 표현하지 못하는 경우가 많습니다.', '{"인물의 포즈가 자연스러워요","배경의 텍스트가 왜곡되어있어요","그림자가 정확해요","색감이 일치해요"}', 1, NULL, NULL, NULL, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440004', 'true_false', 'image', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg', '✅', 'easy', 'ai-generated-detection', '이 이미지는 AI가 생성한 가짜입니다. 오른쪽 위 보드의 글씨가 깨지고 왜곡되어 있습니다.', NULL, NULL, false, NULL, NULL, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440005', 'true_false', 'video', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/videos/deepfake/deepfake_easy_001.mp4', '❌', 'medium', 'deepfake-detection', '이 영상은 합성 영상입니다. 파티 장면에 고양이를 합성했으며, 고양이가 책상에 떨어질 때 효과가 부자연스럽고, 불빛 반사와 손 동작이 어색합니다.', NULL, NULL, false, NULL, NULL, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440006', 'region_select', 'image', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg', '👁️', 'easy', 'ai-generated-detection', '오른쪽 위 보드의 글씨가 깨지고 왜곡된 부분이 AI 생성 이미지의 증거입니다.', NULL, NULL, NULL, '[{"x": 650, "y": 150, "radius": 80}]', 50, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440007', 'region_select', 'image', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/deepfake_easy_001.jpg', '👄', 'easy', 'ai-generated-detection', '배경의 텍스트 왜곡은 AI가 생성한 이미지에서 자주 발견되는 특징입니다.', NULL, NULL, NULL, '[{"x": 650, "y": 150, "radius": 80}]', 50, NULL, NULL, NOW(), NOW()),
+('550e8400-e29b-41d4-a716-446655440008', 'comparison', 'image', 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/deepfake/compare_left_001.jpg', '🔄', 'hard', 'ai-generated-detection', 'AI 생성 이미지는 바닥에 비친 그림자가 날개의 전체적인 형태만 덩어리로 표현되어 있습니다. 실제로는 깃털 사이로 빛이 새어나오거나 깃털 끝부분의 형태가 반영되어야 하지만 매우 단순화되어 있습니다. 또한 발톱의 개수나 모양이 불분명하고, 깃털이 뼈대에 붙는 구조가 부자연스럽습니다.', NULL, NULL, NULL, NULL, NULL, 'https://pawfiler-quiz-media.s3.ap-northeast-2.amazonaws.com/images/real/compare_right_001.jpg', 'left', NOW(), NOW());
 
 -- Insert sample community posts (공지 1개 + 일반 2개)
 INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, likes, comments, tags, created_at) VALUES
