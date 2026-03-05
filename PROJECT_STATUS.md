@@ -85,7 +85,7 @@
 - [x] Docker Compose 로컬 환경
 - [x] PostgreSQL 데이터베이스
 - [x] Envoy Proxy (gRPC-Web)
-- [x] Quiz Proxy (gRPC → REST)
+- [x] BFF (Backend for Frontend, 포트 3000)
 - [x] Terraform AWS 인프라 코드
 - [x] 배포 스크립트
 
@@ -94,11 +94,15 @@
 ## ⚠️ 부분 완료 / 개선 필요
 
 ### Video Analysis Service
-**문제**: 프론트엔드가 Mock API 사용 중
+**문제 1**: Docker Compose에 등록되지 않음
+**해결 필요**: docker-compose.yml에 video-analysis-service 추가
+
+**문제 2**: 프론트엔드가 Mock API 사용 중
 **해결 필요**:
-1. Envoy 설정에 Video Analysis 라우팅 추가
-2. 프론트엔드 API 호출을 Mock에서 실제 gRPC로 전환
-3. 파일 업로드 스트리밍 구현
+1. Docker Compose에 서비스 등록 후
+2. Envoy 설정에 Video Analysis 라우팅 추가 (이미 있음)
+3. 프론트엔드 API 호출을 Mock에서 실제 gRPC로 전환
+4. 파일 업로드 스트리밍 구현
 
 ### Quiz Service
 **문제**: 정답 인덱스를 explanation에 숨겨서 보내는 보안 취약점
@@ -110,14 +114,6 @@ response.Explanation = fmt.Sprintf("%s||CORRECT_INDEX:%d||", result.Explanation,
 1. proto에 `optional int32 correct_index` 필드 추가
 2. 오답일 때만 정답 인덱스 반환
 3. 프론트엔드 파싱 로직 수정
-
-**문제**: 답변 저장과 통계 업데이트가 별도 트랜잭션
-```go
-err = s.repo.SaveAnswer(ctx, userAnswer)
-// ...
-_, err = s.statsTracker.UpdateStats(ctx, userID, isCorrect)
-```
-**해결 필요**: 하나의 트랜잭션으로 묶어서 데이터 일관성 보장
 
 ### Community Service
 **문제**: ILIKE 검색은 인덱스를 사용하지 못함
@@ -185,24 +181,34 @@ WHERE title ILIKE $1 OR body ILIKE $1
 
 ## 🔧 기술 부채
 
-### 1. Admin Service REST API
+### 1. BFF vs Envoy 역할 중복
+**현재**: BFF(포트 3000)와 Envoy(포트 8080) 모두 API Gateway 역할
+**문제**: 프론트엔드가 두 곳으로 요청을 나눠서 보냄
+**결정 필요**: 하나로 통일하거나 명확한 역할 분리
+
+### 2. Admin Service REST API
 **현재**: REST API로 구현
 **다른 서비스**: 모두 gRPC
 **결정 필요**: gRPC로 통일할지, REST 유지할지
 
-### 2. Proto 파일 생성 자동화
+### 3. Kafka 미사용
+**현재**: Quiz Service와 Video Analysis에 Kafka 코드 있음
+**문제**: Docker Compose에 Kafka 없음, 실제로 사용되지 않음
+**결정 필요**: Kafka 제거하거나 실제로 사용
+
+### 4. Proto 파일 생성 자동화
 **현재**: 수동으로 proto 파일 컴파일
 **필요**: Makefile 또는 스크립트로 자동화
 
-### 3. 에러 처리 일관성
+### 5. 에러 처리 일관성
 **현재**: 각 서비스마다 다른 에러 처리 방식
 **필요**: 공통 에러 처리 미들웨어
 
-### 4. 설정 관리
+### 6. 설정 관리
 **현재**: 환경 변수로 하드코딩
 **필요**: ConfigMap, Secrets, Vault 등 중앙 관리
 
-### 5. 데이터베이스 마이그레이션
+### 7. 데이터베이스 마이그레이션
 **현재**: init-db.sql 파일 하나로 관리
 **필요**: Flyway, Liquibase 등 마이그레이션 도구
 
@@ -212,9 +218,9 @@ WHERE title ILIKE $1 OR body ILIKE $1
 
 ### Phase 1: 보안 및 안정성 (긴급)
 1. Quiz Handler 정답 노출 방식 수정
-2. Quiz Service 트랜잭션 추가
-3. gRPC Health Check 추가
-4. 에러 로깅 개선
+2. gRPC Health Check 추가
+3. 에러 로깅 개선
+4. Video Analysis Service Docker Compose 등록
 
 ### Phase 2: 핵심 기능 완성 (중요)
 1. Video Analysis 프론트엔드 연동

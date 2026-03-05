@@ -11,7 +11,7 @@ graph TB
 
     subgraph "API Gateway Layer"
         Envoy[Envoy Proxy<br/>:8080<br/>gRPC-Web]
-        QuizProxy[Quiz Proxy<br/>:3001<br/>gRPC → REST]
+        BFF[BFF (Backend for Frontend)<br/>:3000<br/>gRPC → REST]
     end
 
     subgraph "Backend Services"
@@ -36,10 +36,11 @@ graph TB
     end
 
     Browser --> React
-    React --> QuizProxy
+    React --> BFF
     React --> Envoy
     
-    QuizProxy --> QuizService
+    BFF --> QuizService
+    BFF --> CommunityService
     Envoy --> QuizService
     Envoy --> CommunityService
     Envoy --> VideoService
@@ -368,25 +369,24 @@ graph TB
 graph TB
     subgraph "Docker Compose"
         Frontend[Frontend<br/>npm run dev<br/>:5173]
-        QuizProxy[Quiz Proxy<br/>:3001]
+        BFF[BFF<br/>:3000]
         Envoy[Envoy<br/>:8080]
         Quiz[Quiz Service<br/>:50052]
         Community[Community Service<br/>:50053]
-        Video[Video Service<br/>:50054]
+        Admin[Admin Service<br/>:8082]
         Postgres[(PostgreSQL<br/>:5432)]
-        Kafka[Kafka<br/>:9092]
     end
     
-    Frontend --> QuizProxy
+    Frontend --> BFF
     Frontend --> Envoy
-    QuizProxy --> Quiz
+    Frontend --> Admin
+    BFF --> Quiz
+    BFF --> Community
     Envoy --> Quiz
     Envoy --> Community
-    Envoy --> Video
     Quiz --> Postgres
     Community --> Postgres
-    Quiz --> Kafka
-    Video --> Kafka
+    Admin --> Postgres
 ```
 
 **실행 명령어**:
@@ -395,7 +395,12 @@ graph TB
 cd backend
 docker-compose up -d
 
-# Frontend 시작
+# Frontend 시작 (루트 디렉토리에서)
+cd frontend
+npm run dev
+
+# Admin Frontend 시작
+cd admin-frontend
 npm run dev
 ```
 
@@ -406,12 +411,12 @@ npm run dev
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React, TypeScript, Vite, TailwindCSS, Shadcn UI |
-| **API Gateway** | Envoy Proxy, Node.js (Quiz Proxy) |
-| **Backend** | Go (Quiz, Community), Python (Video Analysis) |
+| **API Gateway** | Envoy Proxy, Node.js BFF (Backend for Frontend) |
+| **Backend** | Go (Quiz, Community, Admin), Python (Video Analysis) |
 | **Protocol** | gRPC, REST API, gRPC-Web |
-| **Database** | PostgreSQL 15+ |
-| **Message Queue** | Apache Kafka |
-| **ML Platform** | AWS SageMaker |
+| **Database** | PostgreSQL 16 |
+| **Message Queue** | Apache Kafka (미사용) |
+| **ML Platform** | AWS SageMaker (준비됨) |
 | **Container** | Docker, Docker Compose |
 | **Orchestration** | Kubernetes (EKS) |
 | **IaC** | Terraform |
@@ -491,15 +496,16 @@ npm run dev
 
 ### 🚨 Critical
 1. **Quiz Handler 보안**: 정답 인덱스를 explanation에 숨겨서 보내는 방식 개선 필요
-2. **Video Analysis 프론트엔드 연동**: Mock API에서 실제 gRPC 연동으로 전환 필요
-3. **Auth Service 구현**: 실제 JWT 기반 인증 시스템 구현 필요
+2. **Video Analysis Docker 등록**: Docker Compose에 video-analysis 서비스 추가 필요
+3. **Video Analysis 프론트엔드 연동**: Mock API에서 실제 gRPC 연동으로 전환 필요
+4. **Auth Service 구현**: 실제 JWT 기반 인증 시스템 구현 필요
 
 ### ⚠️ Important
-1. **Quiz Service 트랜잭션**: 답변 저장과 통계 업데이트를 하나의 트랜잭션으로 처리
-2. **Community Service 검색 최적화**: ILIKE 대신 Full-text search 또는 GIN 인덱스 사용
-3. **테스트**: 모든 서비스에 유닛/통합 테스트 추가
-4. **모니터링**: 로깅, 메트릭, 트레이싱 시스템 추가
-5. **gRPC Health Check**: 모든 gRPC 서비스에 health check 엔드포인트 추가
+1. **Community Service 검색 최적화**: ILIKE 대신 Full-text search 또는 GIN 인덱스 사용
+2. **테스트**: 모든 서비스에 유닛/통합 테스트 추가
+3. **모니터링**: 로깅, 메트릭, 트레이싱 시스템 추가
+4. **gRPC Health Check**: 모든 gRPC 서비스에 health check 엔드포인트 추가
+5. **Kafka 통합**: 현재 코드에 있지만 실제로 사용되지 않음
 
 ### 💡 Enhancement
 1. **Redis**: 캐싱 레이어 추가 (퀴즈 문제, 사용자 통계)
