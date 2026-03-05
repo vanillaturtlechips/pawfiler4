@@ -317,17 +317,38 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
   }
 };
 
-export const fetchCommunityFeed = async (page = 1, pageSize = config.communityPageSize): Promise<CommunityFeed> => {
-  if (config.useMockApi) {
-    const token = localStorage.getItem(config.storageKeys.authToken);
-    return mockFetchCommunityFeed(token || "", page);
-  }
-  
+export const fetchCommunityFeed = async (
+  page = 1, 
+  pageSize = config.communityPageSize,
+  searchQuery?: string,
+  searchType: "title" | "body" | "all" = "title"
+): Promise<CommunityFeed> => {
   try {
-    return await request<CommunityFeed>(`${config.communityApiUrl}/community.CommunityService/GetFeed`, {
-      method: "POST",
-      body: JSON.stringify({ page, page_size: pageSize }),
+    const params = new URLSearchParams({
+      page: page.toString(),
+      pageSize: pageSize.toString(),
     });
+    
+    if (searchQuery && searchQuery.trim()) {
+      params.append('search', searchQuery.trim());
+      params.append('searchType', searchType);
+    }
+    
+    const response = await fetch(
+      `${config.communityApiUrl}/community.CommunityService/GetFeed?${params.toString()}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch feed: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     return handleApiError(error, '커뮤니티 피드 로드');
   }
@@ -341,28 +362,20 @@ export const createCommunityPost = async (req: {
   body: string;
   tags: string[];
 }): Promise<CommunityPost> => {
-  if (config.useMockApi) {
-    // Mock API는 CommunityPost를 직접 반환
-    const mockPost: CommunityPost = {
-      id: `post_${Date.now()}`,
-      userId: req.userId,
-      authorNickname: req.authorNickname,
-      authorEmoji: req.authorEmoji,
-      title: req.title,
-      body: req.body,
-      tags: req.tags,
-      likes: 0,
-      comments: 0,
-      createdAt: new Date().toISOString(),
-    };
-    return Promise.resolve(mockPost);
-  }
-  
   try {
-    return await request<CommunityPost>(`${config.communityApiUrl}/community.CommunityService/CreatePost`, {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/CreatePost`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(req),
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create post: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     return handleApiError(error, '게시글 작성');
   }
@@ -374,43 +387,40 @@ export const updateCommunityPost = async (req: {
   body: string;
   tags: string[];
 }): Promise<CommunityPost> => {
-  if (config.useMockApi) {
-    // Mock: 기존 게시글 업데이트 시뮬레이션
-    const mockPost: CommunityPost = {
-      id: req.postId,
-      userId: 'mock_user',
-      authorNickname: '익명 탐정',
-      authorEmoji: '🕵️',
-      title: req.title,
-      body: req.body,
-      tags: req.tags,
-      likes: 0,
-      comments: 0,
-      createdAt: new Date().toISOString(),
-    };
-    return Promise.resolve(mockPost);
-  }
-  
   try {
-    return await request<CommunityPost>(`${config.communityApiUrl}/community.CommunityService/UpdatePost`, {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/UpdatePost`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(req),
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update post: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     return handleApiError(error, '게시글 수정');
   }
 };
 
 export const deleteCommunityPost = async (postId: string): Promise<{ success: boolean }> => {
-  if (config.useMockApi) {
-    return Promise.resolve({ success: true });
-  }
-  
   try {
-    return await request<{ success: boolean }>(`${config.communityApiUrl}/community.CommunityService/DeletePost`, {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/DeletePost`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ postId }),
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete post: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     return handleApiError(error, '게시글 삭제');
   }
@@ -470,5 +480,214 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
     });
   } catch (error) {
     return handleApiError(error, '결제');
+  }
+};
+
+// Community Comments & Likes
+export const fetchCommunityComments = async (postId: string): Promise<CommunityComment[]> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetComments?postId=${postId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch comments: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Failed to fetch comments:', error);
+    return [];
+  }
+};
+
+export const createCommunityComment = async (req: {
+  postId: string;
+  userId: string;
+  authorNickname: string;
+  authorEmoji: string;
+  body: string;
+}): Promise<CommunityComment> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/CreateComment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create comment: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, '댓글 작성');
+  }
+};
+
+export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/DeleteComment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ commentId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete comment: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, '댓글 삭제');
+  }
+};
+
+export const likePost = async (postId: string, userId: string): Promise<{ success: boolean; alreadyLiked?: boolean }> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/LikePost`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ postId, userId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to like post: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, '좋아요');
+  }
+};
+
+export const unlikePost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/UnlikePost`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ postId, userId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to unlike post: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, '좋아요 취소');
+  }
+};
+
+export const getPost = async (postId: string): Promise<CommunityPost> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetPost?postId=${postId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch post: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, '게시글 로드');
+  }
+};
+
+export const checkLike = async (postId: string, userId: string): Promise<boolean> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/CheckLike?postId=${postId}&userId=${userId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to check like: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.liked || false;
+  } catch (error) {
+    console.error('Failed to check like:', error);
+    return false;
+  }
+};
+
+// Community Dashboard APIs
+export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetNotices`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch notices: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch notices:', error);
+    return [];
+  }
+};
+
+export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetTopDetective`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch top detective: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch top detective:', error);
+    return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
+  }
+};
+
+export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
+  try {
+    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetHotTopic`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch hot topic: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch hot topic:', error);
+    return { tag: "없음", count: 0 };
   }
 };

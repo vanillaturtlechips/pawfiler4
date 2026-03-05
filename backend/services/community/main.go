@@ -1,26 +1,46 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"sync"
+	"strconv"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	_ "github.com/lib/pq"
 )
 
+var db *sql.DB
+
+// Models
 type Post struct {
-	ID             string   `json:"id"`
-	AuthorNickname string   `json:"authorNickname"`
-	AuthorEmoji    string   `json:"authorEmoji"`
-	Title          string   `json:"title"`
-	Body           string   `json:"body"`
-	Likes          int      `json:"likes"`
-	Comments       int      `json:"comments"`
-	CreatedAt      string   `json:"createdAt"`
-	Tags           []string `json:"tags"`
-	UserID         string   `json:"userId,omitempty"`
+	ID             string    `json:"id"`
+	AuthorID       string    `json:"authorId"`
+	AuthorNickname string    `json:"authorNickname"`
+	AuthorEmoji    string    `json:"authorEmoji"`
+	Title          string    `json:"title"`
+	Body           string    `json:"body"`
+	Likes          int       `json:"likes"`
+	Comments       int       `json:"comments"`
+	CreatedAt      string    `json:"createdAt"`
+	Tags           []string  `json:"tags"`
+	UserID         string    `json:"userId,omitempty"`
+}
+
+type Comment struct {
+	ID             string `json:"id"`
+	PostID         string `json:"postId"`
+	AuthorID       string `json:"authorId"`
+	AuthorNickname string `json:"authorNickname"`
+	AuthorEmoji    string `json:"authorEmoji"`
+	Body           string `json:"body"`
+	CreatedAt      string `json:"createdAt"`
+	UserID         string `json:"userId,omitempty"`
 }
 
 type FeedResponse struct {
@@ -49,45 +69,226 @@ type DeletePostRequest struct {
 	PostID string `json:"postId"`
 }
 
-var (
-	postsMu sync.RWMutex
-	posts   = []Post{
-		{ID: "p1", AuthorNickname: "꼬마 탐정", AuthorEmoji: "🐱", Title: "딥페이크 찾는 꿀팁 공유!", Body: "눈 깜빡임을 잘 보세요...", Likes: 42, Comments: 7, CreatedAt: "2026-02-20T10:00:00Z", Tags: []string{"팁", "초보"}},
-		{ID: "p2", AuthorNickname: "수리 부엉이", AuthorEmoji: "🦉", Title: "레벨 10 달성 후기", Body: "드디어 마스터 탐정이 되었어요!", Likes: 128, Comments: 23, CreatedAt: "2026-02-22T15:30:00Z", Tags: []string{"후기", "레벨업"}},
-		{ID: "p3", AuthorNickname: "용감한 곰", AuthorEmoji: "🐻", Title: "이 영상 진짜인가요?", Body: "친구가 보내준 영상인데 좀 이상해요...", Likes: 15, Comments: 5, CreatedAt: "2026-02-24T09:00:00Z", Tags: []string{"질문"}},
-		{ID: "p4", AuthorNickname: "현명한 사막여우", AuthorEmoji: "🦊", Title: "딥페이크 구분 체크리스트", Body: "빛 반사, 경계, 눈 깜빡임, 음성 싱크를 점검하세요.", Likes: 67, Comments: 11, CreatedAt: "2026-02-25T08:20:00Z", Tags: []string{"가이드", "체크리스트"}},
-		{ID: "p5", AuthorNickname: "빠른 치타", AuthorEmoji: "🐆", Title: "라이브 방송 딥페이크 판별법", Body: "실시간 스트림에서 지연과 왜곡을 살펴보면 힌트가 있어요.", Likes: 33, Comments: 3, CreatedAt: "2026-02-25T10:40:00Z", Tags: []string{"실시간", "스트리밍"}},
-		{ID: "p6", AuthorNickname: "차분한 펭귄", AuthorEmoji: "🐧", Title: "초보자를 위한 시작 가이드", Body: "먼저 기본 개념을 이해하고 쉬운 예시로 연습해요.", Likes: 54, Comments: 9, CreatedAt: "2026-02-25T12:00:00Z", Tags: []string{"초보", "가이드"}},
-		{ID: "p7", AuthorNickname: "센스있는 너구리", AuthorEmoji: "🦝", Title: "합성 경계 보는 요령", Body: "머리카락이나 귀 주변의 경계를 확대해서 확인해보세요.", Likes: 21, Comments: 2, CreatedAt: "2026-02-25T13:30:00Z", Tags: []string{"팁", "합성"}},
-		{ID: "p8", AuthorNickname: "집중하는 올빼미", AuthorEmoji: "🦉", Title: "모델 버전별 차이", Body: "최근 모델은 음성 합성의 자연스러움이 크게 올라왔어요.", Likes: 44, Comments: 6, CreatedAt: "2026-02-25T14:10:00Z", Tags: []string{"모델", "업데이트"}},
-		{ID: "p9", AuthorNickname: "웃는 토끼", AuthorEmoji: "🐰", Title: "가벼운 잡담방", Body: "오늘도 다 같이 진짜와 가짜를 구분해봐요!", Likes: 12, Comments: 8, CreatedAt: "2026-02-25T15:00:00Z", Tags: []string{"잡담"}},
-		{ID: "p10", AuthorNickname: "정밀한 두더지", AuthorEmoji: "🐹", Title: "프레임 분석 팁", Body: "프레임 단위로 나눠서 재생하면 어색함이 더 잘 보입니다.", Likes: 39, Comments: 4, CreatedAt: "2026-02-25T15:45:00Z", Tags: []string{"프레임", "분석"}},
-		{ID: "p11", AuthorNickname: "호기심 많은 수달", AuthorEmoji: "🦦", Title: "음성 싱크 점검", Body: "입 모양과 발음 타이밍이 미묘하게 어긋나면 의심하세요.", Likes: 26, Comments: 3, CreatedAt: "2026-02-25T16:20:00Z", Tags: []string{"음성", "싱크"}},
-		{ID: "p12", AuthorNickname: "꼼꼼한 다람쥐", AuthorEmoji: "🐿️", Title: "조명 일치 확인", Body: "얼굴과 배경의 조명 방향이 다르면 합성일 확률이 높아요.", Likes: 31, Comments: 7, CreatedAt: "2026-02-25T17:05:00Z", Tags: []string{"조명", "배경"}},
+type CreateCommentRequest struct {
+	PostID         string `json:"postId"`
+	UserID         string `json:"userId"`
+	AuthorNickname string `json:"authorNickname"`
+	AuthorEmoji    string `json:"authorEmoji"`
+	Body           string `json:"body"`
+}
+
+type DeleteCommentRequest struct {
+	CommentID string `json:"commentId"`
+}
+
+type LikeRequest struct {
+	PostID string `json:"postId"`
+	UserID string `json:"userId"`
+}
+
+type UnlikeRequest struct {
+	PostID string `json:"postId"`
+	UserID string `json:"userId"`
+}
+
+type CheckLikeRequest struct {
+	PostID string `json:"postId"`
+	UserID string `json:"userId"`
+}
+
+// Database initialization
+func initDB() error {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		databaseURL = "postgres://pawfiler:dev_password@localhost:5432/pawfiler?sslmode=disable"
 	}
-	postCounter = 13
-)
+
+	var err error
+	db, err = sql.Open("postgres", databaseURL)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Println("Database connected successfully")
+	return nil
+}
+
+// Handlers
+func getPostHandler(w http.ResponseWriter, r *http.Request) {
+	postID := r.URL.Query().Get("postId")
+	if postID == "" {
+		http.Error(w, "postId is required", http.StatusBadRequest)
+		return
+	}
+
+	var post Post
+	post.Tags = []string{}
+
+	err := db.QueryRow(`
+		SELECT id, author_id, author_nickname, author_emoji, title, body, 
+		       likes, comments, created_at, tags
+		FROM community.posts
+		WHERE id = $1
+	`, postID).Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, pq.Array(&post.Tags))
+
+	if err == sql.ErrNoRows {
+		http.Error(w, "Post not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("Error querying post: %v", err)
+		http.Error(w, "Failed to fetch post", http.StatusInternalServerError)
+		return
+	}
+
+	post.UserID = post.AuthorID
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(post)
+}
 
 func getFeedHandler(w http.ResponseWriter, r *http.Request) {
-	postsMu.RLock()
-	defer postsMu.RUnlock()
+	page := 1
+	pageSize := 15
+	searchQuery := r.URL.Query().Get("search")
+	searchType := r.URL.Query().Get("searchType") // title, body, all
+
+	if p := r.URL.Query().Get("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	if ps := r.URL.Query().Get("pageSize"); ps != "" {
+		if parsed, err := strconv.Atoi(ps); err == nil && parsed > 0 && parsed <= 100 {
+			pageSize = parsed
+		}
+	}
+
+	offset := (page - 1) * pageSize
+
+	// Build query based on search parameter
+	var totalCount int
+	var rows *sql.Rows
+	var err error
+
+	if searchQuery != "" {
+		// Search query with ILIKE for case-insensitive search
+		searchPattern := "%" + searchQuery + "%"
+		
+		var whereClause string
+		switch searchType {
+		case "body":
+			whereClause = "body ILIKE $1"
+		case "all":
+			whereClause = "title ILIKE $1 OR body ILIKE $1"
+		default: // "title" or empty
+			whereClause = "title ILIKE $1"
+		}
+		
+		// Add tag search for all types
+		whereClause += " OR $2 = ANY(tags)"
+		
+		// Get total count with search
+		err = db.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(*) FROM community.posts 
+			WHERE %s
+		`, whereClause), searchPattern, searchQuery).Scan(&totalCount)
+		if err != nil {
+			log.Printf("Error counting posts with search: %v", err)
+			http.Error(w, "Failed to count posts", http.StatusInternalServerError)
+			return
+		}
+
+		// Get posts with search
+		rows, err = db.Query(fmt.Sprintf(`
+			SELECT id, author_id, author_nickname, author_emoji, title, body, 
+			       likes, comments, created_at, tags
+			FROM community.posts
+			WHERE %s
+			ORDER BY created_at DESC
+			LIMIT $3 OFFSET $4
+		`, whereClause), searchPattern, searchQuery, pageSize, offset)
+	} else {
+		// Get total count without search
+		err = db.QueryRow("SELECT COUNT(*) FROM community.posts").Scan(&totalCount)
+		if err != nil {
+			log.Printf("Error counting posts: %v", err)
+			http.Error(w, "Failed to count posts", http.StatusInternalServerError)
+			return
+		}
+
+		// Get posts without search
+		rows, err = db.Query(`
+			SELECT id, author_id, author_nickname, author_emoji, title, body, 
+			       likes, comments, created_at, tags
+			FROM community.posts
+			ORDER BY created_at DESC
+			LIMIT $1 OFFSET $2
+		`, pageSize, offset)
+	}
+
+	if err != nil {
+		log.Printf("Error querying posts: %v", err)
+		http.Error(w, "Failed to fetch posts", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	posts := []Post{}
+	for rows.Next() {
+		var post Post
+		post.Tags = []string{}
+		err := rows.Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
+			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, pq.Array(&post.Tags))
+		if err != nil {
+			log.Printf("Error scanning post: %v", err)
+			continue
+		}
+
+		post.UserID = post.AuthorID
+		posts = append(posts, post)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(FeedResponse{Posts: posts, TotalCount: len(posts), Page: 1})
+	json.NewEncoder(w).Encode(FeedResponse{
+		Posts:      posts,
+		TotalCount: totalCount,
+		Page:       page,
+	})
 }
 
 func createPostHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("CreatePost request received: %s %s", r.Method, r.URL.Path)
 	var req CreatePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("Error decoding request: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	log.Printf("Creating post for user %s: %s", req.UserID, req.Title)
 
-	postsMu.Lock()
-	newPost := Post{
-		ID:             fmt.Sprintf("p%d", postCounter),
+	postID := uuid.New().String()
+	
+	// Convert tags to PostgreSQL TEXT[] array using pq.Array
+	tagsArray := pq.Array(req.Tags)
+
+	_, err := db.Exec(`
+		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+	`, postID, req.UserID, req.AuthorNickname, req.AuthorEmoji, req.Title, req.Body, tagsArray)
+
+	if err != nil {
+		log.Printf("Error creating post: %v", err)
+		http.Error(w, "Failed to create post", http.StatusInternalServerError)
+		return
+	}
+
+	post := Post{
+		ID:             postID,
+		AuthorID:       req.UserID,
 		AuthorNickname: req.AuthorNickname,
 		AuthorEmoji:    req.AuthorEmoji,
 		Title:          req.Title,
@@ -98,12 +299,10 @@ func createPostHandler(w http.ResponseWriter, r *http.Request) {
 		Comments:       0,
 		UserID:         req.UserID,
 	}
-	posts = append([]Post{newPost}, posts...)
-	postCounter++
-	postsMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(newPost)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(post)
 }
 
 func updatePostHandler(w http.ResponseWriter, r *http.Request) {
@@ -113,21 +312,42 @@ func updatePostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	postsMu.Lock()
-	defer postsMu.Unlock()
+	// Convert tags to PostgreSQL TEXT[] array using pq.Array
+	tagsArray := pq.Array(req.Tags)
 
-	for i, p := range posts {
-		if p.ID == req.PostID {
-			posts[i].Title = req.Title
-			posts[i].Body = req.Body
-			posts[i].Tags = req.Tags
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(posts[i])
-			return
-		}
+	_, err := db.Exec(`
+		UPDATE community.posts
+		SET title = $1, body = $2, tags = $3, updated_at = NOW()
+		WHERE id = $4
+	`, req.Title, req.Body, tagsArray, req.PostID)
+
+	if err != nil {
+		log.Printf("Error updating post: %v", err)
+		http.Error(w, "Failed to update post", http.StatusInternalServerError)
+		return
 	}
 
-	http.Error(w, "Post not found", http.StatusNotFound)
+	// Fetch updated post
+	var post Post
+	post.Tags = []string{}
+	err = db.QueryRow(`
+		SELECT id, author_id, author_nickname, author_emoji, title, body, 
+		       likes, comments, created_at, tags
+		FROM community.posts
+		WHERE id = $1
+	`, req.PostID).Scan(&post.ID, &post.AuthorID, &post.AuthorNickname, &post.AuthorEmoji,
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, pq.Array(&post.Tags))
+
+	if err != nil {
+		log.Printf("Error fetching updated post: %v", err)
+		http.Error(w, "Failed to fetch updated post", http.StatusInternalServerError)
+		return
+	}
+
+	post.UserID = post.AuthorID
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(post)
 }
 
 func deletePostHandler(w http.ResponseWriter, r *http.Request) {
@@ -137,19 +357,324 @@ func deletePostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	postsMu.Lock()
-	defer postsMu.Unlock()
+	// Check if post exists and get author_id for authorization
+	var authorID string
+	err := db.QueryRow("SELECT author_id FROM community.posts WHERE id = $1", req.PostID).Scan(&authorID)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Post not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("Error checking post: %v", err)
+		http.Error(w, "Failed to check post", http.StatusInternalServerError)
+		return
+	}
 
-	for i, p := range posts {
-		if p.ID == req.PostID {
-			posts = append(posts[:i], posts[i+1:]...)
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"success": true}`)
+	// Note: In production, verify req.UserID matches authorID
+	// For now, we trust the frontend authorization
+
+	_, err = db.Exec("DELETE FROM community.posts WHERE id = $1", req.PostID)
+	if err != nil {
+		log.Printf("Error deleting post: %v", err)
+		http.Error(w, "Failed to delete post", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"success": true}`)
+}
+
+func getCommentsHandler(w http.ResponseWriter, r *http.Request) {
+	postID := r.URL.Query().Get("postId")
+	if postID == "" {
+		http.Error(w, "postId is required", http.StatusBadRequest)
+		return
+	}
+
+	rows, err := db.Query(`
+		SELECT id, post_id, author_id, author_nickname, author_emoji, content, created_at
+		FROM community.comments
+		WHERE post_id = $1
+		ORDER BY created_at ASC
+	`, postID)
+	if err != nil {
+		log.Printf("Error querying comments: %v", err)
+		http.Error(w, "Failed to fetch comments", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	comments := []Comment{}
+	for rows.Next() {
+		var comment Comment
+		err := rows.Scan(&comment.ID, &comment.PostID, &comment.AuthorID, &comment.AuthorNickname,
+			&comment.AuthorEmoji, &comment.Body, &comment.CreatedAt)
+		if err != nil {
+			log.Printf("Error scanning comment: %v", err)
+			continue
+		}
+		comment.UserID = comment.AuthorID
+		comments = append(comments, comment)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(comments)
+}
+
+func createCommentHandler(w http.ResponseWriter, r *http.Request) {
+	var req CreateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	commentID := uuid.New().String()
+	createdAt := time.Now()
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to create comment", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Insert comment
+	_, err = tx.Exec(`
+		INSERT INTO community.comments (id, post_id, author_id, author_nickname, author_emoji, content, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, commentID, req.PostID, req.UserID, req.AuthorNickname, req.AuthorEmoji, req.Body, createdAt)
+
+	if err != nil {
+		log.Printf("Error creating comment: %v", err)
+		http.Error(w, "Failed to create comment", http.StatusInternalServerError)
+		return
+	}
+
+	// Update comment count
+	_, err = tx.Exec("UPDATE community.posts SET comments = comments + 1 WHERE id = $1", req.PostID)
+	if err != nil {
+		log.Printf("Error updating comment count: %v", err)
+		http.Error(w, "Failed to update comment count", http.StatusInternalServerError)
+		return
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to create comment", http.StatusInternalServerError)
+		return
+	}
+
+	comment := Comment{
+		ID:             commentID,
+		PostID:         req.PostID,
+		AuthorID:       req.UserID,
+		AuthorNickname: req.AuthorNickname,
+		AuthorEmoji:    req.AuthorEmoji,
+		Body:           req.Body,
+		CreatedAt:      createdAt.Format(time.RFC3339),
+		UserID:         req.UserID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(comment)
+}
+
+func deleteCommentHandler(w http.ResponseWriter, r *http.Request) {
+	var req DeleteCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to delete comment", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Get post_id before deleting
+	var postID string
+	err = tx.QueryRow("SELECT post_id FROM community.comments WHERE id = $1", req.CommentID).Scan(&postID)
+	if err != nil {
+		log.Printf("Error finding comment: %v", err)
+		http.Error(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+
+	// Delete comment
+	result, err := tx.Exec("DELETE FROM community.comments WHERE id = $1", req.CommentID)
+	if err != nil {
+		log.Printf("Error deleting comment: %v", err)
+		http.Error(w, "Failed to delete comment", http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		http.Error(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+
+	// Update comment count
+	_, err = tx.Exec("UPDATE community.posts SET comments = GREATEST(comments - 1, 0) WHERE id = $1", postID)
+	if err != nil {
+		log.Printf("Error updating comment count: %v", err)
+		http.Error(w, "Failed to update comment count", http.StatusInternalServerError)
+		return
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to delete comment", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"success": true}`)
+}
+
+func likePostHandler(w http.ResponseWriter, r *http.Request) {
+	var req LikeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to like post", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Check if already liked
+	var exists bool
+	err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM community.likes WHERE post_id = $1 AND user_id = $2)", req.PostID, req.UserID).Scan(&exists)
+	if err != nil {
+		log.Printf("Error checking like: %v", err)
+		http.Error(w, "Failed to check like status", http.StatusInternalServerError)
+		return
+	}
+
+	if exists {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"success": true, "alreadyLiked": true}`)
+		return
+	}
+
+	// Insert like
+	_, err = tx.Exec(`
+		INSERT INTO community.likes (id, post_id, user_id, created_at)
+		VALUES ($1, $2, $3, NOW())
+	`, uuid.New().String(), req.PostID, req.UserID)
+
+	if err != nil {
+		log.Printf("Error liking post: %v", err)
+		http.Error(w, "Failed to like post", http.StatusInternalServerError)
+		return
+	}
+
+	// Update likes count
+	_, err = tx.Exec("UPDATE community.posts SET likes = likes + 1 WHERE id = $1", req.PostID)
+	if err != nil {
+		log.Printf("Error updating like count: %v", err)
+		http.Error(w, "Failed to update like count", http.StatusInternalServerError)
+		return
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to like post", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"success": true, "alreadyLiked": false}`)
+}
+
+func unlikePostHandler(w http.ResponseWriter, r *http.Request) {
+	var req UnlikeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		http.Error(w, "Failed to unlike post", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Delete like
+	result, err := tx.Exec("DELETE FROM community.likes WHERE post_id = $1 AND user_id = $2", req.PostID, req.UserID)
+	if err != nil {
+		log.Printf("Error unliking post: %v", err)
+		http.Error(w, "Failed to unlike post", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if any row was deleted
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("Error getting rows affected: %v", err)
+		http.Error(w, "Failed to unlike post", http.StatusInternalServerError)
+		return
+	}
+
+	// Update likes count only if a row was actually deleted
+	if rowsAffected > 0 {
+		_, err = tx.Exec("UPDATE community.posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", req.PostID)
+		if err != nil {
+			log.Printf("Error updating like count: %v", err)
+			http.Error(w, "Failed to update like count", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	http.Error(w, "Post not found", http.StatusNotFound)
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		http.Error(w, "Failed to unlike post", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"success": true}`)
+}
+
+func checkLikeHandler(w http.ResponseWriter, r *http.Request) {
+	postID := r.URL.Query().Get("postId")
+	userID := r.URL.Query().Get("userId")
+	
+	if postID == "" || userID == "" {
+		http.Error(w, "postId and userId are required", http.StatusBadRequest)
+		return
+	}
+
+	var liked bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM community.likes WHERE post_id = $1 AND user_id = $2)", postID, userID).Scan(&liked)
+	if err != nil {
+		log.Printf("Error checking like: %v", err)
+		http.Error(w, "Failed to check like status", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"liked": liked})
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -166,18 +691,143 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+	if err := initDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer db.Close()
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "50053"
 	}
 
 	http.HandleFunc("/community.CommunityService/GetFeed", corsMiddleware(getFeedHandler))
+	http.HandleFunc("/community.CommunityService/GetPost", corsMiddleware(getPostHandler))
 	http.HandleFunc("/community.CommunityService/CreatePost", corsMiddleware(createPostHandler))
 	http.HandleFunc("/community.CommunityService/UpdatePost", corsMiddleware(updatePostHandler))
 	http.HandleFunc("/community.CommunityService/DeletePost", corsMiddleware(deletePostHandler))
+	http.HandleFunc("/community.CommunityService/GetComments", corsMiddleware(getCommentsHandler))
+	http.HandleFunc("/community.CommunityService/CreateComment", corsMiddleware(createCommentHandler))
+	http.HandleFunc("/community.CommunityService/DeleteComment", corsMiddleware(deleteCommentHandler))
+	http.HandleFunc("/community.CommunityService/LikePost", corsMiddleware(likePostHandler))
+	http.HandleFunc("/community.CommunityService/UnlikePost", corsMiddleware(unlikePostHandler))
+	http.HandleFunc("/community.CommunityService/CheckLike", corsMiddleware(checkLikeHandler))
+	http.HandleFunc("/community.CommunityService/GetNotices", corsMiddleware(getNoticesHandler))
+	http.HandleFunc("/community.CommunityService/GetTopDetective", corsMiddleware(getTopDetectiveHandler))
+	http.HandleFunc("/community.CommunityService/GetHotTopic", corsMiddleware(getHotTopicHandler))
 
 	log.Printf("Community service listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+}
+
+func getNoticesHandler(w http.ResponseWriter, r *http.Request) {
+	// Get latest 3 posts with '공지' tag
+	rows, err := db.Query(`
+		SELECT id, title
+		FROM community.posts
+		WHERE '공지' = ANY(tags)
+		ORDER BY created_at DESC
+		LIMIT 3
+	`)
+	if err != nil {
+		log.Printf("Error querying notices: %v", err)
+		http.Error(w, "Failed to fetch notices", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type Notice struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+
+	notices := []Notice{}
+	for rows.Next() {
+		var notice Notice
+		if err := rows.Scan(&notice.ID, &notice.Title); err != nil {
+			log.Printf("Error scanning notice: %v", err)
+			continue
+		}
+		notices = append(notices, notice)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(notices)
+}
+
+func getTopDetectiveHandler(w http.ResponseWriter, r *http.Request) {
+	// Get user with most likes this month
+	type TopDetective struct {
+		AuthorNickname string `json:"authorNickname"`
+		AuthorEmoji    string `json:"authorEmoji"`
+		TotalLikes     int    `json:"totalLikes"`
+	}
+
+	var detective TopDetective
+	err := db.QueryRow(`
+		SELECT p.author_nickname, p.author_emoji, SUM(p.likes) as total_likes
+		FROM community.posts p
+		WHERE p.created_at >= DATE_TRUNC('month', NOW())
+		GROUP BY p.author_id, p.author_nickname, p.author_emoji
+		ORDER BY total_likes DESC
+		LIMIT 1
+	`).Scan(&detective.AuthorNickname, &detective.AuthorEmoji, &detective.TotalLikes)
+
+	if err == sql.ErrNoRows {
+		// No data this month, return empty
+		detective = TopDetective{
+			AuthorNickname: "아직 없음",
+			AuthorEmoji:    "🏆",
+			TotalLikes:     0,
+		}
+	} else if err != nil {
+		log.Printf("Error querying top detective: %v", err)
+		http.Error(w, "Failed to fetch top detective", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detective)
+}
+
+func getHotTopicHandler(w http.ResponseWriter, r *http.Request) {
+	// Get most used tag today
+	type HotTopic struct {
+		Tag   string `json:"tag"`
+		Count int    `json:"count"`
+	}
+
+	var topic HotTopic
+	err := db.QueryRow(`
+		SELECT tag, COUNT(*) as count
+		FROM community.posts, UNNEST(tags) as tag
+		WHERE created_at >= CURRENT_DATE
+		GROUP BY tag
+		ORDER BY count DESC
+		LIMIT 1
+	`).Scan(&topic.Tag, &topic.Count)
+
+	if err == sql.ErrNoRows {
+		// No posts today, get most popular tag overall
+		err = db.QueryRow(`
+			SELECT tag, COUNT(*) as count
+			FROM community.posts, UNNEST(tags) as tag
+			GROUP BY tag
+			ORDER BY count DESC
+			LIMIT 1
+		`).Scan(&topic.Tag, &topic.Count)
+	}
+
+	if err == sql.ErrNoRows {
+		topic = HotTopic{Tag: "없음", Count: 0}
+	} else if err != nil {
+		log.Printf("Error querying hot topic: %v", err)
+		http.Error(w, "Failed to fetch hot topic", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(topic)
 }
