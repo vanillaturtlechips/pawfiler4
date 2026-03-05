@@ -14,9 +14,21 @@ import AnalysisPage from "@/pages/AnalysisPage";
 import CommunityPage from "@/pages/CommunityPage";
 import CommunityPostPage from "@/pages/CommunityPostPage";
 import ShopPage from "@/pages/ShopPage";
+import { useEffect, useMemo, useState, useCallback } from "react";
+
+
+
+
+
+
+
+
+
+
+
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "./pages/NotFound";
-import { useState, useCallback } from "react";
+
 
 const queryClient = new QueryClient();
 
