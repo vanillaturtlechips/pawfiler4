@@ -4,51 +4,45 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INIT_DB_FILE="$SCRIPT_DIR/init-db.sql"
-TEMP_FILE="/tmp/quiz_dump.sql"
+TEMP_DUMP="$SCRIPT_DIR/temp_questions.sql"
 BACKUP_FILE="$SCRIPT_DIR/init-db.sql.backup"
 
 echo "🔄 Dumping quiz questions from database..."
 
 # DB에서 quiz questions 덤프
-docker exec pawfiler-postgres pg_dump -U pawfiler -d pawfiler -t quiz.questions --data-only --column-inserts 2>/dev/null | grep "INSERT INTO" > "$TEMP_FILE"
+docker exec -e PGPASSWORD=dev_password pawfiler-postgres pg_dump -U pawfiler -d pawfiler -t quiz.questions --data-only --column-inserts 2>/dev/null | grep "INSERT INTO" > "$TEMP_DUMP"
 
-if [ ! -s "$TEMP_FILE" ]; then
+if [ ! -s "$TEMP_DUMP" ]; then
     echo "❌ No questions found or dump failed"
-    rm -f "$TEMP_FILE"
+    rm -f "$TEMP_DUMP"
     exit 1
 fi
 
 # 문제 개수 확인
-QUESTION_COUNT=$(wc -l < "$TEMP_FILE")
+QUESTION_COUNT=$(wc -l < "$TEMP_DUMP")
 echo "📊 Found $QUESTION_COUNT questions in database"
 
 # 백업 생성
 cp "$INIT_DB_FILE" "$BACKUP_FILE"
 echo "💾 Backup created: init-db.sql.backup"
 
-# init-db.sql에서 quiz questions 섹션 찾아서 교체
-# "-- Insert sample quiz questions" 부터 다음 섹션 전까지 교체
-awk -v questions="$(cat $TEMP_FILE)" '
-BEGIN { in_quiz_section = 0; printed_questions = 0 }
-/-- Insert sample quiz questions/ {
-    print
-    print questions ";"
-    printed_questions = 1
-    in_quiz_section = 1
-    next
-}
-/-- Insert sample community posts/ {
-    in_quiz_section = 0
-}
-!in_quiz_section || !printed_questions {
-    if (!/^INSERT INTO quiz\.questions/) {
-        print
-    }
-}
-' "$BACKUP_FILE" > "$INIT_DB_FILE"
+# init-db.sql을 3개 부분으로 나눔
+# 1. quiz questions 섹션 이전
+# 2. quiz questions 섹션 (교체할 부분)
+# 3. community posts 섹션 이후
+
+# 1. quiz questions 이전 부분 추출
+sed -n '1,/-- Insert sample quiz questions/p' "$BACKUP_FILE" > "$INIT_DB_FILE"
+
+# 2. 새로운 quiz questions 추가
+cat "$TEMP_DUMP" >> "$INIT_DB_FILE"
+echo "" >> "$INIT_DB_FILE"
+
+# 3. community posts 이후 부분 추가
+sed -n '/-- Insert sample community posts/,$p' "$BACKUP_FILE" >> "$INIT_DB_FILE"
 
 # 정리
-rm -f "$TEMP_FILE"
+rm -f "$TEMP_DUMP"
 
 echo "✅ init-db.sql updated successfully!"
 echo "📝 Quiz questions section has been replaced with current database content"
