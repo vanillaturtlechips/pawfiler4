@@ -5,12 +5,27 @@ package community;
 option go_package = "github.com/pawfiler/backend/services/community/pb";
 
 service CommunityService {
-  rpc CreatePost(CreatePostRequest) returns (Post);
+  // 게시글 관리
   rpc GetFeed(GetFeedRequest) returns (FeedResponse);
   rpc GetPost(GetPostRequest) returns (Post);
-  rpc LikePost(LikePostRequest) returns (LikePostResponse);
-  rpc AddComment(AddCommentRequest) returns (Comment);
+  rpc CreatePost(CreatePostRequest) returns (Post);
+  rpc UpdatePost(UpdatePostRequest) returns (Post);
+  rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
+  
+  // 댓글 관리
   rpc GetComments(GetCommentsRequest) returns (CommentsResponse);
+  rpc CreateComment(CreateCommentRequest) returns (Comment);
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  
+  // 좋아요 관리
+  rpc LikePost(LikePostRequest) returns (LikePostResponse);
+  rpc UnlikePost(UnlikePostRequest) returns (UnlikePostResponse);
+  rpc CheckLike(CheckLikeRequest) returns (CheckLikeResponse);
+  
+  // 대시보드 API
+  rpc GetNotices(GetNoticesRequest) returns (NoticesResponse);
+  rpc GetTopDetective(GetTopDetectiveRequest) returns (TopDetectiveResponse);
+  rpc GetHotTopic(GetHotTopicRequest) returns (HotTopicResponse);
 }
 
 message CreatePostRequest {
@@ -24,19 +39,22 @@ message CreatePostRequest {
 
 message Post {
   string id = 1;
-  string author_nickname = 2;
-  string author_emoji = 3;
-  string title = 4;
-  string body = 5;
-  int32 likes = 6;
-  int32 comments = 7;
-  string created_at = 8;
-  repeated string tags = 9;
+  string author_id = 2;
+  string author_nickname = 3;
+  string author_emoji = 4;
+  string title = 5;
+  string body = 6;
+  int32 likes = 7;
+  int32 comments = 8;
+  string created_at = 9;
+  repeated string tags = 10;
 }
 
 message GetFeedRequest {
   int32 page = 1;
   int32 page_size = 2;
+  string search_query = 3;
+  string search_type = 4; // "title", "body", "all"
 }
 
 message FeedResponse {
@@ -56,24 +74,17 @@ message LikePostRequest {
 
 message LikePostResponse {
   bool success = 1;
-  int32 new_like_count = 2;
-}
-
-message AddCommentRequest {
-  string post_id = 1;
-  string user_id = 2;
-  string author_nickname = 3;
-  string author_emoji = 4;
-  string content = 5;
+  bool already_liked = 2;
 }
 
 message Comment {
   string id = 1;
   string post_id = 2;
-  string author_nickname = 3;
-  string author_emoji = 4;
-  string content = 5;
-  string created_at = 6;
+  string author_id = 3;
+  string author_nickname = 4;
+  string author_emoji = 5;
+  string body = 6;
+  string created_at = 7;
 }
 
 message GetCommentsRequest {
@@ -82,4 +93,91 @@ message GetCommentsRequest {
 
 message CommentsResponse {
   repeated Comment comments = 1;
+}
+
+// UpdatePost
+message UpdatePostRequest {
+  string post_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string body = 4;
+  repeated string tags = 5;
+}
+
+// DeletePost
+message DeletePostRequest {
+  string post_id = 1;
+  string user_id = 2;
+}
+
+message DeletePostResponse {
+  bool success = 1;
+}
+
+// CreateComment
+message CreateCommentRequest {
+  string post_id = 1;
+  string user_id = 2;
+  string author_nickname = 3;
+  string author_emoji = 4;
+  string body = 5;
+}
+
+// DeleteComment
+message DeleteCommentRequest {
+  string comment_id = 1;
+  string user_id = 2;
+}
+
+message DeleteCommentResponse {
+  bool success = 1;
+}
+
+// UnlikePost
+message UnlikePostRequest {
+  string post_id = 1;
+  string user_id = 2;
+}
+
+message UnlikePostResponse {
+  bool success = 1;
+}
+
+// CheckLike
+message CheckLikeRequest {
+  string post_id = 1;
+  string user_id = 2;
+}
+
+message CheckLikeResponse {
+  bool liked = 1;
+}
+
+// GetNotices
+message GetNoticesRequest {}
+
+message Notice {
+  string id = 1;
+  string title = 2;
+}
+
+message NoticesResponse {
+  repeated Notice notices = 1;
+}
+
+// GetTopDetective
+message GetTopDetectiveRequest {}
+
+message TopDetectiveResponse {
+  string author_nickname = 1;
+  string author_emoji = 2;
+  int32 total_likes = 3;
+}
+
+// GetHotTopic
+message GetHotTopicRequest {}
+
+message HotTopicResponse {
+  string tag = 1;
+  int32 count = 2;
 }

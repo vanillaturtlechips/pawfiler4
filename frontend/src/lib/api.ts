@@ -346,7 +346,7 @@ export const fetchCommunityFeed = async (
     }
     
     const response = await fetch(
-      `${config.communityApiUrl}/community.CommunityService/GetFeed?${params.toString()}`,
+      `${config.communityApiUrl}/feed?${params.toString()}`,
       {
         method: "GET",
         headers: {
@@ -374,7 +374,7 @@ export const createCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/CreatePost`, {
+    const response = await fetch(`${config.communityApiUrl}/post`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -399,8 +399,8 @@ export const updateCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/UpdatePost`, {
-      method: "POST",
+    const response = await fetch(`${config.communityApiUrl}/post`, {
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
@@ -419,8 +419,8 @@ export const updateCommunityPost = async (req: {
 
 export const deleteCommunityPost = async (postId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/DeletePost`, {
-      method: "POST",
+    const response = await fetch(`${config.communityApiUrl}/post`, {
+      method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
@@ -497,7 +497,7 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
 // Community Comments & Likes
 export const fetchCommunityComments = async (postId: string): Promise<CommunityComment[]> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetComments?postId=${postId}`, {
+    const response = await fetch(`${config.communityApiUrl}/comments?postId=${postId}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -509,7 +509,7 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
     }
 
     const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    return data.comments || [];
   } catch (error) {
     console.error('Failed to fetch comments:', error);
     return [];
@@ -524,7 +524,7 @@ export const createCommunityComment = async (req: {
   body: string;
 }): Promise<CommunityComment> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/CreateComment`, {
+    const response = await fetch(`${config.communityApiUrl}/comment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -544,8 +544,8 @@ export const createCommunityComment = async (req: {
 
 export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/DeleteComment`, {
-      method: "POST",
+    const response = await fetch(`${config.communityApiUrl}/comment`, {
+      method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
@@ -564,7 +564,7 @@ export const deleteCommunityComment = async (commentId: string): Promise<{ succe
 
 export const likePost = async (postId: string, userId: string): Promise<{ success: boolean; alreadyLiked?: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/LikePost`, {
+    const response = await fetch(`${config.communityApiUrl}/like`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -584,7 +584,7 @@ export const likePost = async (postId: string, userId: string): Promise<{ succes
 
 export const unlikePost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/UnlikePost`, {
+    const response = await fetch(`${config.communityApiUrl}/unlike`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -604,7 +604,7 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ succ
 
 export const getPost = async (postId: string): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetPost?postId=${postId}`, {
+    const response = await fetch(`${config.communityApiUrl}/post?postId=${postId}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -623,7 +623,7 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
 
 export const checkLike = async (postId: string, userId: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/CheckLike?postId=${postId}&userId=${userId}`, {
+    const response = await fetch(`${config.communityApiUrl}/check-like?postId=${postId}&userId=${userId}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -645,7 +645,7 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
 // Community Dashboard APIs
 export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetNotices`, {
+    const response = await fetch(`${config.communityApiUrl}/notices`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -665,7 +665,7 @@ export const fetchNotices = async (): Promise<Array<{ id: string; title: string 
 
 export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetTopDetective`, {
+    const response = await fetch(`${config.communityApiUrl}/top-detective`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -685,7 +685,7 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
 
 export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/community.CommunityService/GetHotTopic`, {
+    const response = await fetch(`${config.communityApiUrl}/hot-topic`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

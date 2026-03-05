@@ -42,6 +42,8 @@ go*.linux-amd64.tar.gz
 # Binaries
 community-service
 community-service.exe
+quiz-service
+quiz-service.exe
 main
 main.exe
 node_modules
