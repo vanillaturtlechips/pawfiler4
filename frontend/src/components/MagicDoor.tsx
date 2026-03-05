@@ -57,7 +57,7 @@ const MagicDoor = ({ icon, title, description, color, to, scenery, backgroundIma
   return (
     <motion.div
       className="relative flex cursor-pointer flex-col items-center"
-      style={{ perspective: 1200 }}
+      style={{ perspective: 1200, zIndex: isHovered ? 100 : 1 }}
       onHoverStart={() => setHovered(true)}
       onHoverEnd={() => setHovered(false)}
       onClick={() => navigate(to)}
@@ -216,22 +216,22 @@ const MagicDoor = ({ icon, title, description, color, to, scenery, backgroundIma
       <AnimatePresence>
         {isHovered && (
           <motion.div
-            className="absolute -bottom-24 w-[280px] rounded-2xl border-4 p-4 text-center"
+            className="absolute -bottom-20 w-[280px] rounded-2xl border-4 p-4 text-center"
             style={{
               background: "hsl(var(--parchment))",
               borderColor: "hsl(var(--parchment-border))",
               boxShadow: "0 10px 20px rgba(0,0,0,0.6)",
-              zIndex: 20,
+              zIndex: 50,
             }}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
           >
-            <div className="font-jua text-2xl mb-1" style={{ color: c.titleColor }}>
+            <div className="font-jua text-xl mb-1" style={{ color: c.titleColor }}>
               {title}
             </div>
-            <div className="text-sm font-bold" style={{ color: "hsl(var(--parchment-text))" }}>
+            <div className="text-sm font-bold leading-relaxed break-keep" style={{ color: "hsl(var(--parchment-text))" }}>
               {description}
             </div>
           </motion.div>

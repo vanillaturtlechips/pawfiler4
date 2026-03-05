@@ -4,6 +4,18 @@
 @tailwind components;
 @tailwind utilities;
 
+@import './styles/responsive.css';
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   :root {
     /* Wood tones */

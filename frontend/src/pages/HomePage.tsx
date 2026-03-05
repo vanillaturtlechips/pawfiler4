@@ -43,7 +43,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="relative h-[calc(100vh-5rem)] w-full overflow-hidden flex items-center justify-center pt-20">
+    <div className="relative h-[calc(100vh-5rem)] w-full flex items-center justify-center" style={{ paddingTop: "0", marginTop: "-5vh" }}>
       {/* Tutorial Overlay - Full Screen with Dashboard Background */}
       {showTutorial && (
         <motion.div
@@ -238,10 +238,10 @@ const HomePage = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex flex-col items-center justify-center gap-[3vh] w-full max-w-[90vw]">
+      <div className="flex flex-col items-center justify-center gap-[1.5vh] w-full max-w-[90vw]">
         {/* Tutorial hint (always visible) */}
         <motion.div
-          className="mb-2 px-3 py-1 rounded-full text-xs font-jua flex items-center gap-1"
+          className="mb-1 px-3 py-1 rounded-full text-xs font-jua flex items-center gap-1"
           style={{
             background: "rgba(255,213,79,0.1)",
             border: "1px solid rgba(255,213,79,0.3)",
@@ -255,7 +255,7 @@ const HomePage = () => {
         </motion.div>
 
         <motion.h1
-          className="font-jua text-[clamp(2rem,4vw,3.5rem)] text-foreground text-shadow-glow animate-glow-text"
+          className="font-jua text-[clamp(1.25rem,2.5vw,2.5rem)] text-foreground text-shadow-glow animate-glow-text"
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 15 }}
@@ -263,7 +263,7 @@ const HomePage = () => {
           어느 문으로 모험을 떠날까요?
         </motion.h1>
 
-        <div className="flex items-center justify-center gap-[2vw] w-full max-w-[1100px]">
+        <div className="flex items-center justify-center gap-[1.5vw] w-full max-w-[1100px]">
           <MagicDoor
             icon="🎮"
             title="동물들의 놀이터"
@@ -295,14 +295,14 @@ const HomePage = () => {
 
         {/* Bottom hint */}
         <motion.div
-          className="mt-4 text-center text-sm"
-          style={{ color: "#FFCC80" }}
+          className="mt-1 text-center"
+          style={{ color: "#FFCC80", position: "relative", zIndex: 1 }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
         >
-          <p>문을 클릭하여 모험을 시작하세요!</p>
-          <p className="text-xs mt-1" style={{ color: "#BDBDBD" }}>
+          <p className="text-xs sm:text-sm">문을 클릭하여 모험을 시작하세요!</p>
+          <p className="text-[10px] sm:text-xs mt-0.5" style={{ color: "#BDBDBD" }}>
             각 모험에서는 코인과 경험치를 얻을 수 있습니다
           </p>
         </motion.div>
