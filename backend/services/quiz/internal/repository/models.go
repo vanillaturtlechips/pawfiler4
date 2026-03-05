@@ -10,27 +10,27 @@ import (
 type QuestionType string
 
 const (
-	QuestionTypeMultipleChoice QuestionType = "MULTIPLE_CHOICE"
-	QuestionTypeTrueFalse      QuestionType = "TRUE_FALSE"
-	QuestionTypeRegionSelect   QuestionType = "REGION_SELECT"
-	QuestionTypeComparison     QuestionType = "COMPARISON"
+	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
+	QuestionTypeTrueFalse      QuestionType = "true_false"
+	QuestionTypeRegionSelect   QuestionType = "region_select"
+	QuestionTypeComparison     QuestionType = "comparison"
 )
 
 // MediaType represents the type of media in a question
 type MediaType string
 
 const (
-	MediaTypeVideo MediaType = "VIDEO"
-	MediaTypeImage MediaType = "IMAGE"
+	MediaTypeVideo MediaType = "video"
+	MediaTypeImage MediaType = "image"
 )
 
 // Difficulty represents the difficulty level of a question
 type Difficulty string
 
 const (
-	DifficultyEasy   Difficulty = "EASY"
-	DifficultyMedium Difficulty = "MEDIUM"
-	DifficultyHard   Difficulty = "HARD"
+	DifficultyEasy   Difficulty = "easy"
+	DifficultyMedium Difficulty = "medium"
+	DifficultyHard   Difficulty = "hard"
 )
 
 // Question represents a quiz question with all possible fields for 4 question types

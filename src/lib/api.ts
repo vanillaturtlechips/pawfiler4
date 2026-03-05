@@ -192,7 +192,7 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
           type: "multiple_choice" as const,
           mediaType,
           options: data.options || [],
-          correctIndex: data.correct_index ?? 0,
+          correctIndex: -1, // 초기에는 정답을 모름 (답안 제출 후 업데이트)
         } as MultipleChoiceQuestion;
       case "true_false":
         return {
@@ -268,12 +268,23 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
 
     const data = await response.json();
     
+    // 설명에서 정답 인덱스 파싱
+    let explanation = data.explanation || "";
+    let correctIndex: number | undefined = undefined;
+    
+    const match = explanation.match(/\|\|CORRECT_INDEX:(\d+)\|\|/);
+    if (match) {
+      correctIndex = parseInt(match[1], 10);
+      explanation = explanation.replace(/\|\|CORRECT_INDEX:\d+\|\|/, '').trim();
+    }
+    
     return {
       correct: data.correct ?? false,
       xpEarned: data.xp_earned ?? 0,
       coinsEarned: data.coins_earned ?? 0,
-      explanation: data.explanation || "",
+      explanation: explanation,
       streakCount: data.streak_count ?? 0,
+      correctIndex: correctIndex,
     };
   } catch (error) {
     return handleApiError(error, '답안 제출');

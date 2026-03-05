@@ -44,13 +44,33 @@ export default function RegionSelectQuestion({
   };
 
   return (
-    <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+    <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+      {/* Category and Difficulty Header */}
+      <div className="flex items-center justify-between px-2 flex-shrink-0">
+        <div className="font-jua text-sm opacity-70">
+          📂 AI 이미지 탐지
+        </div>
+        <div className="font-jua text-sm px-3 py-1 rounded-full" style={{
+          background: question.difficulty === "easy" ? "rgba(34, 197, 94, 0.2)" : 
+                     question.difficulty === "medium" ? "rgba(234, 179, 8, 0.2)" : 
+                     "rgba(239, 68, 68, 0.2)",
+          color: question.difficulty === "easy" ? "#22c55e" : 
+                 question.difficulty === "medium" ? "#eab308" : 
+                 "#ef4444"
+        }}>
+          {question.difficulty === "easy" ? "🟢 Lv.1 쉬움" : 
+           question.difficulty === "medium" ? "🟡 Lv.2 보통" : 
+           "🔴 Lv.3 어려움"}
+        </div>
+      </div>
+      
       {/* 클릭 가능한 이미지 영역 */}
       <div
         ref={imageRef}
-        className="relative flex-1 rounded-2xl overflow-hidden bg-black"
+        className="relative flex-shrink-0 rounded-2xl overflow-hidden bg-black"
         onClick={handleClick}
         style={{ 
+          maxHeight: '400px',
           minHeight: '300px',
           cursor: showResult ? 'default' : 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 24 24\'><circle cx=\'10\' cy=\'10\' r=\'7\' fill=\'none\' stroke=\'white\' stroke-width=\'2\'/><line x1=\'15\' y1=\'15\' x2=\'21\' y2=\'21\' stroke=\'white\' stroke-width=\'2\' stroke-linecap=\'round\'/></svg>") 16 16, crosshair'
         }}

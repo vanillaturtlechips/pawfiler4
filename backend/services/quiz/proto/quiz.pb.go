@@ -590,6 +590,7 @@ type SubmitAnswerResponse struct {
 	CoinsEarned   int32                  `protobuf:"varint,3,opt,name=coins_earned,json=coinsEarned,proto3" json:"coins_earned,omitempty"`
 	Explanation   string                 `protobuf:"bytes,4,opt,name=explanation,proto3" json:"explanation,omitempty"`
 	StreakCount   int32                  `protobuf:"varint,5,opt,name=streak_count,json=streakCount,proto3" json:"streak_count,omitempty"`
+	CorrectIndex  *int32                 `protobuf:"varint,6,opt,name=correct_index,json=correctIndex,proto3,oneof" json:"correct_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -655,6 +656,13 @@ func (x *SubmitAnswerResponse) GetExplanation() string {
 func (x *SubmitAnswerResponse) GetStreakCount() int32 {
 	if x != nil {
 		return x.StreakCount
+	}
+	return 0
+}
+
+func (x *SubmitAnswerResponse) GetCorrectIndex() int32 {
+	if x != nil && x.CorrectIndex != nil {
+		return *x.CorrectIndex
 	}
 	return 0
 }
