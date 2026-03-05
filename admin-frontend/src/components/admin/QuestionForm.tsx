@@ -275,6 +275,9 @@ ${aiSide} 이미지가 AI 생성물인 이유를 1-2문장으로 설명해주세
       );
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("API 요청 한도 초과 (분당 15회 제한). 잠시 후 다시 시도해주세요.");
+        }
         throw new Error("Gemini API 호출 실패");
       }
 
@@ -289,7 +292,8 @@ ${aiSide} 이미지가 AI 생성물인 이유를 1-2문장으로 설명해주세
       }
     } catch (error) {
       console.error("Enhancement error:", error);
-      toast.error("설명 개선 실패");
+      const errorMessage = error instanceof Error ? error.message : "설명 개선 실패";
+      toast.error(errorMessage);
     } finally {
       setEnhancing(false);
     }
@@ -310,25 +314,18 @@ ${aiSide} 이미지가 AI 생성물인 이유를 1-2문장으로 설명해주세
         return;
       }
 
-      const categoryText = category === "ai-generated-detection" 
-        ? "AI 생성 이미지 탐지" 
-        : "영상 합성 탐지 (딥페이크)";
+      const prompt = `다음 객관식 선택지를 개선해주세요:
 
-      const prompt = `당신은 딥페이크와 AI 생성 콘텐츠 탐지 교육 전문가입니다.
+"${optionText}"
 
-카테고리: ${categoryText}
-난이도: ${difficulty === "easy" ? "쉬움" : difficulty === "medium" ? "보통" : "어려움"}
+요구사항:
+- 10-20자 이내
+- ~워요 체 사용 (예: 자연스러워요, 어색해요)
+- 이모지 금지
+- 마침표 없이 출력
+- 하나의 완성된 문장만 출력
 
-사용자가 입력한 객관식 선택지:
-${optionText}
-
-위 선택지를 더 명확하고 자연스럽게 개선해주세요.
-- 짧고 간결하게 작성하세요 (10-15자 내외)
-- 존댓말을 사용하세요 (예: "~해요", "~입니다")
-- 이모지는 사용하지 마세요
-- 선택지로 적합한 형태로 작성하세요
-
-개선된 선택지만 출력하세요:`;
+답변:`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`,
@@ -349,14 +346,18 @@ ${optionText}
               },
             ],
             generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 300,
+              temperature: 0.3,
+              maxOutputTokens: 800,
+              candidateCount: 1,
             },
           }),
         }
       );
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("API 요청 한도 초과 (분당 15회 제한). 잠시 후 다시 시도해주세요.");
+        }
         throw new Error("Gemini API 호출 실패");
       }
 
@@ -365,7 +366,8 @@ ${optionText}
 
       if (enhancedText) {
         const newOptions = [...options];
-        newOptions[index] = enhancedText.trim();
+        // 마침표 제거
+        newOptions[index] = enhancedText.trim().replace(/\.$/, '');
         setOptions(newOptions);
         toast.success("선택지가 개선되었습니다!");
       } else {
@@ -373,7 +375,8 @@ ${optionText}
       }
     } catch (error) {
       console.error("Enhancement error:", error);
-      toast.error("선택지 개선 실패");
+      const errorMessage = error instanceof Error ? error.message : "선택지 개선 실패";
+      toast.error(errorMessage);
     } finally {
       setEnhancingOption(null);
     }
