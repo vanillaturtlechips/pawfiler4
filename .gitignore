@@ -71,3 +71,5 @@ backend/services/quiz/sample-media/videos/**/*.avi
 backend/proto/proto.pb
 backend/scripts/*.bak
 terraform/tfplan
+istio-*/
+istio-*/
