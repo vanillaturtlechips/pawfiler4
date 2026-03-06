@@ -145,8 +145,8 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
   try {
     const userId = getUserId();
     
-    // HTTP REST 프록시를 통한 요청
-    const response = await fetch(`${config.quizApiUrl}/random`, {
+    // Envoy gRPC-JSON transcoding을 통한 요청
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRandomQuestion`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -171,14 +171,14 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
     };
     
     const questionType = typeMap[data.type] || "multiple_choice";
-    const mediaType: MediaType = data.media_type === "VIDEO" ? "video" : "image";
+    const mediaType: MediaType = (data.mediaType || data.media_type) === "VIDEO" ? "video" : "image";
     
     const baseQuestion = {
       id: data.id,
       type: questionType,
       mediaType,
-      mediaUrl: data.media_url,
-      thumbnailEmoji: data.thumbnail_emoji,
+      mediaUrl: data.mediaUrl || data.media_url,
+      thumbnailEmoji: data.thumbnailEmoji || data.thumbnail_emoji,
       difficulty: (data.difficulty?.toLowerCase() || "medium") as "easy" | "medium" | "hard",
       category: data.category || "deepfake-detection",
       explanation: data.explanation,
@@ -199,14 +199,14 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
           ...baseQuestion,
           type: "true_false" as const,
           mediaType,
-          correctAnswer: data.correct_answer ?? false,
+          correctAnswer: data.correctAnswer ?? data.correct_answer ?? false,
         } as TrueFalseQuestion;
       case "region_select":
         return {
           ...baseQuestion,
           type: "region_select" as const,
           mediaType: "image" as const,
-          correctRegions: data.correct_regions || [],
+          correctRegions: data.correctRegions || data.correct_regions || [],
           tolerance: data.tolerance ?? 20,
         } as RegionSelectQuestion;
       case "comparison":
@@ -214,8 +214,8 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
           ...baseQuestion,
           type: "comparison" as const,
           mediaType: "image" as const,
-          comparisonMediaUrl: data.comparison_media_url || "",
-          correctSide: data.correct_side || "left",
+          comparisonMediaUrl: data.comparisonMediaUrl || data.comparison_media_url || "",
+          correctSide: data.correctSide || data.correct_side || "left",
         } as ComparisonQuestion;
       default:
         throw new Error(`Unknown question type: ${questionType}`);
@@ -254,7 +254,7 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
       requestBody.selected_side = req.selectedSide;
     }
 
-    const response = await fetch(`${config.quizApiUrl}/submit`, {
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/SubmitAnswer`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -300,7 +300,7 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
   try {
     const userId = getUserId();
     
-    const response = await fetch(`${config.quizApiUrl}/stats`, {
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetUserStats`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -335,23 +335,24 @@ export const fetchCommunityFeed = async (
   searchType: "title" | "body" | "all" = "title"
 ): Promise<CommunityFeed> => {
   try {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      pageSize: pageSize.toString(),
-    });
+    const requestBody: any = {
+      page,
+      pageSize,
+    };
     
     if (searchQuery && searchQuery.trim()) {
-      params.append('search', searchQuery.trim());
-      params.append('searchType', searchType);
+      requestBody.searchQuery = searchQuery.trim();
+      requestBody.searchType = searchType;
     }
     
     const response = await fetch(
-      `${config.communityApiUrl}/feed?${params.toString()}`,
+      `${config.apiBaseUrl}/community.CommunityService/GetFeed`,
       {
-        method: "GET",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify(requestBody),
       }
     );
 
@@ -374,7 +375,7 @@ export const createCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/post`, {
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CreatePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -399,8 +400,8 @@ export const updateCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/post`, {
-      method: "PUT",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/UpdatePost`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
@@ -419,8 +420,8 @@ export const updateCommunityPost = async (req: {
 
 export const deleteCommunityPost = async (postId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/post`, {
-      method: "DELETE",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeletePost`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
@@ -450,7 +451,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       formData.append("video", videoFile);
     }
     
-    return await request<DeepfakeReport>(`${config.videoAnalysisApiUrl}/video.VideoAnalysisService/AnalyzeVideo`, {
+    return await request<DeepfakeReport>(`${config.apiBaseUrl}/video.VideoAnalysisService/AnalyzeVideo`, {
       method: "POST",
       body: formData,
       headers: {},
@@ -467,7 +468,7 @@ export const getSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
   }
   
   try {
-    const result = await request<{ plans: SubscriptionPlan[] }>(`${config.paymentApiUrl}/payment.PaymentService/GetPlans`, {
+    const result = await request<{ plans: SubscriptionPlan[] }>(`${config.apiBaseUrl}/payment.PaymentService/GetPlans`, {
       method: "POST",
       body: JSON.stringify({}),
     });
@@ -485,7 +486,7 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
   }
   
   try {
-    return await request<CheckoutResponse>(`${config.paymentApiUrl}/payment.PaymentService/Checkout`, {
+    return await request<CheckoutResponse>(`${config.apiBaseUrl}/payment.PaymentService/Checkout`, {
       method: "POST",
       body: JSON.stringify(req),
     });
@@ -497,11 +498,12 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
 // Community Comments & Likes
 export const fetchCommunityComments = async (postId: string): Promise<CommunityComment[]> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/comments?postId=${postId}`, {
-      method: "GET",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetComments`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ postId }),
     });
 
     if (!response.ok) {
@@ -524,7 +526,7 @@ export const createCommunityComment = async (req: {
   body: string;
 }): Promise<CommunityComment> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/comment`, {
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CreateComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -544,8 +546,8 @@ export const createCommunityComment = async (req: {
 
 export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/comment`, {
-      method: "DELETE",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeleteComment`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
@@ -564,7 +566,7 @@ export const deleteCommunityComment = async (commentId: string): Promise<{ succe
 
 export const likePost = async (postId: string, userId: string): Promise<{ success: boolean; alreadyLiked?: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/like`, {
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/LikePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -584,7 +586,7 @@ export const likePost = async (postId: string, userId: string): Promise<{ succes
 
 export const unlikePost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/unlike`, {
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/UnlikePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -604,11 +606,12 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ succ
 
 export const getPost = async (postId: string): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/post?postId=${postId}`, {
-      method: "GET",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetPost`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ postId }),
     });
 
     if (!response.ok) {
@@ -623,11 +626,12 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
 
 export const checkLike = async (postId: string, userId: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/check-like?postId=${postId}&userId=${userId}`, {
-      method: "GET",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CheckLike`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ postId, userId }),
     });
 
     if (!response.ok) {
@@ -645,11 +649,12 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
 // Community Dashboard APIs
 export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/notices`, {
-      method: "GET",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetNotices`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) {
@@ -665,11 +670,12 @@ export const fetchNotices = async (): Promise<Array<{ id: string; title: string 
 
 export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/top-detective`, {
-      method: "GET",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetTopDetective`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) {
@@ -685,11 +691,12 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
 
 export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
   try {
-    const response = await fetch(`${config.communityApiUrl}/hot-topic`, {
-      method: "GET",
+    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetHotTopic`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) {

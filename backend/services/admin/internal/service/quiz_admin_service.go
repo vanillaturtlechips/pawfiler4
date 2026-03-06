@@ -15,10 +15,11 @@ import (
 )
 
 type QuizAdminService struct {
-	repo      *repository.QuizRepository
-	s3Client  *s3.S3
-	s3Bucket  string
-	s3Region  string
+	repo             *repository.QuizRepository
+	s3Client         *s3.S3
+	s3Bucket         string
+	s3Region         string
+	cloudfrontDomain string
 }
 
 func NewQuizAdminService(repo *repository.QuizRepository) *QuizAdminService {
@@ -28,10 +29,11 @@ func NewQuizAdminService(repo *repository.QuizRepository) *QuizAdminService {
 	}))
 
 	return &QuizAdminService{
-		repo:     repo,
-		s3Client: s3.New(sess),
-		s3Bucket: getEnv("S3_BUCKET", "pawfiler-quiz-media"),
-		s3Region: getEnv("AWS_REGION", "ap-northeast-2"),
+		repo:             repo,
+		s3Client:         s3.New(sess),
+		s3Bucket:         getEnv("S3_BUCKET", "pawfiler-quiz-media"),
+		s3Region:         getEnv("AWS_REGION", "ap-northeast-2"),
+		cloudfrontDomain: getEnv("CLOUDFRONT_DOMAIN", ""),
 	}
 }
 
@@ -85,8 +87,14 @@ func (s *QuizAdminService) UploadMedia(file io.Reader, filename, category, media
 		return "", fmt.Errorf("failed to upload to S3: %w", err)
 	}
 
-	// Return S3 URL
-	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", s.s3Bucket, s.s3Region, s3Key)
+	// Return CloudFront URL if configured, otherwise S3 URL
+	var url string
+	if s.cloudfrontDomain != "" {
+		url = fmt.Sprintf("https://%s/%s", s.cloudfrontDomain, s3Key)
+	} else {
+		url = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", s.s3Bucket, s.s3Region, s3Key)
+	}
+	
 	return url, nil
 }
 

@@ -25,44 +25,42 @@ static_resources:
               domains: ["*"]
               routes:
               - match:
-                  prefix: "/auth/"
+                  prefix: "/quiz.QuizService"
                 route:
-                  prefix_rewrite: "/"
-                  cluster: auth_service
-              - match:
-                  prefix: "/quiz/"
-                route:
-                  prefix_rewrite: "/"
                   cluster: quiz_service
+                  timeout: 30s
               - match:
-                  prefix: "/community/"
+                  prefix: "/community.CommunityService"
                 route:
-                  prefix_rewrite: "/"
                   cluster: community_service
+                  timeout: 30s
               - match:
-                  prefix: "/video/"
+                  prefix: "/admin"
                 route:
-                  prefix_rewrite: "/"
-                  cluster: video_analysis_service
-              - match:
-                  prefix: "/payment/"
-                route:
-                  prefix_rewrite: "/"
-                  cluster: payment_service
-              - match:
-                  prefix: "/dashboard/"
-                route:
-                  prefix_rewrite: "/"
-                  cluster: dashboard_bff
+                  cluster: admin_service
+                  timeout: 30s
               cors:
                 allow_origin_string_match:
                 - safe_regex:
-                    regex: \*
+                    regex: ".*"
                 allow_methods: "GET, POST, PUT, DELETE, OPTIONS"
-                allow_headers: "authorization, content-type, x-request-id"
-                expose_headers: "x-request-id"
+                allow_headers: "authorization, content-type, x-request-id, grpc-timeout"
+                expose_headers: "x-request-id, grpc-status, grpc-message"
                 max_age: "86400"
           http_filters:
+          - name: envoy.filters.http.grpc_json_transcoder
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder
+              proto_descriptor: "/etc/envoy/proto.pb"
+              services:
+                - "quiz.QuizService"
+                - "community.CommunityService"
+              print_options:
+                add_whitespace: false
+                always_print_primitive_fields: true
+                preserve_proto_field_names: false
+              auto_mapping: true
+              convert_grpc_status: true
           - name: envoy.filters.http.cors
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
@@ -71,26 +69,15 @@ static_resources:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
-  - name: auth_service
-    connect_timeout: 5s
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    http2_protocol_options: {}
-    load_assignment:
-      cluster_name: auth_service
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: auth-service
-                port_value: 50051
-
   - name: quiz_service
     connect_timeout: 5s
     type: STRICT_DNS
     lb_policy: ROUND_ROBIN
-    http2_protocol_options: {}
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
     load_assignment:
       cluster_name: quiz_service
       endpoints:
@@ -105,7 +92,11 @@ static_resources:
     connect_timeout: 5s
     type: STRICT_DNS
     lb_policy: ROUND_ROBIN
-    http2_protocol_options: {}
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
     load_assignment:
       cluster_name: community_service
       endpoints:
@@ -116,47 +107,16 @@ static_resources:
                 address: community-service
                 port_value: 50053
 
-  - name: video_analysis_service
-    connect_timeout: 30s
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    http2_protocol_options: {}
-    load_assignment:
-      cluster_name: video_analysis_service
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: video-analysis-service
-                port_value: 50054
-
-  - name: payment_service
+  - name: admin_service
     connect_timeout: 5s
     type: STRICT_DNS
     lb_policy: ROUND_ROBIN
-    http2_protocol_options: {}
     load_assignment:
-      cluster_name: payment_service
+      cluster_name: admin_service
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
-                address: payment-service
-                port_value: 50055
-
-  - name: dashboard_bff
-    connect_timeout: 5s
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    http2_protocol_options: {}
-    load_assignment:
-      cluster_name: dashboard_bff
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: dashboard-bff
-                port_value: 50056
+                address: admin-service
+                port_value: 8082

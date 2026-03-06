@@ -1,112 +1,71 @@
 # PawFiler Project
 
+딥페이크 탐지 교육 플랫폼
+
 ## 프로젝트 구조
 
 ```
 pawfiler4/
-├── frontend/          # 메인 사용자 프론트엔드 (React)
-├── admin-frontend/    # 관리자 프론트엔드 (React)
-├── backend/           # 백엔드 마이크로서비스
+├── frontend/          # 사용자 프론트엔드 (React + TypeScript)
+├── admin-frontend/    # 관리자 프론트엔드 (React + TypeScript)
+├── backend/
 │   ├── services/
-│   │   ├── quiz/           # 퀴즈 서비스 (Go)
-│   │   ├── community/      # 커뮤니티 서비스 (Go)
-│   │   ├── admin/          # 관리자 서비스 (Go)
-│   │   └── video-analysis/ # 영상 분석 서비스 (Python)
-│   ├── quiz-proxy/    # Quiz gRPC → REST 프록시 (Node.js)
-│   └── envoy/         # API Gateway
-└── terraform/         # AWS 인프라 (EKS, RDS, ECR)
+│   │   ├── quiz/           # 퀴즈 서비스 (Go + gRPC)
+│   │   ├── community/      # 커뮤니티 서비스 (Go + gRPC)
+│   │   ├── admin/          # 관리자 서비스 (Go + REST)
+│   │   └── video-analysis/ # 영상 분석 서비스 (Python + gRPC)
+│   ├── proto/         # Protobuf 정의
+│   └── envoy/         # Envoy Gateway 설정
+├── terraform/         # AWS 인프라 (VPC, EKS, RDS, S3)
+└── scripts/           # 배포 스크립트
 ```
 
 ## 빠른 시작
 
-### Frontend 개발
-```bash
-cd frontend
-npm install
-npm run dev
-```
+### 로컬 개발 (Docker Compose)
 
-### Admin Frontend 개발
 ```bash
-cd admin-frontend
-npm install
-npm run dev
-```
-
-### Backend 개발
-```bash
+# 백엔드 서비스 실행
 cd backend
 docker-compose up
+
+# 프론트엔드 실행
+cd frontend
+npm install && npm run dev
+
+# 관리자 프론트엔드 실행
+cd admin-frontend
+npm install && npm run dev
 ```
 
-## Project info
+### AWS 배포
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+```bash
+# 인프라 생성
+cd terraform
+terraform init
+terraform apply
 
-## How can I edit this code?
+# 백엔드 서비스 빌드 및 푸시
+./scripts/build-and-push.sh
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# 프론트엔드 배포 (S3)
+./scripts/deploy-frontend.sh
 ```
 
-**Edit a file directly in GitHub**
+## 기술 스택
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **Frontend**: React, TypeScript, Vite, TailwindCSS, Shadcn UI
+- **Backend**: Go (gRPC), Python (gRPC)
+- **Database**: PostgreSQL
+- **Gateway**: Envoy
+- **Infrastructure**: AWS (EKS, RDS, S3, ECR)
+- **IaC**: Terraform
 
-**Use GitHub Codespaces**
+## 문서
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - 시스템 아키텍처
+- [PROJECT_STATUS.md](./PROJECT_STATUS.md) - 프로젝트 현황
+- [ENVOY_GATEWAY_SETUP.md](./ENVOY_GATEWAY_SETUP.md) - Envoy Gateway 설정
+- [AWS_MIGRATION.md](./AWS_MIGRATION.md) - AWS 배포 가이드
+- [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) - 배포 체크리스트

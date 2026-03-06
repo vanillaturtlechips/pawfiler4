@@ -1,131 +1,136 @@
-# AWS Load Balancer Controller (Gateway API 지원)
-resource "helm_release" "aws_load_balancer_controller" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
-  namespace  = "kube-system"
-  version    = "1.8.0"
+# ============================================================================
+# Helm Releases - Commented out until EKS access is configured
+# Uncomment after running start-eks.sh and verifying kubectl access
+# ============================================================================
 
-  set {
-    name  = "clusterName"
-    value = aws_eks_cluster.main.name
-  }
+# # AWS Load Balancer Controller (Gateway API 지원)
+# resource "helm_release" "aws_load_balancer_controller" {
+#   name       = "aws-load-balancer-controller"
+#   repository = "https://aws.github.io/eks-charts"
+#   chart      = "aws-load-balancer-controller"
+#   namespace  = "kube-system"
+#   version    = "1.8.0"
 
-  set {
-    name  = "serviceAccount.create"
-    value = "true"
-  }
+#   set {
+#     name  = "clusterName"
+#     value = aws_eks_cluster.main.name
+#   }
 
-  set {
-    name  = "serviceAccount.name"
-    value = "aws-load-balancer-controller"
-  }
+#   set {
+#     name  = "serviceAccount.create"
+#     value = "true"
+#   }
 
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.alb_controller.arn
-  }
+#   set {
+#     name  = "serviceAccount.name"
+#     value = "aws-load-balancer-controller"
+#   }
 
-  set {
-    name  = "enableGatewayAPI"
-    value = "true"
-  }
+#   set {
+#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+#     value = aws_iam_role.alb_controller.arn
+#   }
 
-  set {
-    name  = "vpcId"
-    value = aws_vpc.main.id
-  }
+#   set {
+#     name  = "enableGatewayAPI"
+#     value = "true"
+#   }
 
-  depends_on = [
-    aws_eks_cluster.main,
-    aws_eks_node_group.main
-  ]
-}
+#   set {
+#     name  = "vpcId"
+#     value = aws_vpc.main.id
+#   }
 
-# ArgoCD 설치
-resource "helm_release" "argocd" {
-  name             = "argocd"
-  repository       = "https://argoproj.github.io/argo-helm"
-  chart            = "argo-cd"
-  namespace        = "argocd"
-  create_namespace = true
-  version          = "7.0.0"
+#   depends_on = [
+#     aws_eks_cluster.main,
+#     aws_eks_node_group.main
+#   ]
+# }
 
-  values = [
-    yamlencode({
-      server = {
-        service = {
-          type = "LoadBalancer"
-        }
-        extraArgs = [
-          "--insecure"
-        ]
-      }
-    })
-  ]
+# # ArgoCD 설치
+# resource "helm_release" "argocd" {
+#   name             = "argocd"
+#   repository       = "https://argoproj.github.io/argo-helm"
+#   chart            = "argo-cd"
+#   namespace        = "argocd"
+#   create_namespace = true
+#   version          = "7.0.0"
 
-  depends_on = [aws_eks_node_group.main]
-}
+#   values = [
+#     yamlencode({
+#       server = {
+#         service = {
+#           type = "LoadBalancer"
+#         }
+#         extraArgs = [
+#           "--insecure"
+#         ]
+#       }
+#     })
+#   ]
 
-# Kubecost 설치
-resource "helm_release" "kubecost" {
-  name             = "kubecost"
-  repository       = "oci://public.ecr.aws/kubecost"
-  chart            = "cost-analyzer"
-  namespace        = "kubecost"
-  create_namespace = true
-  version          = "2.4.0"
-  timeout          = 600
-  wait             = false
+#   depends_on = [aws_eks_node_group.main]
+# }
 
-  set {
-    name  = "kubecostToken"
-    value = var.kubecost_token
-  }
+# # Kubecost 설치
+# resource "helm_release" "kubecost" {
+#   name             = "kubecost"
+#   repository       = "oci://public.ecr.aws/kubecost"
+#   chart            = "cost-analyzer"
+#   namespace        = "kubecost"
+#   create_namespace = true
+#   version          = "2.4.0"
+#   timeout          = 600
+#   wait             = false
 
-  set {
-    name  = "prometheus.server.global.external_labels.cluster_id"
-    value = aws_eks_cluster.main.name
-  }
+#   set {
+#     name  = "kubecostToken"
+#     value = var.kubecost_token
+#   }
 
-  set {
-    name  = "persistentVolume.storageClass"
-    value = "gp2"
-  }
+#   set {
+#     name  = "prometheus.server.global.external_labels.cluster_id"
+#     value = aws_eks_cluster.main.name
+#   }
 
-  set {
-    name  = "prometheus.server.persistentVolume.storageClass"
-    value = "gp2"
-  }
+#   set {
+#     name  = "persistentVolume.storageClass"
+#     value = "gp2"
+#   }
 
-  set {
-    name  = "prometheus.server.image.repository"
-    value = "quay.io/prometheus/prometheus"
-  }
+#   set {
+#     name  = "prometheus.server.persistentVolume.storageClass"
+#     value = "gp2"
+#   }
 
-  set {
-    name  = "prometheus.server.image.tag"
-    value = "v2.47.0"
-  }
+#   set {
+#     name  = "prometheus.server.image.repository"
+#     value = "quay.io/prometheus/prometheus"
+#   }
 
-  set {
-    name  = "grafana.enabled"
-    value = "false"
-  }
+#   set {
+#     name  = "prometheus.server.image.tag"
+#     value = "v2.47.0"
+#   }
 
-  depends_on = [
-    aws_eks_node_group.main,
-    aws_eks_addon.ebs_csi_driver
-  ]
-}
+#   set {
+#     name  = "grafana.enabled"
+#     value = "false"
+#   }
 
-# Metrics Server (HPA용)
-resource "helm_release" "metrics_server" {
-  name       = "metrics-server"
-  repository = "https://kubernetes-sigs.github.io/metrics-server/"
-  chart      = "metrics-server"
-  namespace  = "kube-system"
-  version    = "3.12.0"
+#   depends_on = [
+#     aws_eks_node_group.main,
+#     aws_eks_addon.ebs_csi_driver
+#   ]
+# }
 
-  depends_on = [aws_eks_node_group.main]
-}
+# # Metrics Server (HPA용)
+# resource "helm_release" "metrics_server" {
+#   name       = "metrics-server"
+#   repository = "https://kubernetes-sigs.github.io/metrics-server/"
+#   chart      = "metrics-server"
+#   namespace  = "kube-system"
+#   version    = "3.12.0"
+
+#   depends_on = [aws_eks_node_group.main]
+# }
