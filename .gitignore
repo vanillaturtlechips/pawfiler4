@@ -68,3 +68,5 @@ backend/services/quiz/sample-media/videos/**/*.avi
 
 # Keep README files
 !backend/services/quiz/sample-media/**/README.md
+backend/proto/proto.pb
+backend/scripts/*.bak
