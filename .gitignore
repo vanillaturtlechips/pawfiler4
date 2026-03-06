@@ -70,3 +70,4 @@ backend/services/quiz/sample-media/videos/**/*.avi
 !backend/services/quiz/sample-media/**/README.md
 backend/proto/proto.pb
 backend/scripts/*.bak
+terraform/tfplan
