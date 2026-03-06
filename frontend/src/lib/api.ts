@@ -418,14 +418,14 @@ export const updateCommunityPost = async (req: {
   }
 };
 
-export const deleteCommunityPost = async (postId: string): Promise<{ success: boolean }> => {
+export const deleteCommunityPost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
     const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeletePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId }),
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
 
     if (!response.ok) {

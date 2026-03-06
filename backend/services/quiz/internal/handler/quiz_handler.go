@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -45,6 +46,8 @@ func (h *QuizHandler) GetRandomQuestion(ctx context.Context, req *pb.GetRandomQu
 	// Call service layer
 	question, err := h.service.GetRandomQuestion(ctx, req.UserId, difficulty, questionType)
 	if err != nil {
+		// Log the actual error for debugging
+		log.Printf("GetRandomQuestion error: %v", err)
 		// Requirement 15.3: Map database errors to INTERNAL
 		return nil, status.Error(codes.Internal, "failed to get random question")
 	}

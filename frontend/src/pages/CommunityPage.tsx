@@ -135,9 +135,10 @@ const CommunityPage = () => {
   const handleDelete = async (e: React.MouseEvent, postId: string) => {
     e.stopPropagation();
     if (!confirm("정말 이 게시글을 삭제하시겠습니까?")) return;
+    if (!user) return;
 
     try {
-      await deleteCommunityPost(postId);
+      await deleteCommunityPost(postId, user.id);
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       setTotalCount((prev) => Math.max(0, prev - 1));
       toast.success("게시글이 삭제되었습니다.");
@@ -161,8 +162,10 @@ const CommunityPage = () => {
     setIsSubmitting(true);
     try {
       if (editingPost) {
+        if (!user) return;
         const updated = await updateCommunityPost({
           postId: editingPost.id,
+          userId: user.id,
           title: formTitle,
           body: formBody,
           tags,

@@ -5,12 +5,23 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-app.use(cors());
+
+// CORS 설정
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// OPTIONS preflight 처리
+app.options('*', cors());
+
 app.use(express.json());
 
 // Load proto files
-const QUIZ_PROTO_PATH = path.join(__dirname, '../proto/quiz.proto');
-const COMMUNITY_PROTO_PATH = path.join(__dirname, '../proto/community.proto');
+const QUIZ_PROTO_PATH = path.join('/proto/quiz.proto');
+const COMMUNITY_PROTO_PATH = path.join('/proto/community.proto');
 
 const quizPackageDef = protoLoader.loadSync(QUIZ_PROTO_PATH, {
   keepCase: true,
@@ -83,9 +94,8 @@ function grpcToCamelCase(grpcResponse) {
   return toCamelCase(plainObj);
 }
 
-
-// REST endpoints - Quiz
-app.post('/api/quiz/random', (req, res) => {
+// gRPC-Web style endpoints - Quiz
+app.post('/quiz.QuizService/GetRandomQuestion', (req, res) => {
   const { user_id, difficulty, type } = req.body;
   
   quizClient.GetRandomQuestion({ user_id, difficulty, type }, (error, response) => {
@@ -97,7 +107,7 @@ app.post('/api/quiz/random', (req, res) => {
   });
 });
 
-app.post('/api/quiz/submit', (req, res) => {
+app.post('/quiz.QuizService/SubmitAnswer', (req, res) => {
   const request = req.body;
   
   quizClient.SubmitAnswer(request, (error, response) => {
@@ -134,7 +144,7 @@ app.post('/api/quiz/submit', (req, res) => {
   });
 });
 
-app.post('/api/quiz/stats', (req, res) => {
+app.post('/quiz.QuizService/GetUserStats', (req, res) => {
   const { user_id } = req.body;
   
   quizClient.GetUserStats({ user_id }, (error, response) => {
@@ -146,16 +156,15 @@ app.post('/api/quiz/stats', (req, res) => {
   });
 });
 
-// REST endpoints - Community (gRPC)
-// Community Feed
-app.get('/api/community/feed', (req, res) => {
-  const { page, pageSize, search, searchType } = req.query;
+// gRPC-Web style endpoints - Community
+app.post('/community.CommunityService/GetFeed', (req, res) => {
+  const { page, page_size, search_query, search_type } = req.body;
   
   communityClient.GetFeed({
-    page: parseInt(page) || 1,
-    page_size: parseInt(pageSize) || 15,
-    search_query: search || '',
-    search_type: searchType || 'title'
+    page: page || 1,
+    page_size: page_size || 15,
+    search_query: search_query || '',
+    search_type: search_type || 'title'
   }, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -165,11 +174,10 @@ app.get('/api/community/feed', (req, res) => {
   });
 });
 
-// Get Single Post
-app.get('/api/community/post', (req, res) => {
-  const { postId } = req.query;
+app.post('/community.CommunityService/GetPost', (req, res) => {
+  const { post_id } = req.body;
   
-  communityClient.GetPost({ post_id: postId }, (error, response) => {
+  communityClient.GetPost({ post_id }, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       const statusCode = error.code === grpc.status.NOT_FOUND ? 404 : 500;
@@ -179,8 +187,7 @@ app.get('/api/community/post', (req, res) => {
   });
 });
 
-// Create Post
-app.post('/api/community/post', (req, res) => {
+app.post('/community.CommunityService/CreatePost', (req, res) => {
   communityClient.CreatePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -191,8 +198,7 @@ app.post('/api/community/post', (req, res) => {
   });
 });
 
-// Update Post
-app.put('/api/community/post', (req, res) => {
+app.post('/community.CommunityService/UpdatePost', (req, res) => {
   communityClient.UpdatePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -205,8 +211,7 @@ app.put('/api/community/post', (req, res) => {
   });
 });
 
-// Delete Post
-app.delete('/api/community/post', (req, res) => {
+app.post('/community.CommunityService/DeletePost', (req, res) => {
   communityClient.DeletePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -219,11 +224,10 @@ app.delete('/api/community/post', (req, res) => {
   });
 });
 
-// Get Comments
-app.get('/api/community/comments', (req, res) => {
-  const { postId } = req.query;
+app.post('/community.CommunityService/GetComments', (req, res) => {
+  const { post_id } = req.body;
   
-  communityClient.GetComments({ post_id: postId }, (error, response) => {
+  communityClient.GetComments({ post_id }, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       return res.status(500).json({ error: error.message });
@@ -232,8 +236,7 @@ app.get('/api/community/comments', (req, res) => {
   });
 });
 
-// Create Comment
-app.post('/api/community/comment', (req, res) => {
+app.post('/community.CommunityService/CreateComment', (req, res) => {
   communityClient.CreateComment(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -246,8 +249,7 @@ app.post('/api/community/comment', (req, res) => {
   });
 });
 
-// Delete Comment
-app.delete('/api/community/comment', (req, res) => {
+app.post('/community.CommunityService/DeleteComment', (req, res) => {
   communityClient.DeleteComment(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -260,8 +262,7 @@ app.delete('/api/community/comment', (req, res) => {
   });
 });
 
-// Like Post
-app.post('/api/community/like', (req, res) => {
+app.post('/community.CommunityService/LikePost', (req, res) => {
   communityClient.LikePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -271,8 +272,7 @@ app.post('/api/community/like', (req, res) => {
   });
 });
 
-// Unlike Post
-app.post('/api/community/unlike', (req, res) => {
+app.post('/community.CommunityService/UnlikePost', (req, res) => {
   communityClient.UnlikePost(toSnakeCase(req.body), (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -282,11 +282,10 @@ app.post('/api/community/unlike', (req, res) => {
   });
 });
 
-// Check Like
-app.get('/api/community/check-like', (req, res) => {
-  const { postId, userId } = req.query;
+app.post('/community.CommunityService/CheckLike', (req, res) => {
+  const { post_id, user_id } = req.body;
   
-  communityClient.CheckLike({ post_id: postId, user_id: userId }, (error, response) => {
+  communityClient.CheckLike({ post_id, user_id }, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       return res.status(500).json({ error: error.message });
@@ -295,8 +294,7 @@ app.get('/api/community/check-like', (req, res) => {
   });
 });
 
-// Dashboard APIs
-app.get('/api/community/notices', (req, res) => {
+app.post('/community.CommunityService/GetNotices', (req, res) => {
   communityClient.GetNotices({}, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -306,7 +304,7 @@ app.get('/api/community/notices', (req, res) => {
   });
 });
 
-app.get('/api/community/top-detective', (req, res) => {
+app.post('/community.CommunityService/GetTopDetective', (req, res) => {
   communityClient.GetTopDetective({}, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
@@ -316,13 +314,33 @@ app.get('/api/community/top-detective', (req, res) => {
   });
 });
 
-app.get('/api/community/hot-topic', (req, res) => {
+app.post('/community.CommunityService/GetHotTopic', (req, res) => {
   communityClient.GetHotTopic({}, (error, response) => {
     if (error) {
       console.error('gRPC error:', error);
       return res.status(500).json({ error: error.message });
     }
     res.json(grpcToCamelCase(response));
+  });
+});
+
+// Payment service mock endpoints
+app.post('/payment.PaymentService/GetPlans', (req, res) => {
+  res.json({
+    plans: [
+      {
+        id: 'free',
+        name: '무료',
+        price: 0,
+        features: ['기본 퀴즈', '커뮤니티 참여']
+      },
+      {
+        id: 'premium',
+        name: '프리미엄',
+        price: 9900,
+        features: ['모든 퀴즈', '영상 분석', '광고 제거']
+      }
+    ]
   });
 });
 
