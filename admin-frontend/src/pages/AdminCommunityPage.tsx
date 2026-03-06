@@ -19,7 +19,7 @@ type Comment = {
 };
 type Feed = { posts: Post[]; totalCount: number; page: number; };
 
-const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community");
+const BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
 
 export default function AdminCommunityPage() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -40,11 +40,23 @@ export default function AdminCommunityPage() {
   const fetchFeed = async () => {
     setLoading(true);
     try {
-      const url = `${BASE}/feed?page=${page}&pageSize=${pageSize}` +
-        (searchInput ? `&search=${encodeURIComponent(searchInput)}&searchType=${searchType}` : "");
-      const res = await fetch(url);
+      // Envoy gRPC-JSON transcoding endpoint
+      const res = await fetch(`${BASE}/community.CommunityService/GetFeed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page,
+          page_size: pageSize,
+          ...(searchInput && { search: searchInput, search_type: searchType })
+        })
+      });
       if (!res.ok) throw new Error(await res.text());
-      setFeed(await res.json());
+      const data = await res.json();
+      setFeed({
+        posts: data.posts || [],
+        totalCount: data.totalCount || 0,
+        page: data.page || 1
+      });
     } catch (e:any) { toast.error(e.message ?? "피드 로드 실패"); }
     finally { setLoading(false); }
   };
@@ -62,9 +74,14 @@ export default function AdminCommunityPage() {
     if (!editing) return;
     try {
       const tags = editTags.split(",").map(t=>t.trim()).filter(Boolean);
-      const res = await fetch(`${BASE}/post`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId: editing.id, title: editTitle, body: editBody, tags }),
+      const res = await fetch(`${BASE}/community.CommunityService/UpdatePost`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          post_id: editing.id, 
+          title: editTitle, 
+          body: editBody, 
+          tags 
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("수정 완료");
@@ -75,9 +92,9 @@ export default function AdminCommunityPage() {
   const deletePost = async (postId: string) => {
     if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`${BASE}/post`, {
-        method: "DELETE", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId }),
+      const res = await fetch(`${BASE}/community.CommunityService/DeletePost`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: postId }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("삭제 완료"); fetchFeed();
@@ -86,7 +103,11 @@ export default function AdminCommunityPage() {
 
   const fetchComments = async (postId: string) => {
     try {
-      const res = await fetch(`${BASE}/comments?postId=${encodeURIComponent(postId)}`);
+      const res = await fetch(`${BASE}/community.CommunityService/GetComments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: postId })
+      });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setComments(data.comments || []);
@@ -96,8 +117,9 @@ export default function AdminCommunityPage() {
   const deleteComment = async (commentId: string) => {
     if (!confirm("댓글을 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`${BASE}/comment`, {
-        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId })
+      const res = await fetch(`${BASE}/community.CommunityService/DeleteComment`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ comment_id: commentId })
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("댓글 삭제 완료");
