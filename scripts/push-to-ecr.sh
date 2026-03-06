@@ -5,29 +5,23 @@ AWS_ACCOUNT_ID="009946608368"
 AWS_REGION="ap-northeast-2"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-echo "=== ECR Login ==="
+echo "🔐 ECR 로그인..."
 aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-cd /home/user/Documents/finalproject/pawfiler4
-
-echo "=== Building Frontend ==="
-docker build -t ${ECR_REGISTRY}/pawfiler/frontend:latest -f Dockerfile .
-docker push ${ECR_REGISTRY}/pawfiler/frontend:latest
-
-echo "=== Building Quiz Service ==="
-cd backend/services/quiz && docker build -t ${ECR_REGISTRY}/pawfiler/quiz-service:latest . && cd ../../..
+echo "📦 Building Quiz Service..."
+docker build -t ${ECR_REGISTRY}/pawfiler/quiz-service:latest -f backend/services/quiz/Dockerfile backend/services/quiz
 docker push ${ECR_REGISTRY}/pawfiler/quiz-service:latest
 
-echo "=== Building Community Service ==="
-cd backend/services/community && docker build -t ${ECR_REGISTRY}/pawfiler/community-service:latest . && cd ../../..
+echo "📦 Building Community Service..."
+docker build -t ${ECR_REGISTRY}/pawfiler/community-service:latest -f backend/services/community/Dockerfile backend/services/community
 docker push ${ECR_REGISTRY}/pawfiler/community-service:latest
 
-echo "=== Building Video Analysis Service ==="
-docker build -t ${ECR_REGISTRY}/pawfiler/video-analysis-service:latest -f backend/services/video-analysis/Dockerfile backend
-docker push ${ECR_REGISTRY}/pawfiler/video-analysis-service:latest
+echo "📦 Building Admin Service..."
+docker build -t ${ECR_REGISTRY}/pawfiler/admin-service:latest -f backend/services/admin/Dockerfile backend/services/admin
+docker push ${ECR_REGISTRY}/pawfiler/admin-service:latest
 
-echo "=== Building Envoy Proxy ==="
-docker build -t ${ECR_REGISTRY}/pawfiler/envoy-proxy:latest -f backend/quiz-proxy/Dockerfile backend
-docker push ${ECR_REGISTRY}/pawfiler/envoy-proxy:latest
+echo "📦 Building BFF..."
+docker build -t ${ECR_REGISTRY}/pawfiler/bff:latest -f backend/bff/Dockerfile backend/bff
+docker push ${ECR_REGISTRY}/pawfiler/bff:latest
 
-echo "=== All images pushed successfully ==="
+echo "✅ All images pushed successfully!"

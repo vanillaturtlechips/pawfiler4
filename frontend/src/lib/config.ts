@@ -1,11 +1,9 @@
 // 환경 변수 중앙 관리
 export const config = {
-  // API Endpoints
+  // API Endpoints - Envoy Gateway를 통한 연결
+  // 로컬: http://localhost:8080
+  // 클라우드: EKS Envoy Gateway LoadBalancer URL (예: http://a1234567890.ap-northeast-2.elb.amazonaws.com)
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
-  quizApiUrl: import.meta.env.VITE_QUIZ_API_URL || 'http://localhost:3000/api/quiz',
-  communityApiUrl: import.meta.env.VITE_COMMUNITY_API_URL || 'http://localhost:3000/api/community',
-  videoAnalysisApiUrl: import.meta.env.VITE_VIDEO_ANALYSIS_API_URL || 'http://localhost:8080/video',
-  paymentApiUrl: import.meta.env.VITE_PAYMENT_API_URL || 'http://localhost:8080/payment',
   
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',

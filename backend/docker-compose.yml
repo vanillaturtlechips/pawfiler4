@@ -39,23 +39,6 @@ services:
     networks:
       - pawfiler-network
 
-  # BFF (Backend for Frontend - REST API Gateway)
-  bff:
-    build:
-      context: .
-      dockerfile: ./bff/Dockerfile
-    container_name: pawfiler-bff
-    environment:
-      QUIZ_SERVICE_URL: quiz-service:50052
-      COMMUNITY_SERVICE_URL: community-service:50053
-    ports:
-      - "3000:3000"
-    depends_on:
-      - quiz-service
-      - community-service
-    networks:
-      - pawfiler-network
-
   # Community Service
   community-service:
     build:
@@ -87,6 +70,7 @@ services:
       PORT: "8082"
       AWS_REGION: ap-northeast-2
       S3_BUCKET: pawfiler-quiz-media
+      CLOUDFRONT_DOMAIN: ${CLOUDFRONT_DOMAIN}
     volumes:
       - ~/.aws:/root/.aws:ro
     ports:
@@ -97,7 +81,7 @@ services:
     networks:
       - pawfiler-network
 
-  # Envoy Proxy (gRPC-Web)
+  # Envoy Gateway (gRPC-JSON transcoding)
   envoy:
     image: envoyproxy/envoy:v1.28-latest
     container_name: pawfiler-envoy
@@ -106,6 +90,7 @@ services:
       - "9901:9901"
     volumes:
       - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
+      - ./proto/proto.pb:/etc/envoy/proto.pb
     command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
     depends_on:
       - quiz-service

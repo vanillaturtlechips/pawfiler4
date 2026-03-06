@@ -1,6 +1,11 @@
 # ============================================================================
 # S3 MODULE - Media Storage for Quiz Questions
 # ============================================================================
+# Architecture:
+# - S3 Bucket: pawfiler-quiz-media (private)
+# - CloudFront: OAI-based secure access
+# - CORS: Allows localhost (dev) + production domains
+# - Lifecycle: Auto-delete old versions after 90 days
 
 # S3 Bucket for Quiz Media (Images/Videos)
 resource "aws_s3_bucket" "quiz_media" {
@@ -39,7 +44,13 @@ resource "aws_s3_bucket_cors_configuration" "quiz_media" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD"]
-    allowed_origins = ["https://pawfiler.com", "https://dev.pawfiler.com"]
+    allowed_origins = [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:3000",
+      "https://pawfiler.com",
+      "https://dev.pawfiler.com"
+    ]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
   }
