@@ -98,14 +98,31 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 		stats = &repository.UserStats{CurrentStreak: 0}
 	}
 
-	// Requirement 10.4: Return result with xp_earned and coins_earned
-	return &pb.SubmitAnswerResponse{
+	// Get the question to include correct_index for multiple choice questions
+	question, err := h.service.GetQuestionById(ctx, req.QuestionId)
+	if err != nil {
+		fmt.Printf("Warning: failed to get question for correct_index: %v\n", err)
+	} else {
+		fmt.Printf("Debug: question type=%v, correctIndex.Valid=%v, correctIndex.Int32=%v\n", 
+			question.Type, question.CorrectIndex.Valid, question.CorrectIndex.Int32)
+	}
+
+	response := &pb.SubmitAnswerResponse{
 		Correct:     result.IsCorrect,
 		XpEarned:    result.XPEarned,
 		CoinsEarned: result.CoinsEarned,
 		Explanation: result.Explanation,
 		StreakCount: stats.CurrentStreak,
-	}, nil
+	}
+
+	// Include correct_index for multiple choice questions by appending to explanation
+	if question != nil && question.Type == repository.QuestionTypeMultipleChoice && question.CorrectIndex.Valid {
+		// 설명 끝에 정답 인덱스를 숨겨서 추가 (프론트엔드에서 파싱)
+		response.Explanation = fmt.Sprintf("%s||CORRECT_INDEX:%d||", result.Explanation, question.CorrectIndex.Int32)
+	}
+
+	// Requirement 10.4: Return result with xp_earned and coins_earned
+	return response, nil
 }
 
 // GetUserStats handles the GetUserStats RPC
@@ -145,7 +162,11 @@ func convertQuestionToProto(q *repository.Question, includeAnswers bool) *pb.Qui
 	// Add type-specific fields based on question type
 	switch q.Type {
 	case repository.QuestionTypeMultipleChoice:
-		pbQuestion.Options = q.Options
+		// Copy options array to ensure it's properly set
+		if len(q.Options) > 0 {
+			pbQuestion.Options = make([]string, len(q.Options))
+			copy(pbQuestion.Options, q.Options)
+		}
 		// Requirement 3.5: Only include correct_index if includeAnswers is true
 		if includeAnswers && q.CorrectIndex.Valid {
 			pbQuestion.CorrectIndex = &q.CorrectIndex.Int32
@@ -163,7 +184,8 @@ func convertQuestionToProto(q *repository.Question, includeAnswers bool) *pb.Qui
 			pbQuestion.CorrectRegions = convertRegionsToProto(q.CorrectRegions)
 		}
 		if q.Tolerance.Valid {
-			pbQuestion.Tolerance = &q.Tolerance.Int32
+			tolerance := int32(q.Tolerance.Int32)
+			pbQuestion.Tolerance = &tolerance
 		}
 
 	case repository.QuestionTypeComparison:

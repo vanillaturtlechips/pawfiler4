@@ -5,6 +5,7 @@ from typing import Iterator
 import asyncio
 from datetime import datetime
 import uuid
+import os
 
 from generated import video_analysis_pb2, video_analysis_pb2_grpc
 from kafka_producer import KafkaEventProducer
@@ -145,8 +146,9 @@ def serve():
     video_analysis_pb2_grpc.add_VideoAnalysisServiceServicer_to_server(
         VideoAnalysisService(), server
     )
-    server.add_insecure_port("[::]:50054")
-    logger.info("Video Analysis Service started on port 50054")
+    port = os.getenv("PORT", "50054")
+    server.add_insecure_port(f"[::]:{port}")
+    logger.info(f"Video Analysis Service started on port {port}")
     server.start()
     server.wait_for_termination()
 

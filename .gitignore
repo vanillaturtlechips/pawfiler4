@@ -42,6 +42,29 @@ go*.linux-amd64.tar.gz
 # Binaries
 community-service
 community-service.exe
+quiz-service
+quiz-service.exe
 main
 main.exe
 node_modules
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+!terraform.tfvars.example
+*.pem
+*.key
+.terraform.lock.hcl
+
+# Quiz media files (stored in S3)
+backend/services/quiz/sample-media/images/**/*.jpg
+backend/services/quiz/sample-media/images/**/*.jpeg
+backend/services/quiz/sample-media/images/**/*.png
+backend/services/quiz/sample-media/videos/**/*.mp4
+backend/services/quiz/sample-media/videos/**/*.mov
+backend/services/quiz/sample-media/videos/**/*.avi
+
+# Keep README files
+!backend/services/quiz/sample-media/**/README.md

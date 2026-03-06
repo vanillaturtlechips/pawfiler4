@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: dev_password
       POSTGRES_DB: pawfiler
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -39,18 +39,20 @@ services:
     networks:
       - pawfiler-network
 
-  # Quiz Proxy (gRPC to REST)
-  quiz-proxy:
+  # BFF (Backend for Frontend - REST API Gateway)
+  bff:
     build:
       context: .
-      dockerfile: ./quiz-proxy/Dockerfile
-    container_name: pawfiler-quiz-proxy
+      dockerfile: ./bff/Dockerfile
+    container_name: pawfiler-bff
     environment:
       QUIZ_SERVICE_URL: quiz-service:50052
+      COMMUNITY_SERVICE_URL: community-service:50053
     ports:
-      - "3001:3001"
+      - "3000:3000"
     depends_on:
       - quiz-service
+      - community-service
     networks:
       - pawfiler-network
 
@@ -64,6 +66,31 @@ services:
       DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
     ports:
       - "50053:50053"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pawfiler-network
+
+  # Admin Service
+  admin-service:
+    build:
+      context: ./services/admin
+      dockerfile: Dockerfile
+    container_name: pawfiler-admin
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: pawfiler
+      DB_PASSWORD: dev_password
+      DB_NAME: pawfiler
+      PORT: "8082"
+      AWS_REGION: ap-northeast-2
+      S3_BUCKET: pawfiler-quiz-media
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    ports:
+      - "8082:8082"
     depends_on:
       postgres:
         condition: service_healthy

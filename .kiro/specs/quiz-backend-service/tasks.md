@@ -2,15 +2,15 @@
 
 ## 개요
 
-퀴즈 백엔드 서비스는 Go 언어와 gRPC를 사용하여 구현되는 마이크로서비스입니다. 4가지 질문 타입(객관식, OX, 영역선택, 비교)을 지원하며, PostgreSQL 데이터베이스와 Kafka 메시지 브로커를 활용합니다. 이 구현 계획은 프로젝트 설정부터 시작하여 각 컴포넌트를 단계적으로 구현하고, 테스트를 통해 검증하는 순서로 진행됩니다.
+퀴즈 백엔드 서비스는 Go 언어와 gRPC를 사용하여 구현되는 마이크로서비스입니다. 4가지 질문 타입(객관식, OX, 영역선택, 비교)을 지원하며, PostgreSQL 데이터베이스를 활용합니다. 이 구현 계획은 프로젝트 설정부터 시작하여 각 컴포넌트를 단계적으로 구현하고, 테스트를 통해 검증하는 순서로 진행됩니다.
 
 ## 작업 목록
 
 - [x] 1. 프로젝트 구조 및 의존성 설정
   - backend/services/quiz 디렉토리에 Go 모듈 초기화 (go mod init)
-  - 필요한 의존성 추가 (gRPC, PostgreSQL 드라이버, Kafka 클라이언트, gopter)
-  - 디렉토리 구조 생성 (internal/handler, internal/service, internal/repository, pkg/kafka, proto)
-  - _요구사항: 14.1, 14.2_
+  - 필요한 의존성 추가 (gRPC, PostgreSQL 드라이버, gopter)
+  - 디렉토리 구조 생성 (cmd/server, internal/handler, internal/service, internal/repository, proto)
+  - _요구사항: 13.1, 13.2_
 
 - [ ] 2. Protocol Buffer 정의 및 코드 생성
   - [x] 2.1 proto/quiz.proto 파일 작성
@@ -123,27 +123,8 @@
     - 생명이 0일 때 오답 처리 테스트
     - 엣지 케이스 테스트
 
-- [ ] 7. Kafka Event Publisher 구현
-  - [x] 7.1 EventPublisher 인터페이스 및 구현
-    - pkg/kafka/producer.go 파일 생성
-    - EventPublisher 인터페이스 정의
-    - QuizAnsweredEvent 구조체 정의
-    - PublishQuizAnswered 메서드 구현
-    - "pawfiler-events" 토픽으로 이벤트 발행
-    - 재시도 로직 구현 (최대 3회, 지수 백오프)
-    - 에러 발생 시 로깅만 수행 (답변 처리는 성공)
-    - _요구사항: 13.1, 13.2, 13.3, 13.4_
-  
-  - [ ] 7.2 EventPublisher 속성 기반 테스트 작성
-    - **Property 26: 이벤트 필드 포함**
-    - **검증: 요구사항 13.2**
-  
-  - [ ] 7.3 EventPublisher 유닛 테스트 작성
-    - 이벤트 발행 성공 케이스
-    - 이벤트 발행 실패 시 격리 테스트
-
-- [ ] 8. Quiz Service 레이어 구현
-  - [x] 8.1 QuizService 인터페이스 및 구현
+- [ ] 7. Quiz Service 레이어 구현
+  - [x] 7.1 QuizService 인터페이스 및 구현
     - internal/service/quiz_service.go 파일 생성
     - QuizService 인터페이스 정의
     - GetRandomQuestion 메서드 구현 (정답 정보 제외)
@@ -151,54 +132,53 @@
     - GetUserStats 메서드 구현
     - _요구사항: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 4.1, 4.2, 4.3, 4.4, 12.1, 12.2, 12.3, 12.4_
   
-  - [x] 8.2 SubmitAnswer 메서드 구현
+  - [x] 7.2 SubmitAnswer 메서드 구현
     - 질문 타입별 답변 검증 (Validator 사용)
     - 보상 계산 (정답: 10 XP, 5 코인 / 오답: 0 XP, 0 코인)
     - 답변 저장 (Repository 사용)
     - 통계 업데이트 (StatsTracker 사용)
-    - 이벤트 발행 (EventPublisher 사용)
     - 에러 처리 (INVALID_ARGUMENT, INTERNAL)
-    - _요구사항: 5.1~5.4, 6.1~6.3, 7.1~7.5, 8.1~8.4, 9.1~9.4, 10.1~10.4, 11.1~11.8, 13.1~13.4, 15.1~15.5_
+    - _요구사항: 5.1~5.4, 6.1~6.3, 7.1~7.5, 8.1~8.4, 9.1~9.4, 10.1~10.4, 11.1~11.8, 14.1~14.5_
   
-  - [ ] 8.3 QuizService 속성 기반 테스트 작성
+  - [ ] 7.3 QuizService 속성 기반 테스트 작성
     - **Property 1: 랜덤 질문 조회 성공**
     - **검증: 요구사항 3.1**
   
-  - [ ] 8.4 QuizService 속성 기반 테스트 작성
+  - [ ] 7.4 QuizService 속성 기반 테스트 작성
     - **Property 2: 난이도 필터링**
     - **검증: 요구사항 3.2**
   
-  - [ ] 8.5 QuizService 속성 기반 테스트 작성
+  - [ ] 7.5 QuizService 속성 기반 테스트 작성
     - **Property 3: 질문 타입 필터링**
     - **검증: 요구사항 3.3**
   
-  - [ ] 8.6 QuizService 속성 기반 테스트 작성
+  - [ ] 7.6 QuizService 속성 기반 테스트 작성
     - **Property 4: 정답 정보 비노출**
     - **검증: 요구사항 3.5, 3.6, 3.7, 3.8**
   
-  - [ ] 8.7 QuizService 속성 기반 테스트 작성
+  - [ ] 7.7 QuizService 속성 기반 테스트 작성
     - **Property 5: ID로 질문 조회**
     - **검증: 요구사항 4.1**
   
-  - [ ] 8.8 QuizService 속성 기반 테스트 작성
+  - [ ] 7.8 QuizService 속성 기반 테스트 작성
     - **Property 6: 존재하지 않는 질문 조회 에러**
     - **검증: 요구사항 4.3**
   
-  - [ ] 8.9 QuizService 속성 기반 테스트 작성
+  - [ ] 7.9 QuizService 속성 기반 테스트 작성
     - **Property 16: 보상 계산**
     - **검증: 요구사항 10.1, 10.2, 10.3**
   
-  - [ ] 8.10 QuizService 유닛 테스트 작성
+  - [ ] 7.10 QuizService 유닛 테스트 작성
     - SubmitAnswer 통합 플로우 테스트
     - 각 질문 타입별 답변 제출 테스트
     - 에러 조건 테스트
 
-- [x] 9. 체크포인트 - 핵심 비즈니스 로직 검증
+- [x] 8. 체크포인트 - 핵심 비즈니스 로직 검증
   - 모든 테스트가 통과하는지 확인
   - 질문이 있으면 사용자에게 문의
 
-- [ ] 10. gRPC Handler 레이어 구현
-  - [x] 10.1 QuizHandler 구조체 및 메서드 구현
+- [ ] 9. gRPC Handler 레이어 구현
+  - [x] 9.1 QuizHandler 구조체 및 메서드 구현
     - internal/handler/quiz_handler.go 파일 생성
     - QuizHandler 구조체 정의 (QuizService 의존성 주입)
     - GetRandomQuestion RPC 핸들러 구현
@@ -207,55 +187,53 @@
     - GetUserStats RPC 핸들러 구현
     - protobuf 메시지 변환 로직 구현
     - gRPC 에러 코드 매핑 (NOT_FOUND, INVALID_ARGUMENT, INTERNAL)
-    - _요구사항: 3.1~3.8, 4.1~4.4, 12.1~12.4, 15.1~15.5_
+    - _요구사항: 3.1~3.8, 4.1~4.4, 12.1~12.4, 14.1~14.5_
   
-  - [ ] 10.2 Handler 유닛 테스트 작성
+  - [ ] 9.2 Handler 유닛 테스트 작성
     - 각 RPC 메서드별 테스트
     - 에러 응답 테스트
     - protobuf 변환 테스트
 
-- [ ] 11. 서버 초기화 및 main 함수 구현
-  - [x] 11.1 main.go 파일 작성
-    - 환경 변수 로딩 (데이터베이스 연결 정보, Kafka 브로커 주소, 포트)
+- [ ] 10. 서버 초기화 및 main 함수 구현
+  - [x] 10.1 cmd/server/main.go 파일 작성
+    - 환경 변수 로딩 (데이터베이스 연결 정보, 포트)
     - PostgreSQL 데이터베이스 연결 초기화
-    - Kafka 프로듀서 초기화
-    - 의존성 주입 (Repository, Validator, StatsTracker, EventPublisher, Service, Handler)
+    - 의존성 주입 (Repository, Validator, StatsTracker, Service, Handler)
     - gRPC 서버 생성 및 포트 50052에서 시작
     - 헬스체크 구현 (데이터베이스 연결 대기)
     - 에러 처리 및 로깅
     - Graceful shutdown 구현
-    - _요구사항: 14.1, 14.2, 14.3, 14.4, 14.5, 17.5_
+    - _요구사항: 13.1, 13.2, 13.3, 13.4, 16.5_
 
-- [ ] 12. Docker 컨테이너화
-  - [x] 12.1 Dockerfile 작성
+- [ ] 11. Docker 컨테이너화
+  - [x] 11.1 Dockerfile 작성
     - 멀티스테이지 빌드 구성 (빌드 스테이지, 실행 스테이지)
     - Go 바이너리 빌드
     - 최소 이미지 크기 최적화 (alpine 또는 distroless 사용)
-    - _요구사항: 17.1, 17.2_
+    - _요구사항: 16.1, 16.2_
   
-  - [x] 12.2 docker-compose.yml 업데이트
+  - [x] 11.2 docker-compose.yml 업데이트
     - quiz-service 서비스 정의
-    - PostgreSQL, Kafka와의 네트워크 구성
+    - PostgreSQL과의 네트워크 구성
     - 환경 변수 설정
     - 의존성 설정 (depends_on)
-    - _요구사항: 17.3, 17.4_
+    - _요구사항: 16.3, 16.4_
 
-- [ ] 13. 통합 테스트 및 최종 검증
-  - [ ] 13.1 통합 테스트 작성
+- [ ] 12. 통합 테스트 및 최종 검증
+  - [ ] 12.1 통합 테스트 작성
     - Docker Compose로 전체 스택 실행
     - gRPC 클라이언트로 엔드투엔드 테스트
     - 각 RPC 메서드 호출 및 응답 검증
     - 데이터베이스 상태 확인
-    - Kafka 이벤트 발행 확인
   
-  - [x] 13.2 README.md 작성
+  - [x] 12.2 README.md 작성
     - 프로젝트 개요 및 아키텍처 설명
     - 로컬 개발 환경 설정 방법
     - 빌드 및 실행 명령어
     - 테스트 실행 방법
     - API 문서 (gRPC 메서드 설명)
 
-- [x] 14. 최종 체크포인트
+- [x] 13. 최종 체크포인트
   - 모든 테스트가 통과하는지 확인
   - Docker Compose로 서비스가 정상 실행되는지 확인
   - 질문이 있으면 사용자에게 문의

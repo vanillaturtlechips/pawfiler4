@@ -1,12 +1,14 @@
 from confluent_kafka import Producer
 import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 
 class KafkaEventProducer:
-    def __init__(self, brokers: str = "kafka:29092"):
+    def __init__(self, brokers: str = None):
+        brokers = brokers or os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
         self.producer = Producer({"bootstrap.servers": brokers})
     
     def emit(self, event_type: str, payload: dict):
