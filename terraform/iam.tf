@@ -7,9 +7,10 @@ variable "admin_users" {
   description = "List of admin user ARNs"
   type        = list(string)
   default = [
+    "arn:aws:iam::009946608368:user/RAPA_Admin",
     "arn:aws:iam::009946608368:user/SGO-Junghan",
     "arn:aws:iam::009946608368:user/SGO-Jaewon",
-    "arn:aws:iam::009946608368:user/RAPA_Admin",
+    "arn:aws:iam::009946608368:user/SGO-LeeMyungil",
     "arn:aws:iam::009946608368:user/SGO-Moonjae"
   ]
 }
