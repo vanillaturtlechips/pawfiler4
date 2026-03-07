@@ -4,6 +4,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - db-secret.yaml
-  - quiz-service.yaml
-  - community-service.yaml
-  - envoy-gateway.yaml
+  - admin-service.yaml
+  - admin-frontend.yaml

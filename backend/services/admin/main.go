@@ -24,7 +24,7 @@ func main() {
 	dbPassword := getEnv("DB_PASSWORD", "pawfiler123")
 	dbName := getEnv("DB_NAME", "pawfiler")
 
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
 	db, err := sql.Open("postgres", connStr)
@@ -68,7 +68,14 @@ func main() {
 
 	// CORS
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5178", "http://localhost:5176", "http://localhost:5175", "http://localhost:5173"},
+		AllowedOrigins: []string{
+			"http://localhost:5178",
+			"http://localhost:5176",
+			"http://localhost:5175",
+			"http://localhost:5173",
+			"http://pawfiler-admin-frontend.s3-website.ap-northeast-2.amazonaws.com",
+			"https://*.cloudfront.net",
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,

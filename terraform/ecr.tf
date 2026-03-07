@@ -42,6 +42,15 @@ resource "aws_ecr_repository" "admin_service" {
   }
 }
 
+resource "aws_ecr_repository" "admin_frontend" {
+  name = "${var.project_name}/admin-frontend"
+  tags = { Name = "${var.project_name}-admin-frontend-ecr" }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 output "ecr_repository_urls" {
   description = "Map of ECR repository URLs for application services"
   value = {
@@ -49,5 +58,6 @@ output "ecr_repository_urls" {
     community_service      = aws_ecr_repository.community_service.repository_url
     video_analysis_service = aws_ecr_repository.video_analysis_service.repository_url
     admin_service          = aws_ecr_repository.admin_service.repository_url
+    admin_frontend         = aws_ecr_repository.admin_frontend.repository_url
   }
 }

@@ -28,7 +28,7 @@ type Feed = {
   page: number;
 };
 
-const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community");
+const BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
 
 export default function AdminCommentsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -45,7 +45,11 @@ export default function AdminCommentsPage() {
 
   const fetchPosts = async () => {
     try {
-      const res = await fetch(`${BASE}/feed?page=1&pageSize=50`);
+      const res = await fetch(`${BASE}/community.CommunityService/GetFeed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: 1, page_size: 50 }),
+      });
       if (!res.ok) throw new Error(await res.text());
       const data: Feed = await res.json();
       const mapped = data.posts.map(p => ({ id: p.id, title: p.title }));
@@ -62,7 +66,11 @@ export default function AdminCommentsPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${BASE}/comments?postId=${encodeURIComponent(pid)}`);
+      const res = await fetch(`${BASE}/community.CommunityService/GetComments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: pid }),
+      });
       if (!res.ok) throw new Error(await res.text());
       const data: { comments: Comment[] } = await res.json();
       setComments(data.comments || []);
@@ -75,16 +83,11 @@ export default function AdminCommentsPage() {
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("삭제하시겠습니까?")) return;
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) {
-      toast.error("댓글을 찾을 수 없습니다");
-      return;
-    }
     try {
-      const res = await fetch(`${BASE}/comment`, {
-        method: "DELETE",
+      const res = await fetch(`${BASE}/community.CommunityService/DeleteComment`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, userId: comment.userId || "admin" }),
+        body: JSON.stringify({ comment_id: commentId }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("삭제되었습니다");

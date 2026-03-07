@@ -68,6 +68,17 @@ resource "aws_security_group" "rds" {
   }
 }
 
+# Allow Bastion to access RDS
+resource "aws_security_group_rule" "rds_allow_bastion" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.bastion.id
+  security_group_id        = aws_security_group.rds.id
+  description              = "Allow PostgreSQL from Bastion"
+}
+
 resource "aws_db_instance" "main" {
   allocated_storage      = var.database_allocated_storage
   engine                 = "postgres"

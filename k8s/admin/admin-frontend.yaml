@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-frontend
+  namespace: admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-frontend
+  template:
+    metadata:
+      labels:
+        app: admin-frontend
+    spec:
+      containers:
+      - name: admin-frontend
+        image: 009946608368.dkr.ecr.ap-northeast-2.amazonaws.com/pawfiler/admin-frontend:latest
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-frontend
+  namespace: admin
+spec:
+  type: ClusterIP
+  selector:
+    app: admin-frontend
+  ports:
+  - port: 80
+    targetPort: 80

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: community-service
-        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/pawfiler/community-service:latest
+        image: 009946608368.dkr.ecr.ap-northeast-2.amazonaws.com/pawfiler/community-service:latest
         ports:
         - containerPort: 50053
         env:
