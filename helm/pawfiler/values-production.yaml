@@ -1,0 +1,20 @@
+global:
+  namespace: pawfiler
+
+quizService:
+  replicas: 3
+  image:
+    tag: latest
+
+communityService:
+  replicas: 3
+  image:
+    tag: latest
+
+adminService:
+  replicas: 2
+  image:
+    tag: latest
+
+envoy:
+  replicas: 3
