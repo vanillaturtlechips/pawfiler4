@@ -12,6 +12,16 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# 사용법:
+# ./infra.sh - 메뉴 실행
+# 
+# 주의사항:
+# 1. terraform.tfvars 설정 필수 (terraform.tfvars.example 참조)
+# 2. K8s 배포 후 envoy_nlb_domain 업데이트 필요
+#    - kubectl get svc -n pawfiler envoy-proxy
+#    - terraform.tfvars에 EXTERNAL-IP 추가
+#    - terraform apply -target=aws_cloudfront_distribution.frontend
+
 show_menu() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -31,6 +41,9 @@ show_menu() {
   echo ""
   echo "  ${BLUE}[일괄 실행]${NC}"
   echo "  8) 전체 배포 (기본 + EKS + RDS + NAT) - ${YELLOW}\$180/월${NC}"
+  echo ""
+  echo "  ${BLUE}[K8s 연동]${NC}"
+  echo "  10) CloudFront Origin 업데이트 (K8s Envoy NLB 연결)"
   echo ""
   echo "  ${RED}[위험]${NC}"
   echo "  9) 전체 인프라 삭제 (보호된 리소스 제외)"
@@ -332,6 +345,49 @@ deploy_all() {
   echo "  3. kubectl apply -f k8s/ 로 서비스 배포"
 }
 
+update_cloudfront_origin() {
+  echo ""
+  echo "${BLUE}🔗 CloudFront Origin 업데이트${NC}"
+  echo ""
+  echo "📋 K8s Envoy NLB 도메인을 CloudFront Origin으로 연결합니다."
+  echo ""
+  
+  # 현재 설정 확인
+  CURRENT_DOMAIN=$(grep "envoy_nlb_domain" terraform.tfvars 2>/dev/null | cut -d'"' -f2)
+  
+  if [ -z "$CURRENT_DOMAIN" ] || [ "$CURRENT_DOMAIN" == "" ]; then
+    echo "${YELLOW}⚠️  terraform.tfvars에 envoy_nlb_domain이 설정되지 않았습니다.${NC}"
+    echo ""
+    echo "1. K8s에 Envoy 배포:"
+    echo "   kubectl apply -f ../k8s/envoy-proxy.yaml"
+    echo "   kubectl apply -f ../k8s/proto-configmap.yaml"
+    echo ""
+    echo "2. NLB 도메인 확인:"
+    echo "   kubectl get svc -n pawfiler envoy-proxy"
+    echo ""
+    echo "3. terraform.tfvars에 추가:"
+    echo "   envoy_nlb_domain = \"k8s-pawfiler-envoypro-xxx.elb.ap-northeast-2.amazonaws.com\""
+    echo ""
+    read -p "계속하시겠습니까? (y/N): " confirm
+    if [ "$confirm" != "y" ]; then
+      echo "취소되었습니다."
+      return
+    fi
+  else
+    echo "현재 설정: ${GREEN}$CURRENT_DOMAIN${NC}"
+    echo ""
+  fi
+  
+  echo "CloudFront 업데이트 중..."
+  terraform apply -target=aws_cloudfront_distribution.frontend -auto-approve
+  
+  echo ""
+  echo "${GREEN}✅ CloudFront Origin 업데이트 완료!${NC}"
+  echo ""
+  echo "🔗 프론트엔드 URL:"
+  terraform output frontend_cloudfront_url
+}
+
 # 메인 루프
 while true; do
   show_menu
@@ -347,6 +403,7 @@ while true; do
     7) stop_bastion ;;
     8) deploy_all ;;
     9) destroy_all ;;
+    10) update_cloudfront_origin ;;
     0) echo ""; echo "👋 종료합니다."; exit 0 ;;
     *) echo ""; echo "${RED}❌ 잘못된 선택입니다.${NC}" ;;
   esac
