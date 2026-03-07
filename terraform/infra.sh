@@ -108,7 +108,18 @@ start_eks() {
     -target=aws_eks_addon.ebs_csi_driver \
     -target=aws_iam_role.bastion \
     -target=aws_iam_instance_profile.bastion \
-    -target=aws_instance.bastion
+    -target=aws_security_group.bastion \
+    -target=aws_instance.bastion \
+    -target=aws_security_group_rule.rds_allow_bastion
+
+  echo ""
+  echo "${BLUE}⛵ Helm 릴리즈 설치 중 (Envoy Gateway, ArgoCD, AWS LBC...)${NC}"
+  terraform apply -auto-approve \
+    -target=helm_release.aws_load_balancer_controller \
+    -target=helm_release.argocd \
+    -target=helm_release.envoy_gateway \
+    -target=helm_release.kubecost \
+    -target=helm_release.metrics_server
   
   BASTION_ROLE_ARN=$(terraform output -raw bastion_role_arn 2>/dev/null || echo "")
   if [ -n "$BASTION_ROLE_ARN" ]; then

@@ -9,3 +9,9 @@ variable "project_name" {
   type        = string
   default     = "pawfiler"
 }
+
+variable "envoy_nlb_domain" {
+  description = "Envoy NLB domain for CloudFront origin (get from kubectl get svc)"
+  type        = string
+  default     = ""
+}
