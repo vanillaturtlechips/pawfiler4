@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: community-service
+  namespace: pawfiler
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: community-service
+  template:
+    metadata:
+      labels:
+        app: community-service
+    spec:
+      containers:
+      - name: community-service
+        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/pawfiler/community-service:latest
+        ports:
+        - containerPort: 50053
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: pawfiler_db
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        readinessProbe:
+          tcpSocket:
+            port: 50053
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 50053
+          initialDelaySeconds: 30
+          periodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: community-service
+  namespace: pawfiler
+spec:
+  selector:
+    app: community-service
+  ports:
+  - port: 50053
+    targetPort: 50053

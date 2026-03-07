@@ -123,6 +123,21 @@ resource "helm_release" "kubecost" {
   ]
 }
 
+# Envoy Gateway
+resource "helm_release" "envoy_gateway" {
+  name             = "envoy-gateway"
+  repository       = "oci://docker.io/envoyproxy"
+  chart            = "gateway-helm"
+  namespace        = "envoy-gateway-system"
+  create_namespace = true
+  version          = "v1.3.0"
+
+  depends_on = [
+    aws_eks_node_group.main,
+    helm_release.aws_load_balancer_controller
+  ]
+}
+
 # Metrics Server (HPA용)
 resource "helm_release" "metrics_server" {
   name       = "metrics-server"
