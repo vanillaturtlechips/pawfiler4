@@ -48,6 +48,8 @@ resource "aws_iam_role" "ebs_csi_driver" {
       }
     }]
   })
+
+  depends_on = [aws_iam_openid_connect_provider.eks]
 }
 
 resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {

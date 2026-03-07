@@ -235,6 +235,16 @@ terraform force-unlock <LOCK_ID>
 aws eks update-kubeconfig --region ap-northeast-2 --name pawfiler-eks-cluster
 ```
 
+### EBS CSI Driver CrashLoopBackOff
+
+```bash
+# IAM 정책 재적용
+terraform apply -target=aws_iam_role_policy_attachment.ebs_csi_driver -auto-approve
+
+# Pod 재시작
+kubectl delete pods -n kube-system -l app=ebs-csi-controller
+```
+
 ### 리소스 삭제 실패
 
 보호된 리소스는 코드에서 `lifecycle` 블록 제거 후 삭제 가능
