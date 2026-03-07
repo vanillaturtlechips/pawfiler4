@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: admin-service
+spec:
+  replicas: {{ .Values.adminService.replicas }}
+  selector:
+    matchLabels:
+      app: admin-service
+  template:
+    metadata:
+      labels:
+        app: admin-service
+    spec:
+      serviceAccountName: admin-service-sa
+      containers:
+        - name: admin-service
+          image: {{ .Values.adminService.image.repository }}:{{ .Values.adminService.image.tag }}
+          ports:
+            - containerPort: {{ .Values.adminService.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.adminService.port }}"
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-db-secret
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-db-secret
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-db-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-db-secret
+                  key: DB_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-db-secret
+                  key: DB_NAME
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-aws-secret
+                  key: AWS_REGION
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-aws-secret
+                  key: S3_BUCKET
+            - name: CLOUDFRONT_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: pawfiler-aws-secret
+                  key: CLOUDFRONT_DOMAIN
+          resources:
+            {{- toYaml .Values.adminService.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.adminService.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.adminService.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selector:
+    app: admin-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.adminService.port }}
+      targetPort: {{ .Values.adminService.port }}
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-service-sa
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ .Values.adminService.irsaRoleArn }}
