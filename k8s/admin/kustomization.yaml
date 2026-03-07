@@ -5,4 +5,3 @@ resources:
   - namespace.yaml
   - db-secret.yaml
   - admin-service.yaml
-  - admin-frontend.yaml

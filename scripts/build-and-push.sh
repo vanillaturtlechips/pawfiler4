@@ -24,10 +24,6 @@ echo "📦 Building admin-service..."
 docker build --platform linux/amd64 -t ${ECR_REGISTRY}/pawfiler/admin-service:latest -f backend/services/admin/Dockerfile backend/services/admin
 docker push ${ECR_REGISTRY}/pawfiler/admin-service:latest
 
-# Admin Frontend 빌드 및 푸시 (nginx pod, 바스쳔 port-forward용)
-echo "📦 Building admin-frontend..."
-docker build --platform linux/amd64 -t ${ECR_REGISTRY}/pawfiler/admin-frontend:latest admin-frontend/
-docker push ${ECR_REGISTRY}/pawfiler/admin-frontend:latest
-
 echo "✅ All services built and pushed successfully!"
+echo "Admin frontend is deployed to S3 (use scripts/deploy-all.sh)"
 
