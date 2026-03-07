@@ -1,0 +1,93 @@
+name: PawFiler CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # 변경 감지 및 매트릭스 생성
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      is_empty: ${{ steps.filter.outputs.changes == '[]' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Path Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            quiz: 'backend/services/quiz/**'
+            community: 'backend/services/community/**'
+            admin: 'backend/services/admin/**'
+            video-analysis: 'backend/services/video-analysis/**'
+
+      - name: Generate Matrix
+        id: set-matrix
+        run: |
+          SERVICES='${{ steps.filter.outputs.changes }}'
+          MATRIX=$(echo $SERVICES | jq -c 'map({service: .})')
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  # Docker 빌드 및 ECR 푸시
+  build-and-push:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.is_empty == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/services/${{ matrix.config.service }}
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/${{ matrix.config.service }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/${{ matrix.config.service }}:latest
+
+  # ArgoCD 이미지 태그 업데이트
+  update-argocd:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: vanillaturtlechips/pawfiler4-argocd
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+
+      - name: Update Image Tags
+        run: |
+          for service in $(echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.[].service'); do
+            sed -i "s|image: .*/pawfiler/${service}:.*|image: ${{ secrets.ECR_REGISTRY }}/pawfiler/${service}:${{ github.sha }}|g" \
+              apps/services/${service}/deployment.yaml
+          done
+
+      - name: Commit and Push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Update image tags to ${{ github.sha }}" || exit 0
+          git push

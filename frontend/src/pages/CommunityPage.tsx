@@ -104,12 +104,13 @@ const CommunityPage = () => {
     }
   };
 
-  // 검색어 변경 시 디바운싱 적용
+  // 초기 로드 및 검색어 변경 시 디바운싱 적용
   useEffect(() => {
     if (!token) return;
     
     const timer = setTimeout(() => {
       fetchFeed(1, query || undefined);
+      loadDashboardData();
     }, 300); // 300ms 디바운싱
 
     return () => clearTimeout(timer);
@@ -135,9 +136,10 @@ const CommunityPage = () => {
   const handleDelete = async (e: React.MouseEvent, postId: string) => {
     e.stopPropagation();
     if (!confirm("정말 이 게시글을 삭제하시겠습니까?")) return;
+    if (!user) return;
 
     try {
-      await deleteCommunityPost(postId);
+      await deleteCommunityPost(postId, user.id);
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       setTotalCount((prev) => Math.max(0, prev - 1));
       toast.success("게시글이 삭제되었습니다.");
@@ -161,8 +163,10 @@ const CommunityPage = () => {
     setIsSubmitting(true);
     try {
       if (editingPost) {
+        if (!user) return;
         const updated = await updateCommunityPost({
           postId: editingPost.id,
+          userId: user.id,
           title: formTitle,
           body: formBody,
           tags,
