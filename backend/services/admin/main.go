@@ -69,16 +69,16 @@ func main() {
 	// CORS
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{
+			"http://localhost:3000",
 			"http://localhost:5178",
 			"http://localhost:5176",
 			"http://localhost:5175",
 			"http://localhost:5173",
-			"http://pawfiler-admin-frontend.s3-website.ap-northeast-2.amazonaws.com",
-			"https://*.cloudfront.net",
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
+		Debug:            true,
 	})
 
 	handler := c.Handler(router)
