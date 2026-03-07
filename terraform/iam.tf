@@ -27,16 +27,32 @@ resource "aws_iam_role" "eks_cluster_role" {
           Service = "eks.amazonaws.com"
         }
         Action = "sts:AssumeRole"
-      },
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.admin_users
-        }
-        Action = "sts:AssumeRole"
       }
     ]
   })
+}
+
+# EKS Access Entry - 팀원 로컬 CLI kubectl 접근
+resource "aws_eks_access_entry" "admin" {
+  for_each = toset(var.admin_users)
+
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "admin" {
+  for_each = toset(var.admin_users)
+
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = each.value
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.admin]
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {

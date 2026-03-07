@@ -67,6 +67,12 @@ resource "aws_eks_cluster" "main" {
     security_group_ids = [aws_security_group.eks_cluster.id]
   }
 
+  # API + ConfigMap 모드: Access Entry(IAM 유저)와 기존 aws-auth ConfigMap 방식 모두 지원
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy,
     aws_iam_role_policy_attachment.eks_service_policy,
