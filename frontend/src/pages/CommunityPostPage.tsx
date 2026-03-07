@@ -137,19 +137,21 @@ const CommunityPostPage = () => {
 
   if (loading) {
     return (
-      <div className="h-[calc(100vh-5rem)] w-full overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
-        <motion.div
-          className="flex flex-col gap-6 p-6 max-w-[1100px] mx-auto"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
+      <motion.div 
+        className="h-[calc(100vh-5rem)] w-full overflow-y-auto" 
+        style={{ scrollbarGutter: 'stable' }}
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="flex flex-col gap-6 p-6 max-w-[1100px] mx-auto">
           <Skeleton className="h-12 w-32 rounded-2xl bg-parchment-border/50" />
           <ParchmentPanel className="p-8 rounded-[2rem]">
             <Skeleton className="h-10 w-3/4 rounded bg-parchment-border/50 mb-4" />
             <Skeleton className="h-64 w-full rounded bg-parchment-border/50" />
           </ParchmentPanel>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
     );
   }
 

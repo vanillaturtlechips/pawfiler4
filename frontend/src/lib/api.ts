@@ -611,7 +611,7 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId }),
+      body: JSON.stringify({ post_id: postId }),
     });
 
     if (!response.ok) {

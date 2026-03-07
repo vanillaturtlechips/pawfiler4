@@ -104,12 +104,13 @@ const CommunityPage = () => {
     }
   };
 
-  // 검색어 변경 시 디바운싱 적용
+  // 초기 로드 및 검색어 변경 시 디바운싱 적용
   useEffect(() => {
     if (!token) return;
     
     const timer = setTimeout(() => {
       fetchFeed(1, query || undefined);
+      loadDashboardData();
     }, 300); // 300ms 디바운싱
 
     return () => clearTimeout(timer);
