@@ -19,7 +19,7 @@ type Comment = {
 };
 type Feed = { posts: Post[]; totalCount: number; page: number; };
 
-const BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
+const BASE = (import.meta.env.VITE_ADMIN_API_URL || "http://localhost:8082");
 
 export default function AdminCommunityPage() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -40,16 +40,9 @@ export default function AdminCommunityPage() {
   const fetchFeed = async () => {
     setLoading(true);
     try {
-      // Envoy gRPC-JSON transcoding endpoint
-      const res = await fetch(`${BASE}/community.CommunityService/GetFeed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          page,
-          page_size: pageSize,
-          ...(searchInput && { search: searchInput, search_type: searchType })
-        })
-      });
+      const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      if (searchInput) { params.set("search", searchInput); params.set("search_type", searchType); }
+      const res = await fetch(`${BASE}/admin/community/posts?${params}`);
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setFeed({
@@ -74,14 +67,9 @@ export default function AdminCommunityPage() {
     if (!editing) return;
     try {
       const tags = editTags.split(",").map(t=>t.trim()).filter(Boolean);
-      const res = await fetch(`${BASE}/community.CommunityService/UpdatePost`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          post_id: editing.id, 
-          title: editTitle, 
-          body: editBody, 
-          tags 
-        }),
+      const res = await fetch(`${BASE}/admin/community/posts/${editing.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editTitle, body: editBody, tags }),
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("수정 완료");
@@ -92,10 +80,7 @@ export default function AdminCommunityPage() {
   const deletePost = async (postId: string) => {
     if (!confirm("정말 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`${BASE}/community.CommunityService/DeletePost`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: postId }),
-      });
+      const res = await fetch(`${BASE}/admin/community/posts/${postId}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       toast.success("삭제 완료"); fetchFeed();
     } catch (e:any) { toast.error(e.message ?? "삭제 실패"); }
@@ -103,11 +88,7 @@ export default function AdminCommunityPage() {
 
   const fetchComments = async (postId: string) => {
     try {
-      const res = await fetch(`${BASE}/community.CommunityService/GetComments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: postId })
-      });
+      const res = await fetch(`${BASE}/admin/community/posts/${postId}/comments`);
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setComments(data.comments || []);
@@ -117,10 +98,7 @@ export default function AdminCommunityPage() {
   const deleteComment = async (commentId: string) => {
     if (!confirm("댓글을 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`${BASE}/community.CommunityService/DeleteComment`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ comment_id: commentId })
-      });
+      const res = await fetch(`${BASE}/admin/community/comments/${commentId}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       toast.success("댓글 삭제 완료");
       setComments(prev => prev.filter(c => c.id !== commentId));

@@ -53,7 +53,7 @@ metadata:
   name: admin-service
   namespace: admin
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: admin-service
   ports:
