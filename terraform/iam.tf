@@ -31,6 +31,10 @@ resource "aws_iam_role" "eks_cluster_role" {
       }
     ]
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # EKS Access Entry - 팀원 로컬 CLI kubectl 접근
@@ -81,6 +85,10 @@ resource "aws_iam_role" "eks_node_group_role" {
       }
     ]
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {

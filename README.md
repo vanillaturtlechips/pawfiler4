@@ -16,7 +16,17 @@ pawfiler4/
 │   │   └── video-analysis/ # 영상 분석 서비스 (Python + gRPC)
 │   ├── proto/         # Protobuf 정의
 │   └── envoy/         # Envoy Gateway 설정
-├── terraform/         # AWS 인프라 (VPC, EKS, RDS, S3)
+├── terraform/         # AWS 인프라
+│   ├── networking.tf      # VPC, 서브넷, NAT Gateway
+│   ├── iam.tf            # IAM 역할 및 정책
+│   ├── eks.tf            # EKS 클러스터 및 노드 그룹
+│   ├── rds.tf            # PostgreSQL 데이터베이스
+│   ├── ecr.tf            # Docker 이미지 레지스트리
+│   ├── bastion.tf        # Bastion Host (EC2)
+│   ├── s3-frontend.tf    # 프론트엔드 호스팅 (S3 + CloudFront)
+│   ├── s3-media.tf       # 미디어 파일 저장소
+│   ├── helm.tf           # Helm 차트 배포 (Envoy Gateway)
+│   └── *.sh              # EKS/Bastion 시작/중지 스크립트
 └── scripts/           # 배포 스크립트
 ```
 
@@ -41,10 +51,10 @@ npm install && npm run dev
 ### AWS 배포
 
 ```bash
-# 인프라 생성
+# 인프라 관리 (인터랙티브)
 cd terraform
 terraform init
-terraform apply
+./infra.sh
 
 # 백엔드 서비스 빌드 및 푸시
 ./scripts/build-and-push.sh
@@ -64,6 +74,10 @@ terraform apply
 
 ## 문서
 
+**필수**
+- [terraform/README.md](./terraform/README.md) - 인프라 관리 가이드 ⭐
+
+**참고**
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - 시스템 아키텍처
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md) - 프로젝트 현황
 - [ENVOY_GATEWAY_SETUP.md](./ENVOY_GATEWAY_SETUP.md) - Envoy Gateway 설정

@@ -18,7 +18,15 @@ terraform apply -auto-approve \
   -target=aws_security_group.eks_cluster \
   -target=aws_eks_cluster.main \
   -target=aws_eks_node_group.main \
-  -target=aws_eks_addon.ebs_csi_driver
+  -target=aws_eks_addon.ebs_csi_driver \
+  -target=aws_iam_role.bastion \
+  -target=aws_iam_instance_profile.bastion \
+  -target=aws_instance.bastion
+
+# Bastion IAM 역할 ARN 자동으로 가져오기
+BASTION_ROLE_ARN=$(terraform output -raw bastion_role_arn)
+echo "🔑 Bastion Role ARN: $BASTION_ROLE_ARN"
+TEAM_ARNS+=("$BASTION_ROLE_ARN")
 
 echo "⚙️  kubectl 설정 중..."
 aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER_NAME"

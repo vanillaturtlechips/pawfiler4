@@ -24,7 +24,7 @@ private_subnet_cidrs = ["10.0.101.0/24", "10.0.103.0/24"]
 # RDS PostgreSQL 설정
 database_instance_type     = "db.t3.micro"
 database_allocated_storage = 20
-database_engine_version    = "14.7"
+database_engine_version    = "16.13"
 database_username          = "pawfiler"
 database_password          = "CHANGE_ME_STRONG_PASSWORD"  # ⚠️ 반드시 변경하세요!
 

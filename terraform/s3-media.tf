@@ -16,6 +16,10 @@ resource "aws_s3_bucket" "quiz_media" {
     Environment = "production"
     Purpose     = "Quiz question media storage"
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Enable versioning
