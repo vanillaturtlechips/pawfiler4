@@ -8,7 +8,7 @@ project_name = "pawfiler"
 
 # EKS 클러스터 설정
 cluster_name = "pawfiler-eks-cluster"
-eks_version  = "1.28"
+eks_version  = "1.34"
 
 # EKS 노드 그룹 설정
 node_instance_types = ["t3.medium"]

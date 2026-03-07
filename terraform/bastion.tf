@@ -16,6 +16,28 @@ resource "aws_iam_role_policy_attachment" "bastion_eks" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+resource "aws_iam_role_policy" "bastion_eks_access" {
+  name = "${var.project_name}-bastion-eks-access"
+  role = aws_iam_role.bastion.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:AccessKubernetesApi"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "bastion" {
   name = "${var.project_name}-bastion-profile"
   role = aws_iam_role.bastion.name
@@ -77,6 +99,10 @@ resource "aws_instance" "bastion" {
     chmod +x /usr/local/bin/kubectl
 
     curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    curl -fsSL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" | tar xz -C /tmp
+    mv /tmp/eksctl /usr/local/bin/
+    chmod +x /usr/local/bin/eksctl
 
     echo 'export PATH=$PATH:/usr/local/bin' >> /home/ec2-user/.bashrc
 
