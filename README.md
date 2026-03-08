@@ -150,7 +150,10 @@ terraform init
 - ✅ IRSA (IAM Roles for Service Accounts)
 - ✅ CloudFront + S3 정적 호스팅
 - ✅ ALB Ingress Controller
+- ✅ Spot + On-Demand 혼합 노드 그룹
+- ✅ Kubecost (비용 모니터링 + AWS 통합)
 - ✅ 비용 최적화 (EKS/Bastion 시작/중지)
+- 🚧 Karpenter (자동 스케일링)
 - 🚧 Istio 마이그레이션 예정
 
 ## 문서
@@ -162,6 +165,9 @@ terraform init
 ### 트러블슈팅
 - [docs/TROUBLESHOOTING-ALB.md](./docs/TROUBLESHOOTING-ALB.md) - NLB→ALB 마이그레이션
 
+### 고급
+- [docs/KARPENTER.md](./docs/KARPENTER.md) - Karpenter 자동 스케일링 설치
+
 ## 비용 관리
 
 ### 무료 ($0/월)
@@ -172,14 +178,18 @@ terraform init
 - RDS: $15/월
 - NAT Gateway: $32/월
 - Bastion: $8/월
+- **노드**: On-Demand 1개 + Spot 1개 (~$50/월)
 
-### 비용 절감
+### 비용 절감 팁
 ```bash
 cd terraform
 ./infra.sh
 # 3) EKS 중지
 # 7) Bastion 중지
 ```
+
+**Spot 인스턴스**: 약 70% 절감 (단, 중단 가능)
+**Kubecost**: http://localhost:9090 에서 실시간 비용 모니터링
 
 ## 라이선스
 
