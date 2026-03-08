@@ -255,3 +255,59 @@ resource "helm_release" "metrics_server" {
 
   depends_on = [aws_eks_node_group.main]
 }
+
+# Karpenter (자동 스케일링)
+resource "helm_release" "karpenter" {
+  name             = "karpenter"
+  repository       = "oci://public.ecr.aws/karpenter"
+  chart            = "karpenter"
+  namespace        = "karpenter"
+  create_namespace = true
+  version          = "1.0.0"
+
+  set {
+    name  = "settings.clusterName"
+    value = aws_eks_cluster.main.name
+  }
+
+  set {
+    name  = "settings.clusterEndpoint"
+    value = aws_eks_cluster.main.endpoint
+  }
+
+  set {
+    name  = "settings.interruptionQueue"
+    value = aws_sqs_queue.karpenter.name
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.karpenter_controller.arn
+  }
+
+  set {
+    name  = "controller.resources.requests.cpu"
+    value = "1"
+  }
+
+  set {
+    name  = "controller.resources.requests.memory"
+    value = "1Gi"
+  }
+
+  set {
+    name  = "controller.resources.limits.cpu"
+    value = "1"
+  }
+
+  set {
+    name  = "controller.resources.limits.memory"
+    value = "1Gi"
+  }
+
+  depends_on = [
+    aws_eks_node_group.main,
+    aws_iam_role.karpenter_controller,
+    aws_sqs_queue.karpenter
+  ]
+}
