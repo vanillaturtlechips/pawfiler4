@@ -7,9 +7,10 @@ variable "admin_users" {
   description = "List of admin user ARNs"
   type        = list(string)
   default = [
+    "arn:aws:iam::009946608368:user/RAPA_Admin",
     "arn:aws:iam::009946608368:user/SGO-Junghan",
     "arn:aws:iam::009946608368:user/SGO-Jaewon",
-    "arn:aws:iam::009946608368:user/RAPA_Admin",
+    "arn:aws:iam::009946608368:user/SGO-LeeMyungil",
     "arn:aws:iam::009946608368:user/SGO-Moonjae"
   ]
 }
@@ -27,16 +28,36 @@ resource "aws_iam_role" "eks_cluster_role" {
           Service = "eks.amazonaws.com"
         }
         Action = "sts:AssumeRole"
-      },
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.admin_users
-        }
-        Action = "sts:AssumeRole"
       }
     ]
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# EKS Access Entry - 팀원 로컬 CLI kubectl 접근
+resource "aws_eks_access_entry" "admin" {
+  for_each = toset(var.admin_users)
+
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "admin" {
+  for_each = toset(var.admin_users)
+
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = each.value
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.admin]
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
@@ -64,6 +85,10 @@ resource "aws_iam_role" "eks_node_group_role" {
       }
     ]
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
@@ -91,3 +116,4 @@ output "eks_node_group_role_arn" {
   description = "ARN of the EKS node group role"
   value       = aws_iam_role.eks_node_group_role.arn
 }
+

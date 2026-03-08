@@ -1,21 +1,48 @@
-# ============================================================================
-# BASTION MODULE - Bastion Host for SSH Access
-# ============================================================================
+resource "aws_iam_role" "bastion" {
+  name = "${var.project_name}-bastion-role"
 
-# Variables
-variable "bastion_instance_type" {
-  description = "Instance type for Bastion Host"
-  type        = string
-  default     = "t3.micro"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
 }
 
-variable "bastion_key_name" {
-  description = "Name of the EC2 Key Pair to access the Bastion host"
-  type        = string
-  default     = "silver-guardian-key"
+resource "aws_iam_role_policy_attachment" "bastion_eks" {
+  role       = aws_iam_role.bastion.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
-# Resources
+resource "aws_iam_role_policy" "bastion_eks_access" {
+  name = "${var.project_name}-bastion-eks-access"
+  role = aws_iam_role.bastion.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:AccessKubernetesApi"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "bastion" {
+  name = "${var.project_name}-bastion-profile"
+  role = aws_iam_role.bastion.name
+}
+
 resource "aws_security_group" "bastion" {
   name        = "${var.project_name}-bastion-sg"
   description = "Security group for Bastion Host"
@@ -57,6 +84,35 @@ resource "aws_instance" "bastion" {
   key_name                    = var.bastion_key_name
   vpc_security_group_ids      = [aws_security_group.bastion.id]
   associate_public_ip_address = true
+  iam_instance_profile        = aws_iam_instance_profile.bastion.name
+
+  user_data = <<-EOF
+    #!/bin/bash
+    set -e
+
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    unzip -q /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install
+
+    KUBECTL_VERSION=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+    curl -fsSL "https://dl.k8s.io/release/$${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+    chmod +x /usr/local/bin/kubectl
+
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    curl -fsSL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" | tar xz -C /tmp
+    mv /tmp/eksctl /usr/local/bin/
+    chmod +x /usr/local/bin/eksctl
+
+    echo 'export PATH=$PATH:/usr/local/bin' >> /home/ec2-user/.bashrc
+
+    cat >> /home/ec2-user/.bashrc <<'BASHRC'
+export AWS_DEFAULT_REGION=${var.aws_region}
+alias k=kubectl
+BASHRC
+
+    su - ec2-user -c "aws eks update-kubeconfig --region ${var.aws_region} --name ${var.cluster_name} 2>/dev/null || true"
+  EOF
 
   tags = {
     Name = "${var.project_name}-bastion-host"
@@ -73,8 +129,12 @@ resource "aws_security_group_rule" "eks_allow_bastion" {
   description              = "Allow HTTPS from Bastion to EKS Control Plane"
 }
 
-# Outputs
 output "bastion_public_ip" {
   description = "Public IP address of the Bastion Host"
   value       = aws_instance.bastion.public_ip
+}
+
+output "bastion_role_arn" {
+  description = "IAM Role ARN of the Bastion Host"
+  value       = aws_iam_role.bastion.arn
 }

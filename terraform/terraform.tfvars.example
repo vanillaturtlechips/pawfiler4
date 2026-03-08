@@ -1,32 +1,3 @@
-# 예시 변수 파일
-# 실제 사용 시 terraform.tfvars로 복사하고 값을 수정하세요
-# cp terraform.tfvars.example terraform.tfvars
-
-# AWS 설정
-aws_region   = "ap-northeast-2"  # 서울 리전
-project_name = "pawfiler"
-
-# EKS 클러스터 설정
-cluster_name = "pawfiler-eks-cluster"
-eks_version  = "1.28"
-
-# EKS 노드 그룹 설정
-node_instance_types = ["t3.medium"]
-node_desired_size   = 2
-node_max_size       = 4
-node_min_size       = 1
-
-# 네트워크 설정
-vpc_cidr_block       = "10.0.0.0/16"
-public_subnet_cidrs  = ["10.0.1.0/24", "10.0.3.0/24"]
-private_subnet_cidrs = ["10.0.101.0/24", "10.0.103.0/24"]
-
-# RDS PostgreSQL 설정
-database_instance_type     = "db.t3.micro"
-database_allocated_storage = 20
-database_engine_version    = "14.7"
-database_username          = "pawfiler"
-database_password          = "CHANGE_ME_STRONG_PASSWORD"  # ⚠️ 반드시 변경하세요!
-
-# Bastion Host 설정
-bastion_key_name = "pawfiler-bastion-key"  # 미리 생성한 EC2 Key Pair 이름
+# Envoy NLB domain (from: kubectl get svc -n pawfiler envoy-proxy)
+# Get the EXTERNAL-IP value and use it here
+envoy_alb_domain = "your-envoy-alb-domain.elb.ap-northeast-2.amazonaws.com"

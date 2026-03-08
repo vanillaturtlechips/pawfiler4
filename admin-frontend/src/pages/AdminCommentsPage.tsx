@@ -28,7 +28,7 @@ type Feed = {
   page: number;
 };
 
-const BASE = (import.meta.env.VITE_COMMUNITY_API_URL || "http://localhost:3000/api/community");
+const BASE = (import.meta.env.VITE_ADMIN_API_URL || "http://localhost:8082");
 
 export default function AdminCommentsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -45,7 +45,7 @@ export default function AdminCommentsPage() {
 
   const fetchPosts = async () => {
     try {
-      const res = await fetch(`${BASE}/feed?page=1&pageSize=50`);
+      const res = await fetch(`${BASE}/admin/community/posts?page=1&page_size=50`);
       if (!res.ok) throw new Error(await res.text());
       const data: Feed = await res.json();
       const mapped = data.posts.map(p => ({ id: p.id, title: p.title }));
@@ -62,7 +62,7 @@ export default function AdminCommentsPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${BASE}/comments?postId=${encodeURIComponent(pid)}`);
+      const res = await fetch(`${BASE}/admin/community/posts/${pid}/comments`);
       if (!res.ok) throw new Error(await res.text());
       const data: { comments: Comment[] } = await res.json();
       setComments(data.comments || []);
@@ -75,17 +75,8 @@ export default function AdminCommentsPage() {
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("삭제하시겠습니까?")) return;
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) {
-      toast.error("댓글을 찾을 수 없습니다");
-      return;
-    }
     try {
-      const res = await fetch(`${BASE}/comment`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, userId: comment.userId || "admin" }),
-      });
+      const res = await fetch(`${BASE}/admin/community/comments/${commentId}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       toast.success("삭제되었습니다");
       setComments(prev => prev.filter(c => c.id !== commentId));
