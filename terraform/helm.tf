@@ -258,6 +258,7 @@ resource "helm_release" "metrics_server" {
 
 # Karpenter (자동 스케일링)
 resource "helm_release" "karpenter" {
+  count            = var.enable_karpenter ? 1 : 0
   name             = "karpenter"
   repository       = "oci://public.ecr.aws/karpenter"
   chart            = "karpenter"
@@ -277,12 +278,12 @@ resource "helm_release" "karpenter" {
 
   set {
     name  = "settings.interruptionQueue"
-    value = aws_sqs_queue.karpenter.name
+    value = aws_sqs_queue.karpenter[0].name
   }
 
   set {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.karpenter_controller.arn
+    value = aws_iam_role.karpenter_controller[0].arn
   }
 
   set {

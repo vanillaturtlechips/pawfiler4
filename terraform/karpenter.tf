@@ -1,6 +1,7 @@
 # Karpenter Controller IAM Role
 resource "aws_iam_role" "karpenter_controller" {
-  name = "${var.project_name}-karpenter-controller"
+  count = var.enable_karpenter ? 1 : 0
+  name  = "${var.project_name}-karpenter-controller"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -21,8 +22,9 @@ resource "aws_iam_role" "karpenter_controller" {
 }
 
 resource "aws_iam_role_policy" "karpenter_controller" {
-  name = "${var.project_name}-karpenter-controller-policy"
-  role = aws_iam_role.karpenter_controller.id
+  count = var.enable_karpenter ? 1 : 0
+  name  = "${var.project_name}-karpenter-controller-policy"
+  role  = aws_iam_role.karpenter_controller[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -62,7 +64,7 @@ resource "aws_iam_role_policy" "karpenter_controller" {
         Action = [
           "iam:PassRole"
         ]
-        Resource = aws_iam_role.karpenter_node.arn
+        Resource = aws_iam_role.karpenter_node[0].arn
       },
       {
         Effect = "Allow"
@@ -72,7 +74,7 @@ resource "aws_iam_role_policy" "karpenter_controller" {
           "sqs:GetQueueUrl",
           "sqs:ReceiveMessage"
         ]
-        Resource = aws_sqs_queue.karpenter.arn
+        Resource = aws_sqs_queue.karpenter[0].arn
       }
     ]
   })
@@ -80,7 +82,8 @@ resource "aws_iam_role_policy" "karpenter_controller" {
 
 # Karpenter Node IAM Role
 resource "aws_iam_role" "karpenter_node" {
-  name = "${var.project_name}-karpenter-node"
+  count = var.enable_karpenter ? 1 : 0
+  name  = "${var.project_name}-karpenter-node"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -95,31 +98,34 @@ resource "aws_iam_role" "karpenter_node" {
 }
 
 resource "aws_iam_role_policy_attachment" "karpenter_node_policies" {
-  for_each = toset([
+  for_each = var.enable_karpenter ? toset([
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
     "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  ])
+  ]) : toset([])
 
   policy_arn = each.value
-  role       = aws_iam_role.karpenter_node.name
+  role       = aws_iam_role.karpenter_node[0].name
 }
 
 resource "aws_iam_instance_profile" "karpenter_node" {
-  name = "${var.project_name}-karpenter-node"
-  role = aws_iam_role.karpenter_node.name
+  count = var.enable_karpenter ? 1 : 0
+  name  = "${var.project_name}-karpenter-node"
+  role  = aws_iam_role.karpenter_node[0].name
 }
 
 # SQS Queue for Spot Interruption
 resource "aws_sqs_queue" "karpenter" {
+  count                     = var.enable_karpenter ? 1 : 0
   name                      = "${var.project_name}-karpenter"
   message_retention_seconds = 300
   sqs_managed_sse_enabled   = true
 }
 
 resource "aws_sqs_queue_policy" "karpenter" {
-  queue_url = aws_sqs_queue.karpenter.url
+  count     = var.enable_karpenter ? 1 : 0
+  queue_url = aws_sqs_queue.karpenter[0].url
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -132,13 +138,14 @@ resource "aws_sqs_queue_policy" "karpenter" {
         ]
       }
       Action   = "sqs:SendMessage"
-      Resource = aws_sqs_queue.karpenter.arn
+      Resource = aws_sqs_queue.karpenter[0].arn
     }]
   })
 }
 
 # EventBridge Rules for Spot Interruption
 resource "aws_cloudwatch_event_rule" "karpenter_spot_interruption" {
+  count       = var.enable_karpenter ? 1 : 0
   name        = "${var.project_name}-karpenter-spot-interruption"
   description = "Karpenter Spot Instance Interruption Warning"
 
@@ -149,12 +156,14 @@ resource "aws_cloudwatch_event_rule" "karpenter_spot_interruption" {
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_spot_interruption" {
-  rule      = aws_cloudwatch_event_rule.karpenter_spot_interruption.name
+  count     = var.enable_karpenter ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.karpenter_spot_interruption[0].name
   target_id = "KarpenterSpotInterruptionQueue"
-  arn       = aws_sqs_queue.karpenter.arn
+  arn       = aws_sqs_queue.karpenter[0].arn
 }
 
 resource "aws_cloudwatch_event_rule" "karpenter_rebalance" {
+  count       = var.enable_karpenter ? 1 : 0
   name        = "${var.project_name}-karpenter-rebalance"
   description = "Karpenter Rebalance Recommendation"
 
@@ -165,12 +174,14 @@ resource "aws_cloudwatch_event_rule" "karpenter_rebalance" {
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_rebalance" {
-  rule      = aws_cloudwatch_event_rule.karpenter_rebalance.name
+  count     = var.enable_karpenter ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.karpenter_rebalance[0].name
   target_id = "KarpenterRebalanceQueue"
-  arn       = aws_sqs_queue.karpenter.arn
+  arn       = aws_sqs_queue.karpenter[0].arn
 }
 
 resource "aws_cloudwatch_event_rule" "karpenter_instance_state_change" {
+  count       = var.enable_karpenter ? 1 : 0
   name        = "${var.project_name}-karpenter-instance-state-change"
   description = "Karpenter Instance State Change"
 
@@ -181,24 +192,25 @@ resource "aws_cloudwatch_event_rule" "karpenter_instance_state_change" {
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_instance_state_change" {
-  rule      = aws_cloudwatch_event_rule.karpenter_instance_state_change.name
+  count     = var.enable_karpenter ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.karpenter_instance_state_change[0].name
   target_id = "KarpenterInstanceStateChangeQueue"
-  arn       = aws_sqs_queue.karpenter.arn
+  arn       = aws_sqs_queue.karpenter[0].arn
 }
 
 # Outputs
 output "karpenter_controller_role_arn" {
-  value = aws_iam_role.karpenter_controller.arn
+  value = var.enable_karpenter ? aws_iam_role.karpenter_controller[0].arn : null
 }
 
 output "karpenter_node_role_name" {
-  value = aws_iam_role.karpenter_node.name
+  value = var.enable_karpenter ? aws_iam_role.karpenter_node[0].name : null
 }
 
 output "karpenter_node_instance_profile_name" {
-  value = aws_iam_instance_profile.karpenter_node.name
+  value = var.enable_karpenter ? aws_iam_instance_profile.karpenter_node[0].name : null
 }
 
 output "karpenter_queue_name" {
-  value = aws_sqs_queue.karpenter.name
+  value = var.enable_karpenter ? aws_sqs_queue.karpenter[0].name : null
 }

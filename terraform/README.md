@@ -23,7 +23,25 @@ cp terraform.tfvars.example terraform.tfvars
 **생성**: VPC, IAM, ECR, S3  
 **비용**: $0/월
 
-### 3. K8s 배포 후 Envoy NLB 도메인 설정
+### 3. Karpenter 활성화 (선택사항)
+
+**현재:** EKS 1.34 호환 이슈로 비활성화
+
+**활성화 방법:**
+```bash
+# terraform.tfvars에 추가
+enable_karpenter = true
+
+# 적용
+terraform apply
+
+# NodePool 생성
+kubectl apply -f ../k8s/karpenter-nodepool.yaml
+```
+
+**권장:** Managed Node Group (Spot + On-Demand) 사용
+
+### 4. K8s 배포 후 Envoy NLB 도메인 설정
 
 ```bash
 # K8s에 Envoy 배포 후
