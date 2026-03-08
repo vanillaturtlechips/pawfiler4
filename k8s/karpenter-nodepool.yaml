@@ -33,6 +33,8 @@ metadata:
   name: default
 spec:
   amiFamily: AL2
+  amiSelectorTerms:
+    - id: ami-0c9c942bd7bf113a2  # Amazon Linux 2 EKS Optimized AMI
   role: pawfiler-eks-node-group-role
   subnetSelectorTerms:
     - tags:
