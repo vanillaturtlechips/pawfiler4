@@ -1,13 +1,21 @@
 FROM python:3.11-slim
-RUN apt-get update && apt-get install -y libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-COPY services/video-analysis/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt grpcio-tools
-COPY services/video-analysis/ .
-COPY proto /proto
-RUN mkdir -p generated && \
-    python -m grpc_tools.protoc -I/proto --python_out=generated --grpc_python_out=generated /proto/video_analysis.proto && \
-    touch generated/__init__.py && \
-    sed -i 's/import video_analysis_pb2/from . import video_analysis_pb2/' generated/video_analysis_pb2_grpc.py
+
+# 의존성 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# gRPC health probe
+RUN wget -qO /bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.24/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
+
+# 코드 복사
+COPY . .
+
+# Proto 생성 (빌드 시)
+RUN python -m grpc_tools.protoc -I../../proto --python_out=./generated --grpc_python_out=./generated ../../proto/video_analysis.proto
+
 EXPOSE 50054
+
 CMD ["python", "server.py"]

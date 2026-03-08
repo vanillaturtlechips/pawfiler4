@@ -16,7 +16,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
-.env.production
 !.env.example
 !.env.development
 
@@ -53,7 +52,6 @@ node_modules
 **/.terraform/*
 *.tfstate
 *.tfstate.*
-*.tfstate.backup
 terraform.tfvars
 !terraform.tfvars.example
 *.pem
@@ -76,34 +74,4 @@ terraform/tfplan
 istio-*/
 istio-*/
 venv/
-**/venv/
 __pycache__/
-**/__pycache__/
-*.pyc
-*.pyo
-*.log
-server.log
-training*.log
-
-# ML models (store in S3/model registry)
-*.pth
-*.onnx
-*.onnx.data
-*.h5
-*.pb
-*.pkl
-*.joblib
-
-# Generated protobuf files
-*_pb2.py
-*_pb2_grpc.py
-generated/
-
-# Old/backup files
-*_old.py
-*.bak
-
-# Binary documents
-*.docx
-*.xlsx
-*.pptx
