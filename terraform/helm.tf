@@ -92,6 +92,37 @@ resource "helm_release" "kubecost" {
     value = aws_eks_cluster.main.name
   }
 
+  # AWS Cloud Integration
+  set {
+    name  = "kubecostProductConfigs.clusterName"
+    value = aws_eks_cluster.main.name
+  }
+
+  set {
+    name  = "kubecostProductConfigs.awsSpotDataRegion"
+    value = var.aws_region
+  }
+
+  set {
+    name  = "kubecostProductConfigs.awsSpotDataBucket"
+    value = "s3://spot-data-feed-${data.aws_caller_identity.current.account_id}"
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "kubecost-cost-analyzer"
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.kubecost.arn
+  }
+
   set {
     name  = "persistentVolume.storageClass"
     value = "gp2"

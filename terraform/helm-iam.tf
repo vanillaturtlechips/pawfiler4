@@ -80,6 +80,59 @@ resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
   role       = aws_iam_role.ebs_csi_driver.name
 }
 
+# Kubecost IAM Role
+resource "aws_iam_role" "kubecost" {
+  name = "${var.project_name}-kubecost"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.eks.arn
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:kubecost:kubecost-cost-analyzer"
+        }
+      }
+    }]
+  })
+
+  depends_on = [aws_iam_openid_connect_provider.eks]
+}
+
+resource "aws_iam_role_policy" "kubecost" {
+  name = "${var.project_name}-kubecost-policy"
+  role = aws_iam_role.kubecost.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ce:GetCostAndUsage",
+          "ce:GetCostForecast",
+          "ce:GetDimensionValues",
+          "ce:GetTags",
+          "ec2:DescribeInstances",
+          "ec2:DescribeRegions",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeSnapshots",
+          "ec2:DescribeSpotPriceHistory",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # OIDC Provider for EKS
 resource "aws_iam_openid_connect_provider" "eks" {
   client_id_list  = ["sts.amazonaws.com"]
