@@ -67,15 +67,18 @@ kubectl apply -f proto-configmap.yaml
 # Envoy Proxy (gRPC-JSON transcoding)
 kubectl apply -f envoy-proxy.yaml
 
-# NLB 도메인 확인
-kubectl get svc -n pawfiler envoy-proxy
+# ALB Ingress
+kubectl apply -f envoy-ingress.yaml
+
+# ALB 도메인 확인 (생성까지 2-3분 소요)
+kubectl get ingress -n pawfiler envoy-ingress
 ```
 
 ### 5. CloudFront Origin 업데이트
 ```bash
-# terraform.tfvars에 Envoy NLB 도메인 추가
+# terraform.tfvars에 Envoy ALB 도메인 추가
 cd ../terraform
-# envoy_nlb_domain = "k8s-pawfiler-envoypro-xxx.elb.ap-northeast-2.amazonaws.com"
+# envoy_alb_domain = "k8s-pawfiler-envoying-xxx.ap-northeast-2.elb.amazonaws.com"
 
 ./infra.sh
 # 10) CloudFront Origin 업데이트
@@ -90,7 +93,8 @@ k8s/
 ├── quiz-service.yaml          # Quiz gRPC 서비스
 ├── community-service.yaml     # Community gRPC 서비스
 ├── proto-configmap.yaml       # Proto descriptor
-├── envoy-proxy.yaml           # Envoy Proxy (NLB)
+├── envoy-proxy.yaml           # Envoy Proxy + Service
+├── envoy-ingress.yaml         # ALB Ingress
 └── admin/
     ├── namespace.yaml         # admin 네임스페이스
     ├── db-secret.yaml        # DB 자격증명 (admin)
@@ -107,7 +111,7 @@ k8s/
 ### Envoy Proxy
 - gRPC-JSON transcoding 제공
 - `/api` prefix 제거 (Lua filter)
-- NLB로 노출되어 CloudFront Origin으로 사용
+- ALB Ingress로 노출되어 CloudFront Origin으로 사용
 
 ### 환경 변수 교체 필요
 - `<AWS_ACCOUNT_ID>`: AWS 계정 ID
@@ -127,12 +131,16 @@ kubectl get pods -n admin
 kubectl get svc -n pawfiler
 kubectl get svc -n admin
 
+# Ingress 확인
+kubectl get ingress -n pawfiler envoy-ingress
+kubectl describe ingress -n pawfiler envoy-ingress
+
 # 로그 확인
 kubectl logs -n pawfiler deployment/quiz-service
 kubectl logs -n admin deployment/admin-service
 
 # Envoy 테스트
-ENVOY_URL=$(kubectl get svc -n pawfiler envoy-proxy -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+ENVOY_URL=$(kubectl get ingress -n pawfiler envoy-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 curl -X POST http://$ENVOY_URL/api/quiz.QuizService/GetRandomQuestion \
   -H "Content-Type: application/json" \
   -d '{}'

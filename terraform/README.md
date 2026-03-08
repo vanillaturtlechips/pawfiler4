@@ -10,7 +10,7 @@ terraform init
 
 # 설정 파일 생성
 cp terraform.tfvars.example terraform.tfvars
-# database_password, bastion_key_name, envoy_nlb_domain 수정
+# database_password, bastion_key_name, envoy_alb_domain 수정
 ```
 
 ### 2. 기본 인프라 생성 (무료)
@@ -30,7 +30,7 @@ cp terraform.tfvars.example terraform.tfvars
 kubectl get svc -n pawfiler envoy-proxy
 
 # EXTERNAL-IP를 terraform.tfvars에 추가
-# envoy_nlb_domain = "k8s-pawfiler-envoypro-xxx.elb.ap-northeast-2.amazonaws.com"
+# envoy_alb_domain = "k8s-pawfiler-envoying-xxx.elb.ap-northeast-2.amazonaws.com"
 
 # CloudFront 업데이트
 terraform apply -target=aws_cloudfront_distribution.frontend
@@ -121,7 +121,7 @@ psql -h <RDS_ENDPOINT> -U pawfiler -d pawfiler_db
 1. **terraform.tfvars 필수 설정**
    - `database_password`: RDS 비밀번호
    - `bastion_key_name`: EC2 키페어 이름
-   - `envoy_nlb_domain`: K8s Envoy 서비스 도메인
+   - `envoy_alb_domain`: K8s Envoy ALB 도메인
 
 2. **Envoy NLB 도메인 업데이트**
    - K8s에 Envoy 배포 후 `kubectl get svc`로 확인

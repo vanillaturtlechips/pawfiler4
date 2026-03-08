@@ -10,8 +10,8 @@ variable "project_name" {
   default     = "pawfiler"
 }
 
-variable "envoy_nlb_domain" {
-  description = "Envoy NLB domain for CloudFront origin (get from kubectl get svc)"
+variable "envoy_alb_domain" {
+  description = "Envoy ALB domain for CloudFront origin (get from kubectl get ingress)"
   type        = string
   default     = ""
 }

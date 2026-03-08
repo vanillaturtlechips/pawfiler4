@@ -69,7 +69,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   origin {
-    domain_name = var.envoy_nlb_domain
+    domain_name = var.envoy_alb_domain
     origin_id   = "API-Backend"
 
     custom_origin_config {

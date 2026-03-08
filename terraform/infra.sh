@@ -17,9 +17,9 @@ NC='\033[0m' # No Color
 # 
 # 주의사항:
 # 1. terraform.tfvars 설정 필수 (terraform.tfvars.example 참조)
-# 2. K8s 배포 후 envoy_nlb_domain 업데이트 필요
-#    - kubectl get svc -n pawfiler envoy-proxy
-#    - terraform.tfvars에 EXTERNAL-IP 추가
+# 2. K8s 배포 후 envoy_alb_domain 업데이트 필요
+#    - kubectl get ingress -n pawfiler envoy-ingress
+#    - terraform.tfvars에 ALB 도메인 추가
 #    - terraform apply -target=aws_cloudfront_distribution.frontend
 
 show_menu() {
@@ -349,24 +349,25 @@ update_cloudfront_origin() {
   echo ""
   echo "${BLUE}🔗 CloudFront Origin 업데이트${NC}"
   echo ""
-  echo "📋 K8s Envoy NLB 도메인을 CloudFront Origin으로 연결합니다."
+  echo "📋 K8s Envoy ALB 도메인을 CloudFront Origin으로 연결합니다."
   echo ""
   
   # 현재 설정 확인
-  CURRENT_DOMAIN=$(grep "envoy_nlb_domain" terraform.tfvars 2>/dev/null | cut -d'"' -f2)
+  CURRENT_DOMAIN=$(grep "envoy_alb_domain" terraform.tfvars 2>/dev/null | cut -d'"' -f2)
   
   if [ -z "$CURRENT_DOMAIN" ] || [ "$CURRENT_DOMAIN" == "" ]; then
-    echo "${YELLOW}⚠️  terraform.tfvars에 envoy_nlb_domain이 설정되지 않았습니다.${NC}"
+    echo "${YELLOW}⚠️  terraform.tfvars에 envoy_alb_domain이 설정되지 않았습니다.${NC}"
     echo ""
     echo "1. K8s에 Envoy 배포:"
     echo "   kubectl apply -f ../k8s/envoy-proxy.yaml"
     echo "   kubectl apply -f ../k8s/proto-configmap.yaml"
+    echo "   kubectl apply -f ../k8s/envoy-ingress.yaml"
     echo ""
-    echo "2. NLB 도메인 확인:"
-    echo "   kubectl get svc -n pawfiler envoy-proxy"
+    echo "2. ALB 도메인 확인:"
+    echo "   kubectl get ingress -n pawfiler envoy-ingress"
     echo ""
     echo "3. terraform.tfvars에 추가:"
-    echo "   envoy_nlb_domain = \"k8s-pawfiler-envoypro-xxx.elb.ap-northeast-2.amazonaws.com\""
+    echo "   envoy_alb_domain = \"k8s-pawfiler-envoying-xxx.elb.ap-northeast-2.amazonaws.com\""
     echo ""
     read -p "계속하시겠습니까? (y/N): " confirm
     if [ "$confirm" != "y" ]; then

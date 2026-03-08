@@ -29,6 +29,29 @@ resource "aws_iam_role_policy_attachment" "alb_controller_ec2" {
   role       = aws_iam_role.alb_controller.name
 }
 
+resource "aws_iam_role_policy" "alb_controller_waf" {
+  name = "${var.project_name}-alb-controller-waf"
+  role = aws_iam_role.alb_controller.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "wafv2:GetWebACL",
+          "wafv2:GetWebACLForResource",
+          "wafv2:AssociateWebACL",
+          "wafv2:DisassociateWebACL",
+          "waf-regional:GetWebACLForResource",
+          "shield:GetSubscriptionState"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # EBS CSI Driver IAM Role
 resource "aws_iam_role" "ebs_csi_driver" {
   name = "${var.project_name}-ebs-csi-driver"

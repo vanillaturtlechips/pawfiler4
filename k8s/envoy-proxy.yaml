@@ -161,18 +161,11 @@ kind: Service
 metadata:
   name: envoy-proxy
   namespace: pawfiler
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-    service.beta.kubernetes.io/aws-load-balancer-type: external
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: envoy-proxy
   ports:
   - name: http
     port: 80
     targetPort: 8080
-  - name: admin
-    port: 9901
-    targetPort: 9901
