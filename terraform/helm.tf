@@ -263,7 +263,7 @@ resource "helm_release" "karpenter" {
   chart            = "karpenter"
   namespace        = "karpenter"
   create_namespace = true
-  version          = "1.0.0"
+  version          = "1.9.0"
 
   set {
     name  = "settings.clusterName"
