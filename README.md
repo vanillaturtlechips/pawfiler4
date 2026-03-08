@@ -142,7 +142,10 @@ terraform init
 - **Container Registry**: ECR
 - **IaC**: Terraform
 - **GitOps**: ArgoCD (Helm)
-- **Cost Management**: Kubecost
+- **Monitoring**: 
+  - Kubecost (비용 분석)
+  - Grafana (리소스 대시보드)
+  - Prometheus (메트릭 수집)
 
 ## 주요 기능
 
@@ -189,7 +192,17 @@ cd terraform
 ```
 
 **Spot 인스턴스**: 약 70% 절감 (단, 중단 가능)
-**Kubecost**: http://localhost:9090 에서 실시간 비용 모니터링
+
+**모니터링 접속:**
+```bash
+# 비용 분석
+kubectl port-forward -n monitoring svc/kubecost-cost-analyzer 9090:9090
+# http://localhost:9090
+
+# 리소스 대시보드
+kubectl port-forward -n monitoring svc/grafana 3000:80
+# http://localhost:3000 (admin/admin)
+```
 
 ## 라이선스
 

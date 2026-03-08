@@ -94,7 +94,7 @@ resource "aws_iam_role" "kubecost" {
       }
       Condition = {
         StringEquals = {
-          "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:kubecost:kubecost-cost-analyzer"
+          "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:monitoring:kubecost-cost-analyzer"
         }
       }
     }]

@@ -71,12 +71,12 @@ resource "helm_release" "argocd" {
   depends_on = [aws_eks_node_group.main]
 }
 
-# Kubecost 설치
+# Kubecost 설치 (비용 모니터링)
 resource "helm_release" "kubecost" {
   name             = "kubecost"
   repository       = "oci://public.ecr.aws/kubecost"
   chart            = "cost-analyzer"
-  namespace        = "kubecost"
+  namespace        = "monitoring"
   create_namespace = true
   version          = "2.4.0"
   timeout          = 600
@@ -143,6 +143,7 @@ resource "helm_release" "kubecost" {
     value = "v2.47.0"
   }
 
+  # Grafana 비활성화 (별도 설치)
   set {
     name  = "grafana.enabled"
     value = "false"
@@ -151,6 +152,81 @@ resource "helm_release" "kubecost" {
   depends_on = [
     aws_eks_node_group.main,
     aws_eks_addon.ebs_csi_driver
+  ]
+}
+
+# Grafana 설치 (리소스 모니터링 대시보드)
+resource "helm_release" "grafana" {
+  name             = "grafana"
+  repository       = "https://grafana.github.io/helm-charts"
+  chart            = "grafana"
+  namespace        = "monitoring"
+  create_namespace = true
+  version          = "7.0.0"
+
+  values = [
+    yamlencode({
+      adminPassword = "admin"
+      persistence = {
+        enabled      = true
+        storageClass = "gp2"
+        size         = "10Gi"
+      }
+      datasources = {
+        "datasources.yaml" = {
+          apiVersion = 1
+          datasources = [
+            {
+              name      = "Prometheus"
+              type      = "prometheus"
+              url       = "http://kubecost-prometheus-server.monitoring.svc.cluster.local"
+              access    = "proxy"
+              isDefault = true
+            }
+          ]
+        }
+      }
+      dashboardProviders = {
+        "dashboardproviders.yaml" = {
+          apiVersion = 1
+          providers = [
+            {
+              name            = "default"
+              orgId           = 1
+              folder          = ""
+              type            = "file"
+              disableDeletion = false
+              editable        = true
+              options = {
+                path = "/var/lib/grafana/dashboards/default"
+              }
+            }
+          ]
+        }
+      }
+      dashboards = {
+        default = {
+          kubernetes-cluster = {
+            gnetId     = 7249
+            revision   = 1
+            datasource = "Prometheus"
+          }
+          kubernetes-pods = {
+            gnetId     = 6417
+            revision   = 1
+            datasource = "Prometheus"
+          }
+        }
+      }
+      service = {
+        type = "ClusterIP"
+        port = 80
+      }
+    })
+  ]
+
+  depends_on = [
+    helm_release.kubecost
   ]
 }
 
