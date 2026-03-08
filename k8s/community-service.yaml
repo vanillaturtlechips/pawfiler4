@@ -16,10 +16,15 @@ spec:
     spec:
       containers:
       - name: community-service
-        image: 009946608368.dkr.ecr.ap-northeast-2.amazonaws.com/pawfiler/community-service:latest
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com/pawfiler/community-service:latest
         ports:
         - containerPort: 50053
         env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database_url
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
