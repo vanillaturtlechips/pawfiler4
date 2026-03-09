@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats } from "@/lib/api";
 import { config } from "@/lib/config";
-import type { QuizQuestion, QuizSubmitResponse, LegacyQuizQuestion, QuizStats } from "@/lib/types";
+import type { QuizQuestion, QuizSubmitResponse, QuizStats } from "@/lib/types";
 import MultipleChoiceQuestion from "@/components/quiz/MultipleChoiceQuestion";
 import TrueFalseQuestion from "@/components/quiz/TrueFalseQuestion";
 import RegionSelectQuestion from "@/components/quiz/RegionSelectQuestion";
@@ -16,7 +16,7 @@ import ComparisonQuestion from "@/components/quiz/ComparisonQuestion";
 
 const GamePage = () => {
   const navigate = useNavigate();
-  const [question, setQuestion] = useState<QuizQuestion | LegacyQuizQuestion | null>(null);
+  const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<QuizStats | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
@@ -199,22 +199,19 @@ const GamePage = () => {
 
   const canSubmit = () => {
     if (!question) return false;
-    if ('type' in question) {
-      switch (question.type) {
-        case 'multiple_choice':
-          return selectedIndex !== null;
-        case 'true_false':
-          return selectedAnswer !== null;
-        case 'region_select':
-          return selectedRegion !== null;
-        case 'comparison':
-          return selectedSide !== null;
-        default:
-          return false;
-      }
+    
+    switch (question.type) {
+      case 'multiple_choice':
+        return selectedIndex !== null;
+      case 'true_false':
+        return selectedAnswer !== null;
+      case 'region_select':
+        return selectedRegion !== null;
+      case 'comparison':
+        return selectedSide !== null;
+      default:
+        return false;
     }
-    // Legacy support
-    return selectedIndex !== null;
   };
 
   const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -406,7 +403,7 @@ const GamePage = () => {
                   minHeight: "600px",
                 }}
               >
-                {question && 'type' in question && question.mediaUrl ? (
+                {question?.mediaUrl ? (
                   question.mediaType === 'video' ? (
                     <video
                       src={question.mediaUrl}
@@ -424,17 +421,6 @@ const GamePage = () => {
                       className="w-full h-auto"
                     />
                   )
-                ) : question && 'videoUrl' in question && question.videoUrl ? (
-                  // Legacy support
-                  <video
-                    src={question.videoUrl}
-                    className="w-full h-auto"
-                    controls
-                    autoPlay
-                    loop
-                    muted
-                    onLoadedMetadata={handleVideoLoad}
-                  />
                 ) : (
                   <motion.span
                     className="text-9xl"
@@ -485,8 +471,9 @@ const GamePage = () => {
             {/* Render appropriate question type */}
             <div className="flex-1 min-h-0 overflow-y-auto px-1">
               {(() => {
-                if ('type' in question) {
-                  switch (question.type) {
+                if (!question) return null;
+                
+                switch (question.type) {
                     case 'multiple_choice':
                       return (
                         <MultipleChoiceQuestion
@@ -552,40 +539,6 @@ const GamePage = () => {
                     default:
                       return null;
                   }
-                } else {
-                  // Legacy support
-                  return (
-                    <div className="flex flex-col gap-3 flex-1">
-                      {question.options.map((opt, i) => {
-                        const isSelected = selectedIndex === i;
-                        const showResult = result !== null;
-                        const isCorrectAnswer = showResult && i === question.correctIndex;
-                        const isWrong = showResult && isSelected && !result.correct;
-
-                        return (
-                          <motion.button
-                            key={i}
-                            className={`font-jua rounded-2xl p-5 text-xl cursor-pointer border-4 transition-colors ${
-                              isCorrectAnswer
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : isWrong
-                                ? "bg-destructive text-destructive-foreground border-destructive"
-                                : isSelected
-                                ? "bg-wood-base text-foreground border-foreground"
-                                : "bg-wood-dark text-foreground border-wood-darkest"
-                            }`}
-                            whileHover={!showResult ? { scale: 1.02 } : {}}
-                            whileTap={!showResult ? { scale: 0.98 } : {}}
-                            onClick={() => !showResult && setSelectedIndex(i)}
-                            disabled={showResult}
-                          >
-                            {opt}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  );
-                }
               })()}
             </div>
 
