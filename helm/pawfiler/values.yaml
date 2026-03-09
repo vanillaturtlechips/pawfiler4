@@ -1,0 +1,75 @@
+global:
+  namespace: test-ns
+  ecr:
+    accountId: "009946608368"
+    region: ap-northeast-2
+
+db:
+  host: "pawfiler-db-instance.c9osquca0esm.ap-northeast-2.rds.amazonaws.com"
+  port: "5432"
+  user: pawfiler
+  password: pawfiler
+  name: pawfiler_db
+
+aws:
+  region: ap-northeast-2
+  s3Bucket: pawfiler-quiz-media
+  cloudfrontDomain: "d3r7vdedgc0gqv.cloudfront.net"
+
+quizService:
+  replicas: 2
+  image:
+    repository: "009946608368.dkr.ecr.ap-northeast-2.amazonaws.com/test/pawfiler-quiz"
+    tag: v1.0
+  port: 50052
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+communityService:
+  replicas: 2
+  image:
+    repository: "009946608368.dkr.ecr.ap-northeast-2.amazonaws.com/test/community"
+    tag: v1.0
+  port: 50053
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+adminService:
+  replicas: 1
+  image:
+    repository: "009946608368.dkr.ecr.ap-northeast-2.amazonaws.com/test/pawfiler-admin"
+    tag: v1.0
+  port: 8082
+  irsaRoleArn: "arn:aws:iam::009946608368:role/pawfiler-admin-s3-role"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+envoy:
+  replicas: 2
+  irsaRoleArn: "arn:aws:iam::009946608368:role/pawfiler-envoy-s3-role"
+  image: envoyproxy/envoy:v1.28-latest
+  port: 8080
+  adminPort: 9901
+  protoPbS3Path: s3://pawfiler-quiz-media/config/proto.pb
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"

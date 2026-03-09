@@ -24,7 +24,7 @@ func main() {
 	dbPassword := getEnv("DB_PASSWORD", "pawfiler123")
 	dbName := getEnv("DB_NAME", "pawfiler")
 
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
 	db, err := sql.Open("postgres", connStr)
