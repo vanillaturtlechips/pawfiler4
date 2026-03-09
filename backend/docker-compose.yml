@@ -67,6 +67,7 @@ services:
       DB_USER: pawfiler
       DB_PASSWORD: dev_password
       DB_NAME: pawfiler
+      DB_SSLMODE: disable
       PORT: "8082"
       AWS_REGION: ap-northeast-2
       S3_BUCKET: pawfiler-quiz-media
@@ -78,6 +79,25 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - pawfiler-network
+
+  # Proto Descriptor Generator
+  proto-generator:
+    image: namely/protoc:1.51_1
+    container_name: pawfiler-proto-generator
+    volumes:
+      - ./proto:/proto
+    working_dir: /proto
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        rm -rf /proto/proto.pb && \
+        protoc --include_imports --include_source_info \
+          --descriptor_set_out=/proto/proto.pb \
+          --proto_path=/proto \
+          /proto/*.proto && \
+        echo 'Proto descriptor generated successfully'
     networks:
       - pawfiler-network
 
@@ -93,8 +113,12 @@ services:
       - ./proto/proto.pb:/etc/envoy/proto.pb
     command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
     depends_on:
-      - quiz-service
-      - community-service
+      proto-generator:
+        condition: service_completed_successfully
+      quiz-service:
+        condition: service_started
+      community-service:
+        condition: service_started
     networks:
       - pawfiler-network
 

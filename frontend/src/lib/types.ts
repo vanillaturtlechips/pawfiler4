@@ -90,17 +90,6 @@ export type QuizQuestion =
   | RegionSelectQuestion
   | ComparisonQuestion;
 
-// 기존 호환성을 위한 레거시 타입 (deprecated)
-export interface LegacyQuizQuestion {
-  id: string;
-  videoUrl: string;
-  thumbnailEmoji: string;
-  options: string[];
-  correctIndex: number;
-  explanation: string;
-  difficulty: "easy" | "medium" | "hard";
-}
-
 export interface QuizSubmitRequest {
   questionId: string;
   selectedIndex?: number; // multiple_choice용

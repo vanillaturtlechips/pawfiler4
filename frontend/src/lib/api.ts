@@ -6,6 +6,7 @@ import type {
   QuizSubmitRequest,
   QuizSubmitResponse,
   CommunityFeed,
+  CommunityComment,
   DeepfakeReport,
   CheckoutRequest,
   CheckoutResponse,
@@ -70,8 +71,7 @@ const request = async <T>(
   retries = 2
 ): Promise<T> => {
   const token = typeof window !== "undefined" ? localStorage.getItem(config.storageKeys.authToken) : null;
-  const isCommunity = endpoint.includes(config.communityApiUrl);
-  const isGrpc = endpoint.includes("Service/") && !isCommunity;
+  const isGrpc = endpoint.includes("Service/");
   
   const headers: HeadersInit = {
     ...(token && { Authorization: `Bearer ${token}` }),
