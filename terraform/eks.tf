@@ -67,6 +67,12 @@ resource "aws_eks_cluster" "main" {
     security_group_ids = [aws_security_group.eks_cluster.id]
   }
 
+  # API + ConfigMap 모드: Access Entry(IAM 유저)와 기존 aws-auth ConfigMap 방식 모두 지원
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy,
     aws_iam_role_policy_attachment.eks_service_policy,
@@ -79,15 +85,16 @@ resource "aws_eks_cluster" "main" {
 
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-node-group"
+  node_group_name = "${var.project_name}-node-group-ondemand"
   node_role_arn   = aws_iam_role.eks_node_group_role.arn
   subnet_ids      = aws_subnet.private[*].id
   instance_types  = var.node_instance_types
+  capacity_type   = "ON_DEMAND"
 
   scaling_config {
-    desired_size = var.node_desired_size
-    max_size     = var.node_max_size
-    min_size     = var.node_min_size
+    desired_size = 1
+    max_size     = 2
+    min_size     = 1
   }
 
   depends_on = [
@@ -97,7 +104,32 @@ resource "aws_eks_node_group" "main" {
   ]
 
   tags = {
-    Name = "${var.project_name}-eks-node-group"
+    Name = "${var.project_name}-eks-node-group-ondemand"
+  }
+}
+
+resource "aws_eks_node_group" "spot" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-node-group-spot"
+  node_role_arn   = aws_iam_role.eks_node_group_role.arn
+  subnet_ids      = aws_subnet.private[*].id
+  instance_types  = var.node_instance_types
+  capacity_type   = "SPOT"
+
+  scaling_config {
+    desired_size = 1
+    max_size     = 3
+    min_size     = 0
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_node_policy,
+    aws_iam_role_policy_attachment.eks_cni_policy,
+    aws_iam_role_policy_attachment.ec2_container_registry_read_only,
+  ]
+
+  tags = {
+    Name = "${var.project_name}-eks-node-group-spot"
   }
 }
 

@@ -29,6 +29,7 @@ import {
 } from "./mockApi";
 import { config } from "./config";
 import { toast } from "sonner";
+import { fixImageUrl } from "../utils/imageUrl";
 
 // 사용자 ID 생성 또는 가져오기 (UUID v4 형식)
 const getUserId = (): string => {
@@ -177,7 +178,7 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
       id: data.id,
       type: questionType,
       mediaType,
-      mediaUrl: data.mediaUrl || data.media_url,
+      mediaUrl: fixImageUrl(data.mediaUrl || data.media_url),
       thumbnailEmoji: data.thumbnailEmoji || data.thumbnail_emoji,
       difficulty: (data.difficulty?.toLowerCase() || "medium") as "easy" | "medium" | "hard",
       category: data.category || "deepfake-detection",
@@ -214,7 +215,7 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
           ...baseQuestion,
           type: "comparison" as const,
           mediaType: "image" as const,
-          comparisonMediaUrl: data.comparisonMediaUrl || data.comparison_media_url || "",
+          comparisonMediaUrl: fixImageUrl(data.comparisonMediaUrl || data.comparison_media_url || ""),
           correctSide: data.correctSide || data.correct_side || "left",
         } as ComparisonQuestion;
       default:

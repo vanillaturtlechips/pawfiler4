@@ -44,9 +44,12 @@ func main() {
 	quizService := service.NewQuizAdminService(quizRepo)
 	quizHandler := handler.NewQuizAdminHandler(quizService)
 
+	communityRepo := repository.NewCommunityRepository(db)
+	communityHandler := handler.NewCommunityAdminHandler(communityRepo)
+
 	// Setup router
 	router := mux.NewRouter()
-	
+
 	// Health check
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -55,10 +58,6 @@ func main() {
 
 	// Admin Quiz routes
 	adminRouter := router.PathPrefix("/admin/quiz").Subrouter()
-	
-	// TODO: Add auth middleware
-	// adminRouter.Use(middleware.AuthMiddleware)
-	
 	adminRouter.HandleFunc("/questions", quizHandler.ListQuestions).Methods("GET")
 	adminRouter.HandleFunc("/questions", quizHandler.CreateQuestion).Methods("POST")
 	adminRouter.HandleFunc("/questions/{id}", quizHandler.GetQuestion).Methods("GET")
@@ -66,12 +65,21 @@ func main() {
 	adminRouter.HandleFunc("/questions/{id}", quizHandler.DeleteQuestion).Methods("DELETE")
 	adminRouter.HandleFunc("/upload", quizHandler.UploadMedia).Methods("POST")
 
+	// Admin Community routes
+	communityRouter := router.PathPrefix("/admin/community").Subrouter()
+	communityRouter.HandleFunc("/posts", communityHandler.ListPosts).Methods("GET")
+	communityRouter.HandleFunc("/posts/{id}", communityHandler.UpdatePost).Methods("PUT")
+	communityRouter.HandleFunc("/posts/{id}", communityHandler.DeletePost).Methods("DELETE")
+	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")
+	communityRouter.HandleFunc("/comments/{id}", communityHandler.DeleteComment).Methods("DELETE")
+
 	// CORS
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5178", "http://localhost:5176", "http://localhost:5175", "http://localhost:5173"},
+		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
-		AllowCredentials: true,
+		AllowCredentials: false,
+		Debug:            true,
 	})
 
 	handler := c.Handler(router)

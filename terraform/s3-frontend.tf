@@ -9,6 +9,10 @@
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend"
   tags   = { Name = "${var.project_name}-frontend" }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_website_configuration" "frontend" {
@@ -57,11 +61,43 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   price_class         = "PriceClass_200"
-  aliases             = ["pawfiler.site", "www.pawfiler.site"]
+  # aliases             = ["pawfiler.site", "www.pawfiler.site"]  # 도메인 설정 후 활성화
 
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id   = "S3-${aws_s3_bucket.frontend.id}"
+  }
+
+  origin {
+    domain_name = var.envoy_alb_domain
+    origin_id   = "API-Backend"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "API-Backend"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
   }
 
   default_cache_behavior {
@@ -113,6 +149,10 @@ resource "aws_cloudfront_distribution" "frontend" {
 resource "aws_s3_bucket" "admin_frontend" {
   bucket = "${var.project_name}-admin-frontend"
   tags   = { Name = "${var.project_name}-admin-frontend" }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_website_configuration" "admin_frontend" {
