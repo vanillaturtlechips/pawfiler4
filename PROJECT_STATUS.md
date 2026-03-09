@@ -29,7 +29,7 @@
 | Terraform | ✅ 완료 | VPC, EKS, RDS, ECR, S3, CloudFront |
 | EKS (v1.31) | ✅ 배포됨 | Spot + On-Demand 노드 |
 | RDS (PostgreSQL 16.3) | ✅ 배포됨 | db.t3.micro |
-| ECR | ✅ 완료 | Lifecycle Policy (5개 유지) |
+| ECR | ✅ 완료 | 4개 레포지토리 |
 | S3 + CloudFront | ✅ 완료 | 정적 호스팅 + API Origin |
 | Helm 차트 | ✅ 완료 | ALB Controller, ArgoCD, Kubecost, Grafana |
 | k8s 매니페스트 | ✅ 완료 | 순수 YAML + Helm 차트 |
@@ -56,9 +56,8 @@
 - ✅ 불필요한 MD 파일 6개 삭제 예정
 
 ### Terraform 정리
-- ✅ ECR Lifecycle Policy 추가 (최근 5개 이미지만 유지)
 - ✅ `terraform.tfvars` 생성 (현재 배포 상태 기반)
-- ✅ 모듈화 작업 보류 (팀원 담당)
+- ⏳ 모듈화 작업 보류 (팀원 담당)
 
 ### Admin 프론트엔드 수정 (2026-03-08)
 - ✅ 커뮤니티 관리 API 엔드포인트 수정 (gRPC → BFF)

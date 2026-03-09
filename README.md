@@ -155,7 +155,6 @@ terraform init
 - ✅ ALB Ingress Controller
 - ✅ Spot + On-Demand 혼합 노드 그룹
 - ✅ Kubecost (비용 모니터링)
-- ✅ ECR Lifecycle Policy (이미지 5개만 유지)
 - ✅ ML Cascade 파이프라인 (비용 69% 절감)
 - ✅ 음성 딥페이크 탐지 (Colab 무료 학습)
 
