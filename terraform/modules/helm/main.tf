@@ -1,6 +1,122 @@
 # ============================================================================
-# Helm Releases - AWS Load Balancer Controller, ArgoCD, Kubecost
+# HELM MODULE - Helm Releases and associated IAM roles (IRSA)
+# Includes: ALB Controller, ArgoCD, Kubecost, Grafana, Envoy, Metrics Server, Karpenter
 # ============================================================================
+
+# ===========================================================================
+# ALB Controller IAM Role (IRSA)
+# ===========================================================================
+
+resource "aws_iam_role" "alb_controller" {
+  name = "${var.project_name}-alb-controller"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "alb_controller" {
+  policy_arn = "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"
+  role       = aws_iam_role.alb_controller.name
+}
+
+resource "aws_iam_role_policy_attachment" "alb_controller_ec2" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+  role       = aws_iam_role.alb_controller.name
+}
+
+resource "aws_iam_role_policy" "alb_controller_waf" {
+  name = "${var.project_name}-alb-controller-waf"
+  role = aws_iam_role.alb_controller.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "wafv2:GetWebACL",
+          "wafv2:GetWebACLForResource",
+          "wafv2:AssociateWebACL",
+          "wafv2:DisassociateWebACL",
+          "waf-regional:GetWebACLForResource",
+          "shield:GetSubscriptionState"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ===========================================================================
+# Kubecost IAM Role (IRSA)
+# ===========================================================================
+
+resource "aws_iam_role" "kubecost" {
+  name = "${var.project_name}-kubecost"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:monitoring:kubecost-cost-analyzer"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "kubecost" {
+  name = "${var.project_name}-kubecost-policy"
+  role = aws_iam_role.kubecost.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ce:GetCostAndUsage",
+          "ce:GetCostForecast",
+          "ce:GetDimensionValues",
+          "ce:GetTags",
+          "ec2:DescribeInstances",
+          "ec2:DescribeRegions",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeSnapshots",
+          "ec2:DescribeSpotPriceHistory",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ===========================================================================
+# Helm Releases
+# ===========================================================================
 
 # AWS Load Balancer Controller (Gateway API 지원)
 resource "helm_release" "aws_load_balancer_controller" {
@@ -12,7 +128,7 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   set {
     name  = "clusterName"
-    value = aws_eks_cluster.main.name
+    value = var.cluster_name
   }
 
   set {
@@ -37,13 +153,9 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   set {
     name  = "vpcId"
-    value = aws_vpc.main.id
+    value = var.vpc_id
   }
 
-  depends_on = [
-    aws_eks_cluster.main,
-    aws_eks_node_group.main
-  ]
 }
 
 # ArgoCD 설치
@@ -68,7 +180,6 @@ resource "helm_release" "argocd" {
     })
   ]
 
-  depends_on = [aws_eks_node_group.main]
 }
 
 # Kubecost 설치 (비용 모니터링)
@@ -89,13 +200,13 @@ resource "helm_release" "kubecost" {
 
   set {
     name  = "prometheus.server.global.external_labels.cluster_id"
-    value = aws_eks_cluster.main.name
+    value = var.cluster_name
   }
 
   # AWS Cloud Integration
   set {
     name  = "kubecostProductConfigs.clusterName"
-    value = aws_eks_cluster.main.name
+    value = var.cluster_name
   }
 
   set {
@@ -105,7 +216,7 @@ resource "helm_release" "kubecost" {
 
   set {
     name  = "kubecostProductConfigs.awsSpotDataBucket"
-    value = "s3://spot-data-feed-${data.aws_caller_identity.current.account_id}"
+    value = "s3://spot-data-feed-${var.account_id}"
   }
 
   set {
@@ -149,10 +260,6 @@ resource "helm_release" "kubecost" {
     value = "false"
   }
 
-  depends_on = [
-    aws_eks_node_group.main,
-    aws_eks_addon.ebs_csi_driver
-  ]
 }
 
 # Grafana 설치 (리소스 모니터링 대시보드)
@@ -240,7 +347,6 @@ resource "helm_release" "envoy_gateway" {
   version          = "v1.3.0"
 
   depends_on = [
-    aws_eks_node_group.main,
     helm_release.aws_load_balancer_controller
   ]
 }
@@ -253,7 +359,6 @@ resource "helm_release" "metrics_server" {
   namespace  = "kube-system"
   version    = "3.12.0"
 
-  depends_on = [aws_eks_node_group.main]
 }
 
 # Karpenter (자동 스케일링)
@@ -268,22 +373,22 @@ resource "helm_release" "karpenter" {
 
   set {
     name  = "settings.clusterName"
-    value = aws_eks_cluster.main.name
+    value = var.cluster_name
   }
 
   set {
     name  = "settings.clusterEndpoint"
-    value = aws_eks_cluster.main.endpoint
+    value = var.cluster_endpoint
   }
 
   set {
     name  = "settings.interruptionQueue"
-    value = aws_sqs_queue.karpenter[0].name
+    value = var.karpenter_queue_name
   }
 
   set {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.karpenter_controller[0].arn
+    value = var.karpenter_controller_role_arn
   }
 
   set {
@@ -306,9 +411,4 @@ resource "helm_release" "karpenter" {
     value = "1Gi"
   }
 
-  depends_on = [
-    aws_eks_node_group.main,
-    aws_iam_role.karpenter_controller,
-    aws_sqs_queue.karpenter
-  ]
 }

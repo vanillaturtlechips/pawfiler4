@@ -33,15 +33,32 @@ pawfiler4/
 │   ├── envoy-ingress.yaml    # ALB Ingress
 │   ├── proto-configmap.yaml  # Proto descriptor
 │   └── admin/                # Admin service (IRSA)
-├── terraform/            # AWS 인프라 (IaC)
+├── terraform/            # AWS 인프라 (모듈화)
 │   ├── infra.sh             # 통합 관리 스크립트
-│   ├── eks.tf, rds.tf       # 주요 리소스
-│   ├── helm.tf              # ALB Controller, ArgoCD, Kubecost
-│   └── irsa.tf              # Admin S3 권한
+│   ├── main.tf              # 모듈 호출
+│   └── modules/             # 인프라 모듈
+│       ├── networking/      # VPC, Subnets
+│       ├── eks/             # EKS Cluster
+│       ├── rds/             # PostgreSQL
+│       ├── helm/            # ArgoCD, Envoy, Kubecost
+│       └── karpenter/       # Autoscaler (optional)
 ├── docs/                 # 문서
+│   ├── KARPENTER.md
 │   └── TROUBLESHOOTING-ALB.md
 └── scripts/              # 배포 스크립트
 ```
+
+## ⚠️ 보안 주의사항
+
+**이 리포지토리는 공개되어 있습니다!**
+
+절대 커밋하지 말 것:
+- `terraform/terraform.tfvars` (gitignored)
+- AWS Access Key/Secret Key
+- 데이터베이스 비밀번호
+- SSH 키 (*.pem, *.key)
+
+자세한 내용: [terraform/README.md](terraform/README.md)
 
 ## 빠른 시작
 

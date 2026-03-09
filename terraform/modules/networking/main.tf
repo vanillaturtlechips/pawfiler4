@@ -2,26 +2,14 @@
 # NETWORKING MODULE - VPC, Subnets, NAT Gateway, Route Tables
 # ============================================================================
 
-# Variables
-variable "vpc_cidr_block" {
-  description = "CIDR block for the VPC"
-  type        = string
-  default     = "10.0.0.0/16"
+data "aws_availability_zones" "available" {
+  state = "available"
+  filter {
+    name   = "zone-name"
+    values = ["ap-northeast-2a", "ap-northeast-2c"]
+  }
 }
 
-variable "public_subnet_cidrs" {
-  description = "List of CIDR blocks for public subnets"
-  type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.3.0/24"]
-}
-
-variable "private_subnet_cidrs" {
-  description = "List of CIDR blocks for private subnets"
-  type        = list(string)
-  default     = ["10.0.101.0/24", "10.0.103.0/24"]
-}
-
-# Resources
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr_block
   enable_dns_hostnames = true
@@ -125,28 +113,4 @@ resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
-}
-
-data "aws_availability_zones" "available" {
-  state = "available"
-  filter {
-    name   = "zone-name"
-    values = ["ap-northeast-2a", "ap-northeast-2c"]
-  }
-}
-
-# Outputs
-output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = aws_vpc.main.id
-}
-
-output "public_subnet_ids" {
-  description = "List of IDs of the public subnets"
-  value       = aws_subnet.public[*].id
-}
-
-output "private_subnet_ids" {
-  description = "List of IDs of the private subnets"
-  value       = aws_subnet.private[*].id
 }

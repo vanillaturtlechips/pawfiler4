@@ -1,4 +1,8 @@
-# Karpenter Controller IAM Role
+# ============================================================================
+# KARPENTER MODULE - Karpenter Autoscaler IAM, SQS, EventBridge
+# ============================================================================
+
+# Karpenter Controller IAM Role (IRSA)
 resource "aws_iam_role" "karpenter_controller" {
   count = var.enable_karpenter ? 1 : 0
   name  = "${var.project_name}-karpenter-controller"
@@ -9,12 +13,12 @@ resource "aws_iam_role" "karpenter_controller" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Effect = "Allow"
       Principal = {
-        Federated = aws_iam_openid_connect_provider.eks.arn
+        Federated = var.oidc_provider_arn
       }
       Condition = {
         StringEquals = {
-          "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:karpenter:karpenter"
-          "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" = "sts.amazonaws.com"
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:karpenter:karpenter"
+          "${replace(var.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
         }
       }
     }]
@@ -57,7 +61,7 @@ resource "aws_iam_role_policy" "karpenter_controller" {
         Action = [
           "eks:DescribeCluster"
         ]
-        Resource = aws_eks_cluster.main.arn
+        Resource = var.cluster_arn
       },
       {
         Effect = "Allow"
@@ -198,19 +202,10 @@ resource "aws_cloudwatch_event_target" "karpenter_instance_state_change" {
   arn       = aws_sqs_queue.karpenter[0].arn
 }
 
-# Outputs
-output "karpenter_controller_role_arn" {
-  value = var.enable_karpenter ? aws_iam_role.karpenter_controller[0].arn : null
-}
-
-output "karpenter_node_role_name" {
-  value = var.enable_karpenter ? aws_iam_role.karpenter_node[0].name : null
-}
-
-output "karpenter_node_instance_profile_name" {
-  value = var.enable_karpenter ? aws_iam_instance_profile.karpenter_node[0].name : null
-}
-
-output "karpenter_queue_name" {
-  value = var.enable_karpenter ? aws_sqs_queue.karpenter[0].name : null
+# EKS Access Entry for Karpenter nodes
+resource "aws_eks_access_entry" "karpenter_node" {
+  count         = var.enable_karpenter ? 1 : 0
+  cluster_name  = var.cluster_name
+  principal_arn = aws_iam_role.karpenter_node[0].arn
+  type          = "EC2_LINUX"
 }
