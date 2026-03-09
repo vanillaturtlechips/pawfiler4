@@ -16,3 +16,5 @@
 #   terraform init
 #   terraform plan
 #   terraform apply
+
+data "aws_caller_identity" "current" {}
