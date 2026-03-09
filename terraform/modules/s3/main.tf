@@ -1,11 +1,15 @@
 # ============================================================================
-# S3 + CloudFront for Frontend Static Hosting
+# S3 MODULE - Frontend, Admin Frontend, and Quiz Media Storage
 # ============================================================================
 # Architecture:
 # - Frontend: Public S3 + CloudFront (for end users)
-# - Admin Frontend: Public S3 only (Bastion IP restriction planned, currently public for testing)
+# - Admin Frontend: Public S3 only (Bastion IP restriction planned)
+# - Quiz Media: Private S3 + CloudFront OAI (for quiz question media)
 
-# Frontend S3 Bucket
+# ===========================================================================
+# Frontend S3 + CloudFront
+# ===========================================================================
+
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend"
   tags   = { Name = "${var.project_name}-frontend" }
@@ -145,7 +149,10 @@ resource "aws_cloudfront_distribution" "frontend" {
   tags = { Name = "${var.project_name}-frontend-cdn" }
 }
 
-# Admin Frontend S3 Bucket
+# ===========================================================================
+# Admin Frontend S3 (public, Bastion-only access planned)
+# ===========================================================================
+
 resource "aws_s3_bucket" "admin_frontend" {
   bucket = "${var.project_name}-admin-frontend"
   tags   = { Name = "${var.project_name}-admin-frontend" }
@@ -197,23 +204,149 @@ resource "aws_s3_bucket_policy" "admin_frontend" {
 
 # Admin Frontend CloudFront - Removed (Bastion-only access)
 
-# Outputs
-output "frontend_bucket_name" {
-  description = "Frontend S3 bucket name"
-  value       = aws_s3_bucket.frontend.id
+# ===========================================================================
+# Quiz Media S3 + CloudFront (OAI-based secure access)
+# ===========================================================================
+
+resource "aws_s3_bucket" "quiz_media" {
+  bucket = "${var.project_name}-quiz-media"
+
+  tags = {
+    Name        = "${var.project_name}-quiz-media"
+    Environment = "production"
+    Purpose     = "Quiz question media storage"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
-output "frontend_cloudfront_url" {
-  description = "Frontend CloudFront distribution URL"
-  value       = aws_cloudfront_distribution.frontend.domain_name
+# Enable versioning
+resource "aws_s3_bucket_versioning" "quiz_media" {
+  bucket = aws_s3_bucket.quiz_media.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
-output "admin_frontend_bucket_name" {
-  description = "Admin Frontend S3 bucket name"
-  value       = aws_s3_bucket.admin_frontend.id
+# Block public access (CloudFront will access via OAI)
+resource "aws_s3_bucket_public_access_block" "quiz_media" {
+  bucket = aws_s3_bucket.quiz_media.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
 }
 
-output "admin_frontend_s3_website_url" {
-  description = "Admin Frontend S3 website URL (Bastion-only access)"
-  value       = aws_s3_bucket_website_configuration.admin_frontend.website_endpoint
+# CORS configuration for direct uploads (optional)
+resource "aws_s3_bucket_cors_configuration" "quiz_media" {
+  bucket = aws_s3_bucket.quiz_media.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:3000",
+      "https://pawfiler.com",
+      "https://dev.pawfiler.com"
+    ]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
+# Lifecycle rule to manage old versions
+resource "aws_s3_bucket_lifecycle_configuration" "quiz_media" {
+  bucket = aws_s3_bucket.quiz_media.id
+
+  rule {
+    id     = "delete-old-versions"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+  }
+}
+
+# CloudFront Origin Access Identity
+resource "aws_cloudfront_origin_access_identity" "quiz_media" {
+  comment = "OAI for ${var.project_name} quiz media"
+}
+
+# S3 bucket policy to allow CloudFront access
+resource "aws_s3_bucket_policy" "quiz_media" {
+  bucket = aws_s3_bucket.quiz_media.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowCloudFrontOAI"
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_cloudfront_origin_access_identity.quiz_media.iam_arn
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.quiz_media.arn}/*"
+      }
+    ]
+  })
+}
+
+# CloudFront distribution for media
+resource "aws_cloudfront_distribution" "quiz_media" {
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = "${var.project_name} quiz media CDN"
+  default_root_object = ""
+
+  origin {
+    domain_name = aws_s3_bucket.quiz_media.bucket_regional_domain_name
+    origin_id   = "S3-${aws_s3_bucket.quiz_media.id}"
+
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.quiz_media.cloudfront_access_identity_path
+    }
+  }
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "S3-${aws_s3_bucket.quiz_media.id}"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 86400    # 1 day
+    max_ttl                = 31536000 # 1 year
+    compress               = true
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name = "${var.project_name}-quiz-media-cdn"
+  }
 }

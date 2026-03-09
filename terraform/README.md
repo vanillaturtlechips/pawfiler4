@@ -1,167 +1,238 @@
 # Terraform 인프라 관리
 
+## 📁 구조
+
+```
+terraform/
+├── main.tf              # 모듈 호출
+├── variables.tf         # 루트 변수
+├── outputs.tf           # 루트 outputs
+├── moved.tf             # 리소스 이동 매핑 (모듈화 마이그레이션용)
+├── backend.tf           # S3 + DynamoDB 백엔드
+├── providers.tf         # AWS, Helm, Kubernetes 프로바이더
+├── terraform.tfvars     # 실제 값 (gitignored)
+├── infra.sh             # 인프라 관리 스크립트
+│
+└── modules/
+    ├── networking/      # VPC, Subnets, IGW, NAT
+    ├── iam/             # IAM Roles (EKS, Bastion)
+    ├── eks/             # EKS Cluster, Node Groups, Access Entries
+    ├── rds/             # PostgreSQL Database
+    ├── ecr/             # Container Registries
+    ├── s3/              # S3 Buckets (Frontend, Media)
+    ├── bastion/         # Bastion Host
+    ├── helm/            # Helm Releases (ArgoCD, Envoy, Kubecost, etc)
+    ├── irsa/            # IRSA for K8s Services
+    └── karpenter/       # Karpenter Autoscaler (optional)
+```
+
 ## 🚀 빠른 시작
 
 ### 1. 초기 설정
 
 ```bash
 cd terraform
+
+# Terraform 초기화
 terraform init
 
 # 설정 파일 생성
 cp terraform.tfvars.example terraform.tfvars
-# database_password, bastion_key_name, envoy_alb_domain 수정
+
+# 필수 값 입력
+# - bastion_key_name: EC2 Key Pair 이름
+# - database_password: RDS 비밀번호
+vim terraform.tfvars
 ```
 
-### 2. 기본 인프라 생성 (무료)
+### 2. 인프라 배포
 
 ```bash
+# 대화형 메뉴 실행
 ./infra.sh
-# 선택: 1) 기본 인프라 생성
-```
 
-**생성**: VPC, IAM, ECR, S3  
-**비용**: $0/월
-
-### 3. Karpenter 활성화 (선택사항)
-
-**현재:** EKS 1.34 호환 이슈로 비활성화
-
-**활성화 방법:**
-```bash
-# terraform.tfvars에 추가
-enable_karpenter = true
-
-# 적용
+# 또는 직접 실행
+terraform plan
 terraform apply
-
-# NodePool 생성
-kubectl apply -f ../k8s/karpenter-nodepool.yaml
 ```
 
-**권장:** Managed Node Group (Spot + On-Demand) 사용
-
-### 4. K8s 배포 후 Envoy NLB 도메인 설정
-
-```bash
-# K8s에 Envoy 배포 후
-kubectl get svc -n pawfiler envoy-proxy
-
-# EXTERNAL-IP를 terraform.tfvars에 추가
-# envoy_alb_domain = "k8s-pawfiler-envoying-xxx.elb.ap-northeast-2.amazonaws.com"
-
-# CloudFront 업데이트
-terraform apply -target=aws_cloudfront_distribution.frontend
-```
-
-### 4. 배포 테스트 시
-
-```bash
-./infra.sh
-# 2) EKS 시작
-# 4) RDS 생성
-# 5) NAT Gateway 생성 (Private 서브넷 인터넷 필요시)
-```
-
-### 5. 작업 완료 후
-
-```bash
-./infra.sh
-# 3) EKS 중지
-# 7) Bastion 중지
-```
-
-## 📋 주요 리소스
-
-### 무료 ($0/월)
-- VPC, IAM Roles
-- ECR (4개): quiz, community, admin, video-analysis
-- S3 (3개): frontend, admin-frontend, quiz-media
-- CloudFront (2개): frontend, quiz-media
-
-### 유료 (필요시)
-- EKS: $133/월
-- RDS: $15/월
-- NAT Gateway: $32/월
-- Bastion: $8/월
-
-## 🔧 주요 설정
-
-### IRSA (IAM Roles for Service Accounts)
-- Admin 서비스가 S3에 업로드하기 위한 권한
-- `terraform/irsa.tf` 참조
-
-### CloudFront Origins
-- Frontend: S3 (정적 파일)
-- API Backend: Envoy NLB (gRPC-JSON transcoding)
-
-## 📁 주요 파일
+## 📋 infra.sh 메뉴
 
 ```
-terraform/
-├── infra.sh                    # 통합 관리 스크립트
-├── terraform.tfvars.example    # 설정 예시
-├── common-variables.tf         # 변수 정의
-├── irsa.tf                     # Admin S3 권한
-├── s3-frontend.tf              # Frontend + CloudFront
-├── s3-media.tf                 # Quiz Media + CloudFront
-└── eks.tf, rds.tf, ...
+[무료 리소스]
+1) 기본 인프라 생성 (VPC, IAM, ECR, S3) - $0/월
+
+[유료 리소스]
+2) EKS 시작 - $133/월
+3) EKS 중지
+4) RDS 생성 - $15/월
+5) NAT Gateway 생성 - $32/월
+6) Bastion 시작 - $8/월
+7) Bastion 중지
+
+[일괄 실행]
+8) 전체 배포 (기본 + EKS + RDS + NAT) - $180/월
+
+[K8s 연동]
+10) CloudFront Origin 업데이트 (K8s Envoy ALB 연결)
+
+[위험]
+9) 전체 인프라 삭제 (보호된 리소스 제외)
 ```
 
-## 💡 워크플로우
+## 🔧 주요 변수
 
-### 개발 중
-```bash
-# 아침
-./infra.sh → 2) EKS 시작
+| 변수 | 설명 | 기본값 | 필수 |
+|------|------|--------|------|
+| `bastion_key_name` | EC2 Key Pair 이름 | - | ✅ |
+| `database_password` | RDS 비밀번호 | - | ✅ |
+| `envoy_alb_domain` | Envoy ALB 도메인 | "" | ❌ |
+| `enable_karpenter` | Karpenter 활성화 | false | ❌ |
+| `project_name` | 프로젝트 이름 | "pawfiler" | ❌ |
+| `aws_region` | AWS 리전 | "ap-northeast-2" | ❌ |
+| `eks_version` | EKS 버전 | "1.31" | ❌ |
 
-# 저녁
-./infra.sh → 3) EKS 중지
-```
+## 💰 비용 예상
 
-### 프론트엔드만 배포
-```bash
-cd ../frontend
-npm run build
-aws s3 sync dist/ s3://pawfiler-frontend --delete
-aws cloudfront create-invalidation --distribution-id E1YU8EA9X822Q1 --paths "/*"
-```
+| 리소스 | 월 비용 | 설명 |
+|--------|---------|------|
+| EKS Cluster | $73 | Control Plane |
+| Node Groups | $32 | t3.medium (Spot + On-Demand) |
+| ALB | $20 | Application Load Balancer |
+| NAT Gateway | $32 | Private Subnet 인터넷 |
+| RDS | $15 | db.t3.micro PostgreSQL |
+| **총계** | **~$172/월** | |
 
-### DB 접속 (Bastion 경유)
-```bash
-./infra.sh → 6) Bastion 시작
-ssh -i ~/.ssh/pawfiler-bastion-key.pem ec2-user@<BASTION_IP>
-psql -h <RDS_ENDPOINT> -U pawfiler -d pawfiler_db
-```
+## 🔐 보안 주의사항
 
-## ⚠️ 주의사항
+### ⚠️ 공개 리포지토리 주의
 
-1. **terraform.tfvars 필수 설정**
-   - `database_password`: RDS 비밀번호
-   - `bastion_key_name`: EC2 키페어 이름
-   - `envoy_alb_domain`: K8s Envoy ALB 도메인
+이 리포지토리는 **공개**되어 있습니다. 다음 사항을 반드시 확인하세요:
 
-2. **Envoy NLB 도메인 업데이트**
-   - K8s에 Envoy 배포 후 `kubectl get svc`로 확인
-   - `terraform.tfvars`에 추가 후 CloudFront 업데이트
+1. **절대 커밋하지 말 것:**
+   - `terraform.tfvars` (gitignored)
+   - `*.pem`, `*.key` (SSH 키)
+   - AWS Access Key/Secret Key
+   - 데이터베이스 비밀번호
+   - 기타 민감 정보
 
-3. **비용 모니터링**
-   - 사용하지 않는 리소스는 즉시 중지
-   - AWS Cost Explorer 확인
+2. **안전하게 관리:**
+   - `terraform.tfvars.example`만 커밋
+   - 실제 값은 팀 내부 문서로 공유
+   - AWS Secrets Manager 사용 권장
+
+3. **이미 커밋된 경우:**
+   ```bash
+   # Git 히스토리에서 완전 삭제
+   git filter-branch --force --index-filter \
+     "git rm --cached --ignore-unmatch terraform/terraform.tfvars" \
+     --prune-empty --tag-name-filter cat -- --all
+   
+   # 강제 푸시
+   git push origin --force --all
+   
+   # 노출된 키는 즉시 교체
+   ```
+
+## 🎯 Karpenter 설정
+
+### 현재 상태
+- **비활성화** (`enable_karpenter = false`)
+- **이유:** itcen SCP가 Karpenter Controller Role의 `ec2:RunInstances` 차단
+
+### 활성화 방법
+
+1. **itcen에 SCP 예외 요청**
+   - Role ARN: `arn:aws:iam::009946608368:role/pawfiler-karpenter-controller`
+   - 필요 권한: `ec2:RunInstances` (2xlarge 이상 인스턴스만)
+
+2. **승인 후 활성화**
+   ```bash
+   # terraform.tfvars
+   enable_karpenter = true
+   
+   # 적용
+   terraform apply
+   
+   # NodePool 생성
+   kubectl apply -f ../k8s/karpenter-nodepool.yaml
+   ```
+
+### 대안: Managed Node Groups
+- 현재 사용 중: Spot + On-Demand 혼합
+- 안정적이고 SCP 제약 없음
+- Karpenter 없이도 충분히 사용 가능
+
+## 📚 추가 문서
+
+- [K8s 배포 가이드](../k8s/README.md)
+- [Karpenter 설치 가이드](../docs/KARPENTER.md)
+- [ALB 마이그레이션](../docs/TROUBLESHOOTING-ALB.md)
 
 ## 🆘 문제 해결
 
-### kubectl 연결 안됨
-```bash
-aws eks update-kubeconfig --region ap-northeast-2 --name pawfiler-eks-cluster
-```
-
 ### State Lock 에러
 ```bash
+# Lock ID 확인
+terraform plan  # 에러 메시지에서 Lock ID 복사
+
+# 강제 해제
 terraform force-unlock <LOCK_ID>
 ```
 
-### CloudFront 캐시 무효화
+### 모듈 초기화 에러
 ```bash
-aws cloudfront create-invalidation --distribution-id E1YU8EA9X822Q1 --paths "/*"
+terraform init -upgrade
 ```
+
+### EKS Access 권한 없음
+```bash
+# kubeconfig 업데이트
+aws eks update-kubeconfig --region ap-northeast-2 --name pawfiler-eks-cluster
+
+# Access Entry 확인
+aws eks list-access-entries --cluster-name pawfiler-eks-cluster
+```
+
+## 👥 팀원 추가
+
+EKS 클러스터 접근 권한은 `infra.sh`의 `start_eks()` 함수에서 자동으로 추가됩니다.
+
+새 팀원 추가:
+```bash
+# infra.sh 수정
+TEAM_ARNS=(
+  "arn:aws:iam::009946608368:user/NEW_USER"
+  ...
+)
+
+# EKS 재시작 또는 수동 추가
+aws eks create-access-entry \
+  --cluster-name pawfiler-eks-cluster \
+  --principal-arn arn:aws:iam::009946608368:user/NEW_USER
+
+aws eks associate-access-policy \
+  --cluster-name pawfiler-eks-cluster \
+  --principal-arn arn:aws:iam::009946608368:user/NEW_USER \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --access-scope type=cluster
+```
+
+## 🔄 마이그레이션 노트
+
+### 모듈화 완료 (2026-03-09)
+- 기존 단일 파일 → 12개 모듈로 분리
+- `moved.tf`로 리소스 이동 매핑 (state 유지)
+- 기존 인프라 영향 없음
+
+### 변경 사항
+- ✅ 중복 제거 (EKS Access Entry, OIDC Provider)
+- ✅ 파일 정리 (helm-outputs.tf, bastion-variables.tf 삭제)
+- ✅ 변수 통합 (common-variables.tf → variables.tf)
+- ✅ 모듈별 독립성 확보
+
+## 📞 문의
+
+- Terraform 관련: 인프라 팀
+- Karpenter SCP: itcen 담당자
+- K8s 배포: DevOps 팀

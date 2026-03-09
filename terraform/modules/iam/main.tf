@@ -1,21 +1,8 @@
 # ============================================================================
-# IAM MODULE - EKS Cluster Role, Node Group Role, Policies
+# IAM MODULE - EKS Cluster Role and Node Group Role
+# (Access entries managed in eks module)
 # ============================================================================
 
-# Variables
-variable "admin_users" {
-  description = "List of admin user ARNs"
-  type        = list(string)
-  default = [
-    "arn:aws:iam::009946608368:user/RAPA_Admin",
-    "arn:aws:iam::009946608368:user/SGO-Junghan",
-    "arn:aws:iam::009946608368:user/SGO-Jaewon",
-    "arn:aws:iam::009946608368:user/SGO-LeeMyungil",
-    "arn:aws:iam::009946608368:user/SGO-Moonjae"
-  ]
-}
-
-# Resources
 resource "aws_iam_role" "eks_cluster_role" {
   name = "${var.project_name}-eks-cluster-role"
 
@@ -35,29 +22,6 @@ resource "aws_iam_role" "eks_cluster_role" {
   lifecycle {
     prevent_destroy = true
   }
-}
-
-# EKS Access Entry - 팀원 로컬 CLI kubectl 접근
-resource "aws_eks_access_entry" "admin" {
-  for_each = toset(var.admin_users)
-
-  cluster_name  = aws_eks_cluster.main.name
-  principal_arn = each.value
-  type          = "STANDARD"
-}
-
-resource "aws_eks_access_policy_association" "admin" {
-  for_each = toset(var.admin_users)
-
-  cluster_name  = aws_eks_cluster.main.name
-  principal_arn = each.value
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.admin]
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
@@ -105,15 +69,3 @@ resource "aws_iam_role_policy_attachment" "ec2_container_registry_read_only" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   role       = aws_iam_role.eks_node_group_role.name
 }
-
-# Outputs
-output "eks_cluster_role_arn" {
-  description = "ARN of the EKS cluster role"
-  value       = aws_iam_role.eks_cluster_role.arn
-}
-
-output "eks_node_group_role_arn" {
-  description = "ARN of the EKS node group role"
-  value       = aws_iam_role.eks_node_group_role.arn
-}
-
