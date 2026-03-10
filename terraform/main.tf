@@ -109,6 +109,30 @@ module "rds" {
 }
 
 # ---------------------------------------------------------------------------
+# EKS Access Entry: Bastion Host Role
+# (EKS 모듈 밖에 선언 - bastion↔eks 순환 의존성 방지)
+# ---------------------------------------------------------------------------
+resource "aws_eks_access_entry" "bastion" {
+  cluster_name  = var.cluster_name
+  principal_arn = module.bastion.bastion_role_arn
+  type          = "STANDARD"
+
+  depends_on = [module.eks, module.bastion]
+}
+
+resource "aws_eks_access_policy_association" "bastion" {
+  cluster_name  = var.cluster_name
+  principal_arn = module.bastion.bastion_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.bastion]
+}
+
+# ---------------------------------------------------------------------------
 # Helm: Helm Releases + ALB/Kubecost IAM Roles (IRSA)
 # ---------------------------------------------------------------------------
 module "helm" {

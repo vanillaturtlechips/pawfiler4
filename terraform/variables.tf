@@ -21,9 +21,9 @@ variable "envoy_alb_domain" {
 }
 
 variable "enable_karpenter" {
-  description = "Enable Karpenter autoscaler (EKS 1.34 has compatibility issues, use false)"
+  description = "Enable Karpenter autoscaler (CA와 비교 테스트 후 전환 예정)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Networking variables

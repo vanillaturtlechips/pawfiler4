@@ -1,54 +1,32 @@
 #!/bin/bash
+# EKS 클러스터 시작 스크립트 (infra.sh 2번 메뉴와 동일)
+# 권장: cd terraform && ./infra.sh 사용
 
 set -e
 
 CLUSTER_NAME="pawfiler-eks-cluster"
 REGION="ap-northeast-2"
 
-TEAM_ARNS=(
-  "arn:aws:iam::009946608368:user/SGO-Junghan"
-  "arn:aws:iam::009946608368:user/SGO-Jaewon"
-  "arn:aws:iam::009946608368:user/RAPA_Admin"
-  "arn:aws:iam::009946608368:user/SGO-Moonjae"
-  "arn:aws:iam::009946608368:user/SGO-LeeMyungil"
-)
+echo "EKS 클러스터 시작 중..."
 
-echo "🚀 EKS 클러스터 시작 중..."
 terraform apply -auto-approve \
-  -target=aws_security_group.eks_cluster \
-  -target=aws_eks_cluster.main \
-  -target=aws_eks_node_group.main \
-  -target=aws_eks_addon.ebs_csi_driver \
-  -target=aws_iam_role.bastion \
-  -target=aws_iam_instance_profile.bastion \
-  -target=aws_instance.bastion
+  -target=module.eks \
+  -target=module.bastion
 
-# Bastion IAM 역할 ARN 자동으로 가져오기
-BASTION_ROLE_ARN=$(terraform output -raw bastion_role_arn)
-echo "🔑 Bastion Role ARN: $BASTION_ROLE_ARN"
-TEAM_ARNS+=("$BASTION_ROLE_ARN")
+echo "Helm 릴리즈 설치 중..."
+terraform apply -auto-approve \
+  -target=module.helm
 
-echo "⚙️  kubectl 설정 중..."
+# Bastion Role Access Entry (순환 의존성으로 main.tf에 별도 관리)
+terraform apply -auto-approve \
+  -target=aws_eks_access_entry.bastion \
+  -target=aws_eks_access_policy_association.bastion
+
+echo "kubectl 설정 중..."
 aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER_NAME"
 
-echo "⏳ 노드 Ready 대기 중 (최대 5분)..."
+echo "노드 Ready 대기 중..."
 kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
-echo "👥 팀원 Access Entry 등록 중..."
-for ARN in "${TEAM_ARNS[@]}"; do
-  echo "  → $ARN"
-  aws eks create-access-entry \
-    --cluster-name "$CLUSTER_NAME" \
-    --principal-arn "$ARN" \
-    --region "$REGION" 2>/dev/null && echo "    ✅ 생성 완료" || echo "    ⏭️  이미 존재, 스킵"
-
-  aws eks associate-access-policy \
-    --cluster-name "$CLUSTER_NAME" \
-    --principal-arn "$ARN" \
-    --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-    --access-scope type=cluster \
-    --region "$REGION"
-done
-
-echo "✅ EKS 클러스터 준비 완료!"
+echo "EKS 클러스터 준비 완료!"
 kubectl get nodes

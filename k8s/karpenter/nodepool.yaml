@@ -37,7 +37,7 @@ metadata:
   name: default
 spec:
   amiSelectorTerms:
-    - alias: al2@latest
+    - alias: al2@v1.31
   role: pawfiler-karpenter-node
   subnetSelectorTerms:
     - tags:
