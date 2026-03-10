@@ -1,3 +1,19 @@
-# Envoy NLB domain (from: kubectl get svc -n pawfiler envoy-proxy)
-# Get the EXTERNAL-IP value and use it here
-envoy_alb_domain = "your-envoy-alb-domain.elb.ap-northeast-2.amazonaws.com"
+# ============================================================================
+# Terraform Variables Example
+# ============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# terraform.tfvars is gitignored for security
+
+# Required: Bastion SSH Key
+bastion_key_name = "your-ec2-keypair-name"
+
+# Required: RDS Database Password
+database_password = "your-secure-password-here"
+
+# Optional: Envoy ALB Domain (set after K8s deployment)
+# Get from: kubectl get ingress -n pawfiler envoy-ingress
+envoy_alb_domain = ""
+
+# Optional: Enable Karpenter (requires SCP exception from itcen)
+# Default: false (use Managed Node Groups)
+enable_karpenter = false

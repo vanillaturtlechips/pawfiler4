@@ -5,7 +5,7 @@ metadata:
   name: admin-service
   namespace: admin
   annotations:
-    eks.amazonaws.com/role-arn: <ADMIN_SERVICE_ROLE_ARN>  # terraform output에서 확인
+    eks.amazonaws.com/role-arn: <ADMIN_SERVICE_ROLE_ARN>  # terraform output admin_service_role_arn
 
 ---
 apiVersion: apps/v1
@@ -54,7 +54,7 @@ spec:
         - name: S3_BUCKET
           value: "pawfiler-quiz-media"
         - name: CLOUDFRONT_DOMAIN
-          value: "<QUIZ_MEDIA_CLOUDFRONT_DOMAIN>"  # terraform output에서 확인
+          value: <QUIZ_MEDIA_CLOUDFRONT_DOMAIN>  # terraform output quiz_media_cloudfront_domain
         readinessProbe:
           httpGet:
             path: /health

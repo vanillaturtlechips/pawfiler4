@@ -33,15 +33,32 @@ pawfiler4/
 │   ├── envoy-ingress.yaml    # ALB Ingress
 │   ├── proto-configmap.yaml  # Proto descriptor
 │   └── admin/                # Admin service (IRSA)
-├── terraform/            # AWS 인프라 (IaC)
+├── terraform/            # AWS 인프라 (모듈화)
 │   ├── infra.sh             # 통합 관리 스크립트
-│   ├── eks.tf, rds.tf       # 주요 리소스
-│   ├── helm.tf              # ALB Controller, ArgoCD, Kubecost
-│   └── irsa.tf              # Admin S3 권한
+│   ├── main.tf              # 모듈 호출
+│   └── modules/             # 인프라 모듈
+│       ├── networking/      # VPC, Subnets
+│       ├── eks/             # EKS Cluster
+│       ├── rds/             # PostgreSQL
+│       ├── helm/            # ArgoCD, Envoy, Kubecost
+│       └── karpenter/       # Autoscaler (optional)
 ├── docs/                 # 문서
+│   ├── KARPENTER.md
 │   └── TROUBLESHOOTING-ALB.md
 └── scripts/              # 배포 스크립트
 ```
+
+## ⚠️ 보안 주의사항
+
+**이 리포지토리는 공개되어 있습니다!**
+
+절대 커밋하지 말 것:
+- `terraform/terraform.tfvars` (gitignored)
+- AWS Access Key/Secret Key
+- 데이터베이스 비밀번호
+- SSH 키 (*.pem, *.key)
+
+자세한 내용: [terraform/README.md](terraform/README.md)
 
 ## 빠른 시작
 
@@ -154,22 +171,20 @@ terraform init
 - ✅ CloudFront + S3 정적 호스팅
 - ✅ ALB Ingress Controller
 - ✅ Spot + On-Demand 혼합 노드 그룹
-- ✅ Kubecost (비용 모니터링 + AWS 통합)
-- ✅ 비용 최적화 (EKS/Bastion 시작/중지)
-- 🚧 Karpenter (자동 스케일링)
-- 🚧 Istio 마이그레이션 예정
+- ✅ Kubecost (비용 모니터링)
+- ✅ ML Cascade 파이프라인 (비용 69% 절감)
+- ✅ 음성 딥페이크 탐지 (Colab 무료 학습)
 
 ## 문서
 
 ### 필수
-- [terraform/README.md](./terraform/README.md) - 인프라 관리 가이드 ⭐
-- [k8s/README.md](./k8s/README.md) - K8s 배포 가이드 ⭐
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) - 배포 가이드 ⭐
+- [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) - 개발 가이드 ⭐
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - 시스템 아키텍처 ⭐
 
-### 트러블슈팅
-- [docs/TROUBLESHOOTING-ALB.md](./docs/TROUBLESHOOTING-ALB.md) - NLB→ALB 마이그레이션
-
-### 고급
-- [docs/KARPENTER.md](./docs/KARPENTER.md) - Karpenter 자동 스케일링 설치
+### 상세
+- [terraform/README.md](./terraform/README.md) - Terraform 인프라 관리
+- [k8s/README.md](./k8s/README.md) - Kubernetes 매니페스트
 
 ## 비용 관리
 

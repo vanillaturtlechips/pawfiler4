@@ -206,19 +206,8 @@ func convertQuestionToProto(q *repository.Question, includeAnswers bool) *pb.Qui
 
 // convertProtoToAnswer converts protobuf answer fields to repository Answer interface
 func convertProtoToAnswer(req *pb.SubmitAnswerRequest) (repository.Answer, error) {
-	// Determine answer type based on which field is set
-	if req.SelectedIndex != nil {
-		return repository.MultipleChoiceAnswer{
-			SelectedIndex: *req.SelectedIndex,
-		}, nil
-	}
-
-	if req.SelectedAnswer != nil {
-		return repository.TrueFalseAnswer{
-			SelectedAnswer: *req.SelectedAnswer,
-		}, nil
-	}
-
+	// Priority order: check which answer type is provided
+	// Region Select has highest priority since it's most specific
 	if req.SelectedRegion != nil {
 		return repository.RegionSelectAnswer{
 			SelectedRegion: repository.Point{
@@ -228,9 +217,24 @@ func convertProtoToAnswer(req *pb.SubmitAnswerRequest) (repository.Answer, error
 		}, nil
 	}
 
-	if req.SelectedSide != nil {
+	// Comparison answer
+	if req.SelectedSide != nil && *req.SelectedSide != "" {
 		return repository.ComparisonAnswer{
 			SelectedSide: *req.SelectedSide,
+		}, nil
+	}
+
+	// True/False answer (false is valid, so just check nil)
+	if req.SelectedAnswer != nil {
+		return repository.TrueFalseAnswer{
+			SelectedAnswer: *req.SelectedAnswer,
+		}, nil
+	}
+
+	// Multiple Choice answer (0 is valid index, so just check nil)
+	if req.SelectedIndex != nil {
+		return repository.MultipleChoiceAnswer{
+			SelectedIndex: *req.SelectedIndex,
 		}, nil
 	}
 

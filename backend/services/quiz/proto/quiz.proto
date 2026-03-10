@@ -60,9 +60,9 @@ message QuizQuestion {
 }
 
 message Region {
-  int32 x = 1;
-  int32 y = 2;
-  int32 radius = 3;
+  float x = 1;
+  float y = 2;
+  float radius = 3;
 }
 
 message SubmitAnswerRequest {
@@ -83,8 +83,8 @@ message SubmitAnswerRequest {
 }
 
 message Point {
-  int32 x = 1;
-  int32 y = 2;
+  float x = 1;
+  float y = 2;
 }
 
 message SubmitAnswerResponse {
