@@ -1,0 +1,5 @@
+# Ignore test results (too large for git)
+*.json
+
+# Keep directory structure
+!.gitkeep
