@@ -3,6 +3,15 @@
 # Includes: ALB Controller, ArgoCD, Kubecost, Grafana, Envoy, Metrics Server, Karpenter
 # ============================================================================
 
+terraform {
+  required_providers {
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
+    }
+  }
+}
+
 # ===========================================================================
 # ALB Controller IAM Role (IRSA)
 # ===========================================================================
@@ -262,6 +271,47 @@ resource "helm_release" "kubecost" {
 
 }
 
+# Prometheus 설치 (독립 설치)
+resource "helm_release" "prometheus" {
+  name             = "prometheus"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "prometheus"
+  namespace        = "monitoring"
+  create_namespace = true
+  version          = "25.8.0"
+
+  set {
+    name  = "server.persistentVolume.storageClass"
+    value = "gp2"
+  }
+
+  set {
+    name  = "server.persistentVolume.size"
+    value = "32Gi"
+  }
+
+  set {
+    name  = "alertmanager.enabled"
+    value = "false"
+  }
+
+  set {
+    name  = "prometheus-pushgateway.enabled"
+    value = "false"
+  }
+
+  set {
+    name  = "kube-state-metrics.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "prometheus-node-exporter.enabled"
+    value = "true"
+  }
+
+}
+
 # Grafana 설치 (리소스 모니터링 대시보드)
 resource "helm_release" "grafana" {
   name             = "grafana"
@@ -286,7 +336,7 @@ resource "helm_release" "grafana" {
             {
               name      = "Prometheus"
               type      = "prometheus"
-              url       = "http://kubecost-prometheus-server.monitoring.svc.cluster.local"
+              url       = "http://prometheus-server.monitoring.svc.cluster.local"
               access    = "proxy"
               isDefault = true
             }
@@ -313,6 +363,11 @@ resource "helm_release" "grafana" {
       }
       dashboards = {
         default = {
+          node-exporter-full = {
+            gnetId     = 1860
+            revision   = 31
+            datasource = "Prometheus"
+          }
           kubernetes-cluster = {
             gnetId     = 7249
             revision   = 1
@@ -333,7 +388,7 @@ resource "helm_release" "grafana" {
   ]
 
   depends_on = [
-    helm_release.kubecost
+    helm_release.prometheus
   ]
 }
 
@@ -411,4 +466,72 @@ resource "helm_release" "karpenter" {
     value = "1Gi"
   }
 
+  depends_on = [var.karpenter_controller_role_arn]
 }
+
+# Karpenter NodePool
+resource "kubectl_manifest" "karpenter_nodepool" {
+  count = var.enable_karpenter ? 1 : 0
+  yaml_body = <<-YAML
+    apiVersion: karpenter.sh/v1
+    kind: NodePool
+    metadata:
+      name: default
+    spec:
+      template:
+        spec:
+          nodeClassRef:
+            group: karpenter.k8s.aws
+            kind: EC2NodeClass
+            name: default
+          requirements:
+            - key: karpenter.sh/capacity-type
+              operator: In
+              values: ["spot"]
+            - key: kubernetes.io/arch
+              operator: In
+              values: ["amd64"]
+            - key: node.kubernetes.io/instance-type
+              operator: In
+              values: ["t3.medium"]
+            - key: kubernetes.io/os
+              operator: In
+              values: ["linux"]
+          expireAfter: 720h
+      limits:
+        cpu: "20"
+        memory: "40Gi"
+      disruption:
+        consolidationPolicy: WhenEmptyOrUnderutilized
+        consolidateAfter: 1m
+  YAML
+
+  depends_on = [helm_release.karpenter]
+}
+
+# Karpenter EC2NodeClass
+resource "kubectl_manifest" "karpenter_ec2nodeclass" {
+  count = var.enable_karpenter ? 1 : 0
+  yaml_body = <<-YAML
+    apiVersion: karpenter.k8s.aws/v1
+    kind: EC2NodeClass
+    metadata:
+      name: default
+    spec:
+      amiSelectorTerms:
+        - alias: al2@latest
+      role: ${var.karpenter_node_role_name}
+      subnetSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: ${var.cluster_name}
+      securityGroupSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: ${var.cluster_name}
+      tags:
+        karpenter.sh/discovery: ${var.cluster_name}
+        Name: karpenter-node
+  YAML
+
+  depends_on = [helm_release.karpenter]
+}
+

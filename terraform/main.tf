@@ -135,6 +135,11 @@ module "helm" {
     ? module.karpenter.karpenter_controller_role_arn
     : ""
   )
+  karpenter_node_role_name = (
+    module.karpenter.karpenter_node_role_name != null
+    ? module.karpenter.karpenter_node_role_name
+    : ""
+  )
 
   kubecost_token        = var.kubecost_token
   argocd_admin_password = var.argocd_admin_password

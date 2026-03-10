@@ -61,6 +61,12 @@ variable "karpenter_controller_role_arn" {
   default     = ""
 }
 
+variable "karpenter_node_role_name" {
+  description = "Name of the Karpenter node IAM role"
+  type        = string
+  default     = ""
+}
+
 variable "kubecost_token" {
   description = "Kubecost token for cost monitoring"
   type        = string
