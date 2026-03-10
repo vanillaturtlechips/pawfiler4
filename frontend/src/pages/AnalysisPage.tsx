@@ -4,7 +4,7 @@ import WoodPanel from "@/components/WoodPanel";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { runVideoAnalysis } from "@/lib/mockApi";
+import { runVideoAnalysis } from "@/lib/api";
 import type { AnalysisStage, AnalysisLogEntry, DeepfakeReport } from "@/lib/types";
 
 const stageLabels: Record<AnalysisStage, string> = {
@@ -22,6 +22,8 @@ const AnalysisPage = () => {
   const [logs, setLogs] = useState<AnalysisLogEntry[]>([]);
   const [report, setReport] = useState<DeepfakeReport | null>(null);
   const [url, setUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = (log: AnalysisLogEntry) => {
@@ -40,19 +42,47 @@ const AnalysisPage = () => {
 
   const handleAnalyze = async () => {
     if (!token) return;
+    if (!selectedFile && !url) {
+      alert("파일을 선택하거나 URL을 입력하세요");
+      return;
+    }
+    
     setLogs([]);
     setReport(null);
     setStage("UPLOADING");
     try {
-      const result = await runVideoAnalysis(token, url || "uploaded_file.mp4", addLog);
+      const result = await runVideoAnalysis(selectedFile || url);
       setReport(result);
       setStage("COMPLETED");
-    } catch {
+    } catch (error) {
+      console.error("분석 실패:", error);
       setStage("ERROR");
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setUrl("");
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("video/")) {
+      setSelectedFile(file);
+      setUrl("");
+    }
+  };
+
   const verdictConfig = {
+    FAKE: { emoji: "🚨", label: "가짜 (Deepfake)", color: "hsl(var(--destructive))" },
+    REAL: { emoji: "✅", label: "진짜 (Authentic)", color: "hsl(var(--magic-green))" },
+    UNCERTAIN: { emoji: "🤔", label: "불확실 (Uncertain)", color: "hsl(var(--magic-orange))" },
+    PROCESSING: { emoji: "⏳", label: "분석 중...", color: "hsl(var(--magic-blue))" },
+    NOT_FOUND: { emoji: "❌", label: "분석 실패", color: "hsl(var(--destructive))" },
     fake: { emoji: "🚨", label: "가짜 (Deepfake)", color: "hsl(var(--destructive))" },
     real: { emoji: "✅", label: "진짜 (Authentic)", color: "hsl(var(--magic-green))" },
     uncertain: { emoji: "🤔", label: "불확실 (Uncertain)", color: "hsl(var(--magic-orange))" },
@@ -75,6 +105,13 @@ const AnalysisPage = () => {
         </p>
 
         {/* Drop zone */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
         <motion.div
           className="cursor-pointer rounded-2xl bg-white p-10 text-center"
           style={{ border: "4px dashed hsl(var(--parchment-border))" }}
@@ -83,17 +120,19 @@ const AnalysisPage = () => {
             backgroundColor: "#E1F5FE",
             scale: 1.02,
           }}
-          onClick={handleAnalyze}
+          onClick={() => fileInputRef.current?.click()}
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
         >
           <motion.div
             className="text-6xl"
             animate={{ y: [-3, 3, -3] }}
             transition={{ repeat: Infinity, duration: 3 }}
           >
-            ☁️
+            {selectedFile ? "📹" : "☁️"}
           </motion.div>
           <div className="font-jua text-xl mt-2.5" style={{ color: "hsl(var(--wood-darkest))" }}>
-            {stage === "IDLE" ? "영상 파일 끌어놓기 (클릭하여 시뮬레이션)" : stageLabels[stage]}
+            {selectedFile ? selectedFile.name : stage === "IDLE" ? "영상 파일 끌어놓기 또는 클릭" : stageLabels[stage]}
           </div>
         </motion.div>
 
@@ -134,12 +173,12 @@ const AnalysisPage = () => {
             >
               <h2 className="font-jua text-2xl text-shadow-deep">📋 분석 보고서</h2>
               <div className="text-center py-4">
-                <span className="text-6xl">{verdictConfig[report.verdict].emoji}</span>
+                <span className="text-6xl">{verdictConfig[report.verdict]?.emoji || "❓"}</span>
                 <div
                   className="font-jua text-3xl mt-2"
-                  style={{ color: verdictConfig[report.verdict].color }}
+                  style={{ color: verdictConfig[report.verdict]?.color || "hsl(var(--destructive))" }}
                 >
-                  {verdictConfig[report.verdict].label}
+                  {verdictConfig[report.verdict]?.label || report.verdict}
                 </div>
                 <div className="font-jua text-5xl mt-1" style={{ color: verdictConfig[report.verdict].color }}>
                   {report.confidenceScore}%
@@ -147,7 +186,7 @@ const AnalysisPage = () => {
               </div>
               <div className="flex-1 rounded-xl p-3" style={{ background: "hsl(var(--wood-dark))" }}>
                 <div className="font-jua text-sm mb-2 opacity-70">조작 탐지 영역</div>
-                {report.manipulatedRegions.map((r, i) => (
+                {(report.manipulatedRegions || []).map((r, i) => (
                   <div key={i} className="flex justify-between text-sm py-1 border-b border-wood-darkest/30">
                     <span>{r.label}</span>
                     <span className="font-bold">{r.confidence}%</span>
@@ -157,7 +196,7 @@ const AnalysisPage = () => {
                   모델: {report.modelVersion} · 프레임: {report.frameSamplesAnalyzed}개 · {report.processingTimeMs}ms
                 </div>
               </div>
-              <GameButton variant="green" onClick={() => { setReport(null); setStage("IDLE"); setLogs([]); }}>
+              <GameButton variant="green" onClick={() => { setReport(null); setStage("IDLE"); setLogs([]); setSelectedFile(null); setUrl(""); }}>
                 🔄 새 분석 시작
               </GameButton>
             </motion.div>

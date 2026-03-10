@@ -442,21 +442,69 @@ export const deleteCommunityPost = async (postId: string, userId: string): Promi
 export const runVideoAnalysis = async (videoFile: File | string): Promise<DeepfakeReport> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
-    // Mock API는 콜백 함수를 받지만, 여기서는 사용하지 않음
     return mockRunVideoAnalysis(token || "", videoFile, () => {});
   }
   
   try {
-    const formData = new FormData();
-    if (videoFile instanceof File) {
-      formData.append("video", videoFile);
+    if (typeof videoFile === 'string') {
+      // URL로 분석
+      const response = await request<{task_id: string, verdict: string, confidence_score: number, message: string}>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
+        method: "POST",
+        body: JSON.stringify({
+          video_url: videoFile,
+          user_id: localStorage.getItem(config.storageKeys.userId) || ''
+        }),
+      });
+      
+      return {
+        task_id: response.task_id,
+        verdict: response.verdict,
+        confidence_score: response.confidence_score,
+        manipulated_regions: [],
+        frame_samples_analyzed: 0,
+        model_version: 'v1',
+        processing_time_ms: 0
+      };
+    } else {
+      // 파일 크기 체크 (100MB)
+      if (videoFile.size > 100 * 1024 * 1024) {
+        throw new Error('파일 크기는 100MB를 초과할 수 없습니다');
+      }
+      
+      // 파일 업로드 - multipart로 전송
+      const userId = localStorage.getItem(config.storageKeys.userId) || '';
+      const formData = new FormData();
+      formData.append('video', videoFile);
+      formData.append('user_id', userId);
+      
+      const response = await fetch(`${config.apiBaseUrl}/upload-video`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const taskId = data.taskId || data.task_id;
+      
+      // Poll for result
+      for (let i = 0; i < 60; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const resultResponse = await request<DeepfakeReport>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
+          method: "POST",
+          body: JSON.stringify({ task_id: taskId }),
+        });
+        
+        if (resultResponse.verdict !== 'PROCESSING' && resultResponse.verdict !== 'NOT_FOUND') {
+          return resultResponse;
+        }
+      }
+      
+      throw new Error('Analysis timeout');
     }
-    
-    return await request<DeepfakeReport>(`${config.apiBaseUrl}/video.VideoAnalysisService/AnalyzeVideo`, {
-      method: "POST",
-      body: formData,
-      headers: {},
-    });
   } catch (error) {
     return handleApiError(error, '영상 분석');
   }

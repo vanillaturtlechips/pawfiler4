@@ -35,9 +35,15 @@ static_resources:
                   cluster: community_service
                   timeout: 30s
               - match:
+                  prefix: "/video_analysis.VideoAnalysisService"
+                route:
+                  cluster: video_analysis_service
+                  timeout: 60s
+              - match:
                   prefix: "/admin"
                 route:
                   cluster: admin_service
+                  timeout: 30s
                   timeout: 30s
               cors:
                 allow_origin_string_match:
@@ -48,6 +54,16 @@ static_resources:
                 expose_headers: "x-request-id, grpc-status, grpc-message"
                 max_age: "86400"
           http_filters:
+          - name: envoy.filters.http.lua
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+              inline_code: |
+                function envoy_on_request(request_handle)
+                  local path = request_handle:headers():get(":path")
+                  if path and string.sub(path, 1, 5) == "/api/" then
+                    request_handle:headers():replace(":path", string.sub(path, 5))
+                  end
+                end
           - name: envoy.filters.http.grpc_json_transcoder
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder
@@ -55,12 +71,16 @@ static_resources:
               services:
                 - "quiz.QuizService"
                 - "community.CommunityService"
+                - "video_analysis.VideoAnalysisService"
               print_options:
                 add_whitespace: false
                 always_print_primitive_fields: true
                 preserve_proto_field_names: false
               auto_mapping: true
               convert_grpc_status: true
+              request_validation_options:
+                reject_unknown_method: false
+                reject_unknown_query_parameters: false
           - name: envoy.filters.http.cors
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
@@ -120,3 +140,22 @@ static_resources:
               socket_address:
                 address: admin-service
                 port_value: 8082
+
+  - name: video_analysis_service
+    connect_timeout: 5s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: video_analysis_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: video-analysis
+                port_value: 50054

@@ -24,6 +24,11 @@ echo "📦 Building admin-service..."
 docker build --platform linux/amd64 -t ${ECR_REGISTRY}/pawfiler/admin-service:latest -f backend/services/admin/Dockerfile backend/services/admin
 docker push ${ECR_REGISTRY}/pawfiler/admin-service:latest
 
+# Video Analysis Service 빌드 및 푸시
+echo "📦 Building video-analysis-service..."
+docker build --platform linux/amd64 -t ${ECR_REGISTRY}/pawfiler/video-analysis-service:latest -f backend/services/video-analysis/Dockerfile backend/services/video-analysis
+docker push ${ECR_REGISTRY}/pawfiler/video-analysis-service:latest
+
 echo "✅ All services built and pushed successfully!"
 echo "Admin frontend is deployed to S3 (use scripts/deploy-all.sh)"
 
