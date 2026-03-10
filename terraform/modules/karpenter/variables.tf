@@ -6,7 +6,7 @@ variable "project_name" {
 variable "enable_karpenter" {
   description = "Enable Karpenter autoscaler"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "oidc_provider_arn" {

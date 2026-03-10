@@ -24,8 +24,8 @@ spec:
           values: ["linux"]
       expireAfter: 720h
   limits:
-    cpu: "20"
-    memory: "40Gi"
+    cpu: "10"
+    memory: "20Gi"
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 1m

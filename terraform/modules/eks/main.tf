@@ -57,7 +57,7 @@ resource "aws_eks_node_group" "main" {
 
   scaling_config {
     desired_size = 1
-    max_size     = 2
+    max_size     = 3
     min_size     = 1
   }
 
@@ -76,9 +76,9 @@ resource "aws_eks_node_group" "spot" {
   capacity_type   = "SPOT"
 
   scaling_config {
-    desired_size = 1
-    max_size     = 3
-    min_size     = 0
+    desired_size = 2
+    max_size     = 5
+    min_size     = 2
   }
 
   # Note: implicit dependency via node_role_arn ensures IAM policies are attached first
