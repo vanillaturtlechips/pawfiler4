@@ -249,6 +249,12 @@ resource "helm_release" "kubecost" {
     value = "quay.io/prometheus/prometheus"
   }
 
+  # Disable Kubecost Grafana (use standalone Grafana instead)
+  set {
+    name  = "grafana.enabled"
+    value = "false"
+  }
+
   set {
     name  = "prometheus.server.image.tag"
     value = "v2.47.0"
@@ -270,14 +276,15 @@ resource "helm_release" "grafana" {
   namespace        = "monitoring"
   create_namespace = true
   version          = "7.0.0"
+  timeout          = 600
 
   values = [
     yamlencode({
       adminPassword = "admin"
       persistence = {
-        enabled      = true
-        storageClass = "gp2"
-        size         = "10Gi"
+        enabled           = true
+        storageClassName  = "gp2"
+        size              = "10Gi"
       }
       datasources = {
         "datasources.yaml" = {
@@ -358,57 +365,160 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   namespace  = "kube-system"
   version    = "3.12.0"
-
 }
 
-# Karpenter (자동 스케일링)
-resource "helm_release" "karpenter" {
-  count            = var.enable_karpenter ? 1 : 0
-  name             = "karpenter"
-  repository       = "oci://public.ecr.aws/karpenter"
-  chart            = "karpenter"
-  namespace        = "karpenter"
-  create_namespace = true
-  version          = "1.9.0"
+# ---------------------------------------------------------------------------
+# Cluster Autoscaler
+resource "helm_release" "cluster_autoscaler" {
+  name             = "cluster-autoscaler"
+  repository       = "https://kubernetes.github.io/autoscaler"
+  chart            = "cluster-autoscaler"
+  namespace        = "kube-system"
+  create_namespace = false
+  version          = "9.37.0"
+  timeout          = 600
+  wait             = false
 
   set {
-    name  = "settings.clusterName"
+    name  = "autoDiscovery.clusterName"
     value = var.cluster_name
   }
 
   set {
-    name  = "settings.clusterEndpoint"
-    value = var.cluster_endpoint
+    name  = "awsRegion"
+    value = var.aws_region
   }
 
   set {
-    name  = "settings.interruptionQueue"
-    value = var.karpenter_queue_name
+    name  = "rbac.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.cluster_autoscaler.arn
   }
 
   set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = var.karpenter_controller_role_arn
+    name  = "rbac.serviceAccount.name"
+    value = "cluster-autoscaler"
   }
 
   set {
-    name  = "controller.resources.requests.cpu"
-    value = "1"
+    name  = "extraArgs.balance-similar-node-groups"
+    value = "true"
   }
 
   set {
-    name  = "controller.resources.requests.memory"
-    value = "1Gi"
+    name  = "extraArgs.skip-nodes-with-system-pods"
+    value = "false"
   }
 
-  set {
-    name  = "controller.resources.limits.cpu"
-    value = "1"
-  }
-
-  set {
-    name  = "controller.resources.limits.memory"
-    value = "1Gi"
-  }
-
+  depends_on = [
+    helm_release.metrics_server
+  ]
 }
+
+# IAM Role for Cluster Autoscaler
+resource "aws_iam_role" "cluster_autoscaler" {
+  name = "${var.project_name}-cluster-autoscaler"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${var.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:cluster-autoscaler"
+          "${var.oidc_provider_url}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "cluster_autoscaler" {
+  name = "${var.project_name}-cluster-autoscaler-policy"
+  role = aws_iam_role.cluster_autoscaler.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:GetInstanceTypesFromInstanceRequirements",
+          "eks:DescribeNodegroup"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Karpenter (자동 스케일링)
+# resource "helm_release" "karpenter" {
+#   count            = var.enable_karpenter ? 1 : 0
+#   name             = "karpenter"
+#   repository       = "oci://public.ecr.aws/karpenter"
+#   chart            = "karpenter"
+#   namespace        = "karpenter"
+#   create_namespace = true
+#   version          = "1.9.0"
+#
+#   set {
+#     name  = "settings.clusterName"
+#     value = var.cluster_name
+#   }
+#
+#   set {
+#     name  = "settings.clusterEndpoint"
+#     value = var.cluster_endpoint
+#   }
+#
+#   set {
+#     name  = "settings.interruptionQueue"
+#     value = var.karpenter_queue_name
+#   }
+#
+#   set {
+#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+#     value = var.karpenter_controller_role_arn
+#   }
+#
+#   set {
+#     name  = "controller.resources.requests.cpu"
+#     value = "1"
+#   }
+#
+#   set {
+#     name  = "controller.resources.requests.memory"
+#     value = "1Gi"
+#   }
+#
+#   set {
+#     name  = "controller.resources.limits.cpu"
+#     value = "1"
+#   }
+#
+#   set {
+#     name  = "controller.resources.limits.memory"
+#     value = "1Gi"
+#   }
+#
+# }

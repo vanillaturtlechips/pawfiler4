@@ -124,17 +124,17 @@ module "helm" {
   oidc_provider_url = module.eks.oidc_provider_url
   account_id        = data.aws_caller_identity.current.account_id
 
-  enable_karpenter = var.enable_karpenter
-  karpenter_queue_name = (
-    module.karpenter.karpenter_queue_name != null
-    ? module.karpenter.karpenter_queue_name
-    : ""
-  )
-  karpenter_controller_role_arn = (
-    module.karpenter.karpenter_controller_role_arn != null
-    ? module.karpenter.karpenter_controller_role_arn
-    : ""
-  )
+  # enable_karpenter = var.enable_karpenter
+  # karpenter_queue_name = (
+  #   module.karpenter.karpenter_queue_name != null
+  #   ? module.karpenter.karpenter_queue_name
+  #   : ""
+  # )
+  # karpenter_controller_role_arn = (
+  #   module.karpenter.karpenter_controller_role_arn != null
+  #   ? module.karpenter.karpenter_controller_role_arn
+  #   : ""
+  # )
 
   kubecost_token        = var.kubecost_token
   argocd_admin_password = var.argocd_admin_password
@@ -157,15 +157,15 @@ module "irsa" {
 # ---------------------------------------------------------------------------
 # Karpenter: Autoscaler IAM, SQS, EventBridge
 # ---------------------------------------------------------------------------
-module "karpenter" {
-  source = "./modules/karpenter"
-
-  project_name      = var.project_name
-  enable_karpenter  = var.enable_karpenter
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_provider_url = module.eks.oidc_provider_url
-  cluster_name      = var.cluster_name
-  cluster_arn       = module.eks.eks_cluster_arn
-
-  depends_on = [module.eks]
-}
+# module "karpenter" {
+#   source = "./modules/karpenter"
+#
+#   project_name      = var.project_name
+#   enable_karpenter  = var.enable_karpenter
+#   oidc_provider_arn = module.eks.oidc_provider_arn
+#   oidc_provider_url = module.eks.oidc_provider_url
+#   cluster_name      = var.cluster_name
+#   cluster_arn       = module.eks.eks_cluster_arn
+#
+#   depends_on = [module.eks]
+# }

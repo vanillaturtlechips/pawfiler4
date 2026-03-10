@@ -43,23 +43,23 @@ variable "account_id" {
   type        = string
 }
 
-variable "enable_karpenter" {
-  description = "Enable Karpenter autoscaler"
-  type        = bool
-  default     = false
-}
-
-variable "karpenter_queue_name" {
-  description = "SQS queue name for Karpenter spot interruption"
-  type        = string
-  default     = ""
-}
-
-variable "karpenter_controller_role_arn" {
-  description = "ARN of the Karpenter controller IAM role"
-  type        = string
-  default     = ""
-}
+# variable "enable_karpenter" {
+#   description = "Enable Karpenter autoscaler"
+#   type        = bool
+#   default     = false
+# }
+#
+# variable "karpenter_queue_name" {
+#   description = "SQS queue name for Karpenter spot interruption"
+#   type        = string
+#   default     = ""
+# }
+#
+# variable "karpenter_controller_role_arn" {
+#   description = "ARN of the Karpenter controller IAM role"
+#   type        = string
+#   default     = ""
+# }
 
 variable "kubecost_token" {
   description = "Kubecost token for cost monitoring"
