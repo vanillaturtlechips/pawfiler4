@@ -1,0 +1,16 @@
+# MCP Server 의존성
+mcp>=0.9.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+faster-whisper>=0.10.0
+silero-vad>=4.0.0
+
+# 기존 의존성
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+protobuf>=4.25.0
+boto3>=1.34.0
+psycopg2-binary>=2.9.9
+kafka-python>=2.0.2

@@ -1,0 +1,203 @@
+groups:
+  - name: slo_alerts
+    interval: 30s
+    rules:
+      # 가용성 알림
+      - alert: LowAvailability
+        expr: |
+          sum(rate(mcp_requests_total{status="success"}[5m])) 
+          / 
+          sum(rate(mcp_requests_total[5m])) < 0.995
+        for: 5m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "가용성이 SLO(99.5%) 미만입니다"
+          description: "현재 가용성: {{ $value | humanizePercentage }}"
+
+      - alert: CriticalAvailability
+        expr: |
+          sum(rate(mcp_requests_total{status="success"}[5m])) 
+          / 
+          sum(rate(mcp_requests_total[5m])) < 0.99
+        for: 1m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "가용성이 SLA(99%) 미만입니다"
+          description: "현재 가용성: {{ $value | humanizePercentage }}"
+
+      # 응답 시간 알림
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, 
+            rate(mcp_request_duration_seconds_bucket{tool_name="analyze_frames"}[5m])
+          ) > 2.5
+        for: 10m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "P95 응답시간이 높습니다"
+          description: "현재 P95: {{ $value }}초 (목표: 2초)"
+
+      - alert: CriticalLatencyP95
+        expr: |
+          histogram_quantile(0.95, 
+            rate(mcp_request_duration_seconds_bucket{tool_name="analyze_frames"}[5m])
+          ) > 3
+        for: 5m
+        labels:
+          severity: critical
+          slo: latency
+        annotations:
+          summary: "P95 응답시간이 매우 높습니다"
+          description: "현재 P95: {{ $value }}초 (임계값: 3초)"
+
+      # Fast Pass 적중률 알림
+      - alert: LowFastPassHitRate
+        expr: |
+          sum(rate(mcp_fast_pass_hits_total[5m])) 
+          / 
+          (sum(rate(mcp_fast_pass_hits_total[5m])) + sum(rate(mcp_fast_pass_misses_total[5m]))) 
+          < 0.15
+        for: 1h
+        labels:
+          severity: warning
+          slo: cache_hit_rate
+        annotations:
+          summary: "Fast Pass 적중률이 낮습니다"
+          description: "현재 적중률: {{ $value | humanizePercentage }} (목표: 20%)"
+
+      # 에러율 알림
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(mcp_requests_total{status="error"}[5m])) 
+          / 
+          sum(rate(mcp_requests_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          slo: error_rate
+        annotations:
+          summary: "에러율이 SLO(1%) 초과"
+          description: "현재 에러율: {{ $value | humanizePercentage }}"
+
+      - alert: CriticalErrorRate
+        expr: |
+          sum(rate(mcp_requests_total{status="error"}[5m])) 
+          / 
+          sum(rate(mcp_requests_total[5m])) > 0.02
+        for: 1m
+        labels:
+          severity: critical
+          slo: error_rate
+        annotations:
+          summary: "에러율이 SLA(2%) 초과"
+          description: "현재 에러율: {{ $value | humanizePercentage }}"
+
+      # 처리량 알림
+      - alert: LowThroughput
+        expr: sum(rate(mcp_requests_total[1m])) * 60 < 50
+        for: 10m
+        labels:
+          severity: warning
+          slo: throughput
+        annotations:
+          summary: "처리량이 낮습니다"
+          description: "현재 처리량: {{ $value }} req/min (목표: 100 req/min)"
+
+      # Error Budget 알림
+      - alert: ErrorBudgetBurning
+        expr: |
+          (1 - (sum(rate(mcp_requests_total{status="success"}[1h])) 
+          / 
+          sum(rate(mcp_requests_total[1h])))) > 0.005
+        for: 1h
+        labels:
+          severity: warning
+          slo: error_budget
+        annotations:
+          summary: "Error Budget이 빠르게 소진되고 있습니다"
+          description: "시간당 소진율: {{ $value | humanizePercentage }}"
+
+  - name: infrastructure_alerts
+    interval: 30s
+    rules:
+      # 데이터베이스 알림
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL 데이터베이스 다운"
+          description: "데이터베이스에 연결할 수 없습니다"
+
+      - alert: HighDatabaseLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(mcp_db_query_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "데이터베이스 쿼리 지연"
+          description: "P95 쿼리 시간: {{ $value }}초"
+
+      # 시스템 리소스 알림
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 CPU 사용률"
+          description: "CPU 사용률: {{ $value }}%"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 메모리 사용률"
+          description: "메모리 사용률: {{ $value }}%"
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 공간 부족"
+          description: "디스크 사용률: {{ $value }}%"
+
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # 분석 정확도 알림
+      - alert: LowAnalysisConfidence
+        expr: |
+          histogram_quantile(0.50, 
+            rate(mcp_analysis_confidence_bucket[1h])
+          ) < 0.5
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "분석 신뢰도가 낮습니다"
+          description: "중앙값 신뢰도: {{ $value }}"
+
+      # 활성 요청 수 알림
+      - alert: TooManyActiveRequests
+        expr: sum(mcp_active_requests) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "활성 요청 수가 많습니다"
+          description: "현재 활성 요청: {{ $value }}개"

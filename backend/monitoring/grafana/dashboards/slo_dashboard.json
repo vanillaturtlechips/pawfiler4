@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "PawFiler SLO Dashboard",
+    "tags": ["slo", "video-analysis"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "가용성 (Availability)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(mcp_requests_total{status=\"success\"}[5m])) / sum(rate(mcp_requests_total[5m])) * 100",
+            "legendFormat": "Availability"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 99, "color": "yellow" },
+                { "value": 99.5, "color": "green" }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "P95 응답 시간",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 2, "color": "yellow" },
+                { "value": 3, "color": "red" }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "Fast Pass 적중률",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(mcp_fast_pass_hits_total[5m])) / (sum(rate(mcp_fast_pass_hits_total[5m])) + sum(rate(mcp_fast_pass_misses_total[5m]))) * 100",
+            "legendFormat": "Hit Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 15, "color": "yellow" },
+                { "value": 20, "color": "green" }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "id": 4,
+        "title": "에러율",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(mcp_requests_total{status=\"error\"}[5m])) / sum(rate(mcp_requests_total[5m])) * 100",
+            "legendFormat": "Error Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 1, "color": "yellow" },
+                { "value": 2, "color": "red" }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 }
+      },
+      {
+        "id": 5,
+        "title": "응답 시간 분포",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      },
+      {
+        "id": 6,
+        "title": "처리량 (Throughput)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(mcp_requests_total[1m])) * 60",
+            "legendFormat": "Requests/min"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      },
+      {
+        "id": 7,
+        "title": "도구별 요청 수",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum by(tool_name) (rate(mcp_requests_total[5m]))",
+            "legendFormat": "{{tool_name}}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+      },
+      {
+        "id": 8,
+        "title": "Error Budget 소진율",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "(1 - (sum(rate(mcp_requests_total{status=\"success\"}[30d])) / sum(rate(mcp_requests_total[30d])))) / 0.005 * 100",
+            "legendFormat": "Burn Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 50, "color": "yellow" },
+                { "value": 75, "color": "red" }
+              ]
+            }
+          }
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+      }
+    ],
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}

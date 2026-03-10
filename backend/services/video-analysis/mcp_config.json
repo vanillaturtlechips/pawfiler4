@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "pawfiler-video-analysis": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": "pawfiler4/backend/services/video-analysis",
+      "env": {
+        "PYTHONPATH": ".",
+        "LOG_LEVEL": "INFO"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "analyze_video",
+        "get_analysis",
+        "list_analyses",
+        "extract_frames"
+      ]
+    }
+  }
+}

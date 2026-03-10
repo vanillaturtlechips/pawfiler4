@@ -1,0 +1,66 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "pawfiler-dev"
+    environment: "development"
+
+# Alertmanager 설정
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# 알림 규칙 파일
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"
+
+# 스크랩 설정
+scrape_configs:
+  # MCP Video Analysis Service
+  - job_name: "mcp-video-analysis"
+    static_configs:
+      - targets: ["video-analysis:9090"]
+    metrics_path: "/metrics"
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Quiz Service
+  - job_name: "quiz-service"
+    static_configs:
+      - targets: ["quiz-service:9091"]
+    metrics_path: "/metrics"
+
+  # Community Service
+  - job_name: "community-service"
+    static_configs:
+      - targets: ["community-service:9092"]
+    metrics_path: "/metrics"
+
+  # Admin Service
+  - job_name: "admin-service"
+    static_configs:
+      - targets: ["admin-service:9093"]
+    metrics_path: "/metrics"
+
+  # BFF Service
+  - job_name: "bff"
+    static_configs:
+      - targets: ["bff:9094"]
+    metrics_path: "/metrics"
+
+  # PostgreSQL Exporter
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # Node Exporter (시스템 메트릭)
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Prometheus 자체 모니터링
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

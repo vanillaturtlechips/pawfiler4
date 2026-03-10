@@ -1,5 +1,5 @@
-grpcio==1.60.0
-grpcio-tools==1.60.0
+#grpcio==1.60.0
+#grpcio-tools==1.60.0
 confluent-kafka==2.3.0
 opencv-python==4.9.0.80
 numpy==1.26.3

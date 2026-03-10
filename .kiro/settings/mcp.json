@@ -1,0 +1,39 @@
+{
+  "mcpServers": {
+    "pawfiler-video-analysis": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": "pawfiler4/backend/services/video-analysis",
+      "env": {
+        "PYTHONPATH": ".",
+        "LOG_LEVEL": "INFO"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "get_frame_sample",
+        "analyze_frames",
+        "extract_embedding",
+        "search_similar_videos",
+        "explain_result",
+        "save_embedding",
+        "emit_event"
+      ]
+    },
+    "pawfiler-load-test": {
+      "command": "python",
+      "args": ["load_test_mcp_server.py"],
+      "cwd": "pawfiler4/backend/monitoring",
+      "env": {
+        "PYTHONPATH": ".",
+        "LOG_LEVEL": "INFO"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "run_load_test",
+        "get_test_results",
+        "list_tests",
+        "monitor_slo"
+      ]
+    }
+  }
+}
