@@ -32,6 +32,16 @@ data:
                   domains: ["*"]
                   routes:
                   - match:
+                      prefix: "/upload-video"
+                    route:
+                      cluster: video_analysis_http
+                      timeout: 300s
+                  - match:
+                      prefix: "/video_analysis.VideoAnalysisService"
+                    route:
+                      cluster: video_analysis_service
+                      timeout: 60s
+                  - match:
                       prefix: "/quiz.QuizService"
                     route:
                       cluster: quiz_service
@@ -67,13 +77,13 @@ data:
                   services:
                     - "quiz.QuizService"
                     - "community.CommunityService"
+                    - "video_analysis.VideoAnalysisService"
                   print_options:
                     add_whitespace: false
                     always_print_primitive_fields: true
                     preserve_proto_field_names: false
                   auto_mapping: true
                   convert_grpc_status: true
-                  match_incoming_request_route: false
               - name: envoy.filters.http.cors
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
@@ -117,6 +127,37 @@ data:
                   socket_address:
                     address: community-service
                     port_value: 50053
+      - name: video_analysis_service
+        connect_timeout: 5s
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+        load_assignment:
+          cluster_name: video_analysis_service
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: video-analysis
+                    port_value: 50054
+      - name: video_analysis_http
+        connect_timeout: 5s
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: video_analysis_http
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: video-analysis
+                    port_value: 8000
 ---
 apiVersion: apps/v1
 kind: Deployment

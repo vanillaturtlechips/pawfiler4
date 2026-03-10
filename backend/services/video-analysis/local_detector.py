@@ -2,6 +2,7 @@
 import cv2
 import torch
 import numpy as np
+import os
 from timm import create_model
 from torchvision import transforms
 import logging
@@ -17,7 +18,13 @@ class LocalDeepfakeDetector:
     def __init__(self, model_path="ml/models/mobilevit_v2_best.pth"):
         self.device = torch.device("cpu")  # GTX 1060 미지원
         self.model = create_model('mobilevitv2_050', pretrained=False, num_classes=2)
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        
+        # 모델 파일이 있으면 로드, 없으면 pretrained 사용
+        if os.path.exists(model_path):
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        else:
+            logger.warning(f"Model file not found: {model_path}, using pretrained weights")
+        
         self.model.to(self.device)
         self.model.eval()
         
