@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -197,9 +198,40 @@ func (sa *StringArray) Scan(value interface{}) error {
 
 	switch v := value.(type) {
 	case []byte:
-		return json.Unmarshal(v, sa)
+		// PostgreSQL text[] 배열 형식: {option1,option2,option3}
+		str := string(v)
+		if str == "{}" {
+			*sa = []string{}
+			return nil
+		}
+		// {} 제거하고 쉼표로 분리
+		if len(str) > 2 && str[0] == '{' && str[len(str)-1] == '}' {
+			str = str[1 : len(str)-1]
+			if str == "" {
+				*sa = []string{}
+				return nil
+			}
+			*sa = strings.Split(str, ",")
+			return nil
+		}
+		return fmt.Errorf("invalid PostgreSQL array format: %s", str)
 	case string:
-		return json.Unmarshal([]byte(v), sa)
+		// PostgreSQL text[] 배열 형식: {option1,option2,option3}
+		if v == "{}" {
+			*sa = []string{}
+			return nil
+		}
+		// {} 제거하고 쉼표로 분리
+		if len(v) > 2 && v[0] == '{' && v[len(v)-1] == '}' {
+			str := v[1 : len(v)-1]
+			if str == "" {
+				*sa = []string{}
+				return nil
+			}
+			*sa = strings.Split(str, ",")
+			return nil
+		}
+		return fmt.Errorf("invalid PostgreSQL array format: %s", v)
 	default:
 		return fmt.Errorf("cannot scan %T into StringArray", value)
 	}
