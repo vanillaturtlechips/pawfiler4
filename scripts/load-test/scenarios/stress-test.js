@@ -18,9 +18,9 @@ export const options = {
   scenarios: {
     stress_test: {
       executor: 'ramping-vus',
-      startVUs: 150,  // 초기 150명
+      startVUs: 225,  // 초기 225명 (150 * 1.5)
       stages: [
-        { duration: '10m', target: 1000 },  // 10분 동안 1000명까지 선형 증가
+        { duration: '10m', target: 2000 },  // 10분 동안 2000명까지 선형 증가
       ],
       gracefulRampDown: '30s',
     },
@@ -156,7 +156,7 @@ export default function () {
       }
       
       // 문제 사이 짧은 대기 (사용자가 문제 읽고 답하는 시간)
-      sleep(0.5);
+      sleep(1.25);
     }
     // Quiz는 이미 충분히 시간 소비했으므로 추가 sleep 불필요
     
@@ -230,12 +230,12 @@ export default function () {
 export function setup() {
   console.log('=== Stress Test 시작 ===');
   console.log(`API URL: ${API_URL}`);
-  console.log('초기: 150명 (VUs)');
-  console.log('증가율: 5초당 7명');
+  console.log('초기: 225명 (VUs)');
+  console.log('증가율: 5초당 약 10명');
   console.log('기간: 10분');
-  console.log('최종: 1000명 (VUs)');
-  console.log('각 사용자: 초당 5개 요청');
-  console.log('예상 RPS: 750 → 5,000');
+  console.log('최종: 2000명 (VUs)');
+  console.log('각 사용자: 초당 약 1.6개 요청');
+  console.log('예상 RPS: 360 → 3,200');
   console.log('Quiz:Community = 50:50');
   console.log('Community 읽기:쓰기 = 90:10');
   console.log('Quiz: 순수 UUID, Community: test-load- 접두사');
