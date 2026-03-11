@@ -57,13 +57,17 @@ func main() {
 	}
 	log.Println("Successfully connected to PostgreSQL with GORM")
 
-	// Redis 클라이언트 연결
+	// Redis 클라이언트 연결 (고부하 대응 최적화)
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:         redisAddr,
 		Password:     "", // 패스워드 없음
 		DB:           0,  // 기본 DB
-		PoolSize:     20, // 커넥션 풀 크기
-		MinIdleConns: 5,  // 최소 유지 커넥션
+		PoolSize:     100, // 커넥션 풀 크기 (20 → 100, 1000명 동시 사용자 대응)
+		MinIdleConns: 20,  // 최소 유지 커넥션 (5 → 20)
+		DialTimeout:  5 * time.Second,  // 연결 타임아웃
+		ReadTimeout:  3 * time.Second,  // 읽기 타임아웃
+		WriteTimeout: 3 * time.Second,  // 쓰기 타임아웃
+		MaxRetries:   3,                // 재시도 횟수
 	})
 
 	// Redis 연결 테스트
