@@ -28,8 +28,8 @@ func main() {
 	}
 	defer db.Close()
 
-	// Connection pool settings for high load
-	db.SetMaxOpenConns(100)
+	// Connection pool settings optimized for high load
+	db.SetMaxOpenConns(50)
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
