@@ -51,21 +51,21 @@ type QuizRepository interface {
 
 // PostgresQuizRepository implements QuizRepository using PostgreSQL
 type PostgresQuizRepository struct {
-	db          *sql.DB
-	questionIDs []string
-	mu          sync.RWMutex
+	db        *sql.DB
+	questions []Question
+	mu        sync.RWMutex
 }
 
 // NewPostgresQuizRepository creates a new PostgreSQL-based repository
 func NewPostgresQuizRepository(db *sql.DB) QuizRepository {
 	repo := &PostgresQuizRepository{db: db}
 	
-	// Load question IDs on startup
+	// Load all questions on startup
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	
-	if err := repo.LoadQuestionIDs(ctx); err != nil {
-		log.Printf("Warning: Failed to load question IDs: %v", err)
+	if err := repo.LoadQuestions(ctx); err != nil {
+		log.Printf("Warning: Failed to load questions: %v", err)
 	}
 	
 	// Start auto-refresh every 5 minutes
@@ -74,42 +74,81 @@ func NewPostgresQuizRepository(db *sql.DB) QuizRepository {
 	return repo
 }
 
-// LoadQuestionIDs loads all question IDs into memory for fast random selection
-func (r *PostgresQuizRepository) LoadQuestionIDs(ctx context.Context) error {
-	rows, err := r.db.QueryContext(ctx, "SELECT id FROM quiz.questions")
+// LoadQuestions loads all questions into memory for fast random selection
+func (r *PostgresQuizRepository) LoadQuestions(ctx context.Context) error {
+	query := `
+		SELECT 
+			id, type, media_type, media_url, thumbnail_emoji, 
+			difficulty, category, explanation, created_at, updated_at,
+			options, correct_index, correct_answer, correct_regions, 
+			tolerance, comparison_media_url, correct_side
+		FROM quiz.questions
+	`
+	
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to query question IDs: %w", err)
+		return fmt.Errorf("failed to query questions: %w", err)
 	}
 	defer rows.Close()
 	
-	var ids []string
+	var questions []Question
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("failed to scan question ID: %w", err)
+		var question Question
+		var correctRegionsJSON []byte
+		
+		err := rows.Scan(
+			&question.ID,
+			&question.Type,
+			&question.MediaType,
+			&question.MediaURL,
+			&question.ThumbnailEmoji,
+			&question.Difficulty,
+			&question.Category,
+			&question.Explanation,
+			&question.CreatedAt,
+			&question.UpdatedAt,
+			pq.Array(&question.Options),
+			&question.CorrectIndex,
+			&question.CorrectAnswer,
+			&correctRegionsJSON,
+			&question.Tolerance,
+			&question.ComparisonMediaURL,
+			&question.CorrectSide,
+		)
+		
+		if err != nil {
+			return fmt.Errorf("failed to scan question: %w", err)
 		}
-		ids = append(ids, id)
+		
+		// Unmarshal correct_regions JSONB
+		if correctRegionsJSON != nil {
+			if err := json.Unmarshal(correctRegionsJSON, &question.CorrectRegions); err != nil {
+				return fmt.Errorf("failed to unmarshal correct_regions: %w", err)
+			}
+		}
+		
+		questions = append(questions, question)
 	}
 	
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating question IDs: %w", err)
+		return fmt.Errorf("error iterating questions: %w", err)
 	}
 	
 	r.mu.Lock()
-	r.questionIDs = ids
+	r.questions = questions
 	r.mu.Unlock()
 	
-	log.Printf("Loaded %d question IDs into cache", len(ids))
+	log.Printf("Loaded %d questions into cache", len(questions))
 	return nil
 }
 
-// StartAutoRefresh starts a background goroutine to refresh question IDs periodically
+// StartAutoRefresh starts a background goroutine to refresh questions periodically
 func (r *PostgresQuizRepository) StartAutoRefresh(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			if err := r.LoadQuestionIDs(ctx); err != nil {
+			if err := r.LoadQuestions(ctx); err != nil {
 				log.Printf("Auto-refresh failed: %v", err)
 			}
 			cancel()
@@ -120,87 +159,43 @@ func (r *PostgresQuizRepository) StartAutoRefresh(interval time.Duration) {
 // GetRandomQuestion retrieves a random question with optional difficulty and type filters
 // Requirements: 3.1, 3.2, 3.3
 func (r *PostgresQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *string, questionType *QuestionType) (*Question, error) {
-	// If no filters, use cached IDs for fast random selection
-	if difficulty == nil && questionType == nil {
-		r.mu.RLock()
-		if len(r.questionIDs) == 0 {
-			r.mu.RUnlock()
-			return nil, fmt.Errorf("no questions loaded in cache")
-		}
-		randomID := r.questionIDs[rand.Intn(len(r.questionIDs))]
-		r.mu.RUnlock()
-		
-		return r.GetQuestionById(ctx, randomID)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	if len(r.questions) == 0 {
+		return nil, fmt.Errorf("no questions loaded in cache")
 	}
 	
-	// If filters are applied, use TABLESAMPLE for better performance
-	query := `
-		SELECT 
-			id, type, media_type, media_url, thumbnail_emoji, 
-			difficulty, category, explanation, created_at, updated_at,
-			options, correct_index, correct_answer, correct_regions, 
-			tolerance, comparison_media_url, correct_side
-		FROM quiz.questions
-		WHERE 1=1
-	`
-	args := []interface{}{}
-	argCount := 1
-
-	// Apply difficulty filter (Requirement 3.2)
-	if difficulty != nil {
-		query += fmt.Sprintf(" AND difficulty = $%d", argCount)
-		args = append(args, *difficulty)
-		argCount++
+	// If no filters, return random question from cache
+	if difficulty == nil && questionType == nil {
+		randomQuestion := r.questions[rand.Intn(len(r.questions))]
+		return &randomQuestion, nil
 	}
-
-	// Apply question type filter (Requirement 3.3)
-	if questionType != nil {
-		query += fmt.Sprintf(" AND type = $%d", argCount)
-		args = append(args, string(*questionType))
-		argCount++
-	}
-
-	// Use TABLESAMPLE for filtered queries (Requirement 3.1)
-	query += " ORDER BY RANDOM() LIMIT 1"
-
-	var question Question
-	var correctRegionsJSON []byte
-
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(
-		&question.ID,
-		&question.Type,
-		&question.MediaType,
-		&question.MediaURL,
-		&question.ThumbnailEmoji,
-		&question.Difficulty,
-		&question.Category,
-		&question.Explanation,
-		&question.CreatedAt,
-		&question.UpdatedAt,
-		pq.Array(&question.Options),
-		&question.CorrectIndex,
-		&question.CorrectAnswer,
-		&correctRegionsJSON,
-		&question.Tolerance,
-		&question.ComparisonMediaURL,
-		&question.CorrectSide,
-	)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("no questions found matching criteria")
+	
+	// If filters are applied, filter in memory
+	var filtered []Question
+	for _, q := range r.questions {
+		match := true
+		
+		if difficulty != nil && q.Difficulty != *difficulty {
+			match = false
 		}
-		return nil, fmt.Errorf("failed to get random question: %w", err)
-	}
-
-	// Unmarshal correct_regions JSONB
-	if correctRegionsJSON != nil {
-		if err := json.Unmarshal(correctRegionsJSON, &question.CorrectRegions); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal correct_regions: %w", err)
+		
+		if questionType != nil && q.Type != *questionType {
+			match = false
+		}
+		
+		if match {
+			filtered = append(filtered, q)
 		}
 	}
-
-	return &question, nil
+	
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no questions found matching criteria")
+	}
+	
+	randomQuestion := filtered[rand.Intn(len(filtered))]
+	return &randomQuestion, nil
 }
 
 // GetQuestionById retrieves a specific question by its ID
