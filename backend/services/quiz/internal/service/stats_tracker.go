@@ -23,28 +23,19 @@ type StatsTracker interface {
 // statsTrackerImpl implements the StatsTracker interface
 type statsTrackerImpl struct {
 	repo repository.QuizRepository
-	db   *sql.DB
 }
 
 // NewStatsTracker creates a new StatsTracker instance
-func NewStatsTracker(repo repository.QuizRepository, db *sql.DB) StatsTracker {
+func NewStatsTracker(repo repository.QuizRepository) StatsTracker {
 	return &statsTrackerImpl{
 		repo: repo,
-		db:   db,
 	}
 }
 
 // UpdateStats updates user statistics based on correct/incorrect answer
-// This method ensures data consistency through transaction processing
+// This method ensures data consistency through GORM transaction processing
 // Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8
 func (s *statsTrackerImpl) UpdateStats(ctx context.Context, userID string, isCorrect bool) (*repository.UserStats, error) {
-	// Start transaction for data consistency (Requirement 11.8)
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
 	// Get current stats or create new ones
 	stats, err := s.repo.GetUserStats(ctx, userID)
 	if err != nil {
@@ -77,15 +68,10 @@ func (s *statsTrackerImpl) UpdateStats(ctx context.Context, userID string, isCor
 		stats.Lives--
 	}
 
-	// Update stats in database
+	// Update stats in database (GORM handles transactions internally)
 	err = s.repo.UpdateUserStats(ctx, stats)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user stats: %w", err)
-	}
-
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	// Requirement 11.7: correct_rate is calculated via CorrectRate() method
