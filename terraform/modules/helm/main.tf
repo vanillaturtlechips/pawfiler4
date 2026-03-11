@@ -3,15 +3,6 @@
 # Includes: ALB Controller, ArgoCD, Kubecost, Grafana, Envoy, Metrics Server, Karpenter
 # ============================================================================
 
-terraform {
-  required_providers {
-    kubectl = {
-      source  = "gavinbunney/kubectl"
-      version = "~> 1.14"
-    }
-  }
-}
-
 # ===========================================================================
 # ALB Controller IAM Role (IRSA)
 # ===========================================================================
@@ -258,6 +249,12 @@ resource "helm_release" "kubecost" {
     value = "quay.io/prometheus/prometheus"
   }
 
+  # Disable Kubecost Grafana (use standalone Grafana instead)
+  set {
+    name  = "grafana.enabled"
+    value = "false"
+  }
+
   set {
     name  = "prometheus.server.image.tag"
     value = "v2.47.0"
@@ -271,47 +268,6 @@ resource "helm_release" "kubecost" {
 
 }
 
-# Prometheus 설치 (독립 설치)
-resource "helm_release" "prometheus" {
-  name             = "prometheus"
-  repository       = "https://prometheus-community.github.io/helm-charts"
-  chart            = "prometheus"
-  namespace        = "monitoring"
-  create_namespace = true
-  version          = "25.8.0"
-
-  set {
-    name  = "server.persistentVolume.storageClass"
-    value = "gp2"
-  }
-
-  set {
-    name  = "server.persistentVolume.size"
-    value = "32Gi"
-  }
-
-  set {
-    name  = "alertmanager.enabled"
-    value = "false"
-  }
-
-  set {
-    name  = "prometheus-pushgateway.enabled"
-    value = "false"
-  }
-
-  set {
-    name  = "kube-state-metrics.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "prometheus-node-exporter.enabled"
-    value = "true"
-  }
-
-}
-
 # Grafana 설치 (리소스 모니터링 대시보드)
 resource "helm_release" "grafana" {
   name             = "grafana"
@@ -320,14 +276,15 @@ resource "helm_release" "grafana" {
   namespace        = "monitoring"
   create_namespace = true
   version          = "7.0.0"
+  timeout          = 600
 
   values = [
     yamlencode({
       adminPassword = "admin"
       persistence = {
-        enabled      = true
-        storageClass = "gp2"
-        size         = "10Gi"
+        enabled           = true
+        storageClassName  = "gp2"
+        size              = "10Gi"
       }
       datasources = {
         "datasources.yaml" = {
@@ -336,7 +293,7 @@ resource "helm_release" "grafana" {
             {
               name      = "Prometheus"
               type      = "prometheus"
-              url       = "http://prometheus-server.monitoring.svc.cluster.local"
+              url       = "http://kubecost-prometheus-server.monitoring.svc.cluster.local"
               access    = "proxy"
               isDefault = true
             }
@@ -363,11 +320,6 @@ resource "helm_release" "grafana" {
       }
       dashboards = {
         default = {
-          node-exporter-full = {
-            gnetId     = 1860
-            revision   = 31
-            datasource = "Prometheus"
-          }
           kubernetes-cluster = {
             gnetId     = 7249
             revision   = 1
@@ -388,7 +340,7 @@ resource "helm_release" "grafana" {
   ]
 
   depends_on = [
-    helm_release.prometheus
+    helm_release.kubecost
   ]
 }
 
@@ -413,125 +365,160 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   namespace  = "kube-system"
   version    = "3.12.0"
-
 }
 
-# Karpenter (자동 스케일링)
-resource "helm_release" "karpenter" {
-  count            = var.enable_karpenter ? 1 : 0
-  name             = "karpenter"
-  repository       = "oci://public.ecr.aws/karpenter"
-  chart            = "karpenter"
-  namespace        = "karpenter"
-  create_namespace = true
-  version          = "1.9.0"
+# ---------------------------------------------------------------------------
+# Cluster Autoscaler
+resource "helm_release" "cluster_autoscaler" {
+  name             = "cluster-autoscaler"
+  repository       = "https://kubernetes.github.io/autoscaler"
+  chart            = "cluster-autoscaler"
+  namespace        = "kube-system"
+  create_namespace = false
+  version          = "9.37.0"
+  timeout          = 600
+  wait             = false
 
   set {
-    name  = "settings.clusterName"
+    name  = "autoDiscovery.clusterName"
     value = var.cluster_name
   }
 
   set {
-    name  = "settings.clusterEndpoint"
-    value = var.cluster_endpoint
+    name  = "awsRegion"
+    value = var.aws_region
   }
 
   set {
-    name  = "settings.interruptionQueue"
-    value = var.karpenter_queue_name
+    name  = "rbac.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.cluster_autoscaler.arn
   }
 
   set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = var.karpenter_controller_role_arn
+    name  = "rbac.serviceAccount.name"
+    value = "cluster-autoscaler"
   }
 
   set {
-    name  = "controller.resources.requests.cpu"
-    value = "1"
+    name  = "extraArgs.balance-similar-node-groups"
+    value = "true"
   }
 
   set {
-    name  = "controller.resources.requests.memory"
-    value = "1Gi"
+    name  = "extraArgs.skip-nodes-with-system-pods"
+    value = "false"
   }
 
-  set {
-    name  = "controller.resources.limits.cpu"
-    value = "1"
-  }
-
-  set {
-    name  = "controller.resources.limits.memory"
-    value = "1Gi"
-  }
-
-  depends_on = [var.karpenter_controller_role_arn]
+  depends_on = [
+    helm_release.metrics_server
+  ]
 }
 
-# Karpenter NodePool
-resource "kubectl_manifest" "karpenter_nodepool" {
-  count = var.enable_karpenter ? 1 : 0
-  yaml_body = <<-YAML
-    apiVersion: karpenter.sh/v1
-    kind: NodePool
-    metadata:
-      name: default
-    spec:
-      template:
-        spec:
-          nodeClassRef:
-            group: karpenter.k8s.aws
-            kind: EC2NodeClass
-            name: default
-          requirements:
-            - key: karpenter.sh/capacity-type
-              operator: In
-              values: ["spot"]
-            - key: kubernetes.io/arch
-              operator: In
-              values: ["amd64"]
-            - key: node.kubernetes.io/instance-type
-              operator: In
-              values: ["t3.medium"]
-            - key: kubernetes.io/os
-              operator: In
-              values: ["linux"]
-          expireAfter: 720h
-      limits:
-        cpu: "20"
-        memory: "40Gi"
-      disruption:
-        consolidationPolicy: WhenEmptyOrUnderutilized
-        consolidateAfter: 1m
-  YAML
+# IAM Role for Cluster Autoscaler
+resource "aws_iam_role" "cluster_autoscaler" {
+  name = "${var.project_name}-cluster-autoscaler"
 
-  depends_on = [helm_release.karpenter]
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${var.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:cluster-autoscaler"
+          "${var.oidc_provider_url}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
 }
 
-# Karpenter EC2NodeClass
-resource "kubectl_manifest" "karpenter_ec2nodeclass" {
-  count = var.enable_karpenter ? 1 : 0
-  yaml_body = <<-YAML
-    apiVersion: karpenter.k8s.aws/v1
-    kind: EC2NodeClass
-    metadata:
-      name: default
-    spec:
-      amiSelectorTerms:
-        - alias: al2@latest
-      role: ${var.karpenter_node_role_name}
-      subnetSelectorTerms:
-        - tags:
-            karpenter.sh/discovery: ${var.cluster_name}
-      securityGroupSelectorTerms:
-        - tags:
-            karpenter.sh/discovery: ${var.cluster_name}
-      tags:
-        karpenter.sh/discovery: ${var.cluster_name}
-        Name: karpenter-node
-  YAML
+resource "aws_iam_role_policy" "cluster_autoscaler" {
+  name = "${var.project_name}-cluster-autoscaler-policy"
+  role = aws_iam_role.cluster_autoscaler.id
 
-  depends_on = [helm_release.karpenter]
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:GetInstanceTypesFromInstanceRequirements",
+          "eks:DescribeNodegroup"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
+# Karpenter (자동 스케일링)
+# resource "helm_release" "karpenter" {
+#   count            = var.enable_karpenter ? 1 : 0
+#   name             = "karpenter"
+#   repository       = "oci://public.ecr.aws/karpenter"
+#   chart            = "karpenter"
+#   namespace        = "karpenter"
+#   create_namespace = true
+#   version          = "1.9.0"
+#
+#   set {
+#     name  = "settings.clusterName"
+#     value = var.cluster_name
+#   }
+#
+#   set {
+#     name  = "settings.clusterEndpoint"
+#     value = var.cluster_endpoint
+#   }
+#
+#   set {
+#     name  = "settings.interruptionQueue"
+#     value = var.karpenter_queue_name
+#   }
+#
+#   set {
+#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+#     value = var.karpenter_controller_role_arn
+#   }
+#
+#   set {
+#     name  = "controller.resources.requests.cpu"
+#     value = "1"
+#   }
+#
+#   set {
+#     name  = "controller.resources.requests.memory"
+#     value = "1Gi"
+#   }
+#
+#   set {
+#     name  = "controller.resources.limits.cpu"
+#     value = "1"
+#   }
+#
+#   set {
+#     name  = "controller.resources.limits.memory"
+#     value = "1Gi"
+#   }
+#
+# }

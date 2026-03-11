@@ -34,7 +34,11 @@ jobs:
         id: set-matrix
         run: |
           SERVICES='${{ steps.filter.outputs.changes }}'
-          MATRIX=$(echo $SERVICES | jq -c 'map({service: .})')
+          # Map service names to ECR repository names
+          MATRIX=$(echo $SERVICES | jq -c 'map({
+            service: .,
+            ecr_name: (. + "-service")
+          })')
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   # Docker 빌드 및 ECR 푸시
@@ -64,8 +68,8 @@ jobs:
           context: ./backend/services/${{ matrix.config.service }}
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/pawfiler/${{ matrix.config.service }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/pawfiler/${{ matrix.config.service }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/${{ matrix.config.ecr_name }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/${{ matrix.config.ecr_name }}:latest
 
   # ArgoCD 이미지 태그 업데이트
   update-argocd:
@@ -80,7 +84,8 @@ jobs:
       - name: Update Image Tags
         run: |
           for service in $(echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.[].service'); do
-            sed -i "s|image: .*/pawfiler/${service}:.*|image: ${{ secrets.ECR_REGISTRY }}/pawfiler/${service}:${{ github.sha }}|g" \
+            ecr_name="${service}-service"
+            sed -i "s|image: .*/pawfiler/${ecr_name}:.*|image: ${{ secrets.ECR_REGISTRY }}/pawfiler/${ecr_name}:${{ github.sha }}|g" \
               apps/services/${service}/deployment.yaml
           done
 

@@ -228,3 +228,4 @@ VALUES ('uuid', 'multiple_choice', 'image', 'https://...', ...);
 ## 참고 문서
 - [MEDIA_SETUP.md](./MEDIA_SETUP.md): S3 미디어 설정 가이드
 - [Spec 문서](.kiro/specs/quiz-backend-service/): 요구사항 및 설계 문서
+# CI/CD test - Wed Mar 11 04:48:13 AM KST 2026

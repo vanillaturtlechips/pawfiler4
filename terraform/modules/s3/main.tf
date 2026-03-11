@@ -65,7 +65,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   price_class         = "PriceClass_200"
-  # aliases             = ["pawfiler.site", "www.pawfiler.site"]  # 수동 CloudFront에서 관리
+  aliases             = ["pawfiler.site", "www.pawfiler.site"]
 
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name

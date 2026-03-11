@@ -109,30 +109,6 @@ module "rds" {
 }
 
 # ---------------------------------------------------------------------------
-# EKS Access Entry: Bastion Host Role
-# (EKS 모듈 밖에 선언 - bastion↔eks 순환 의존성 방지)
-# ---------------------------------------------------------------------------
-resource "aws_eks_access_entry" "bastion" {
-  cluster_name  = var.cluster_name
-  principal_arn = module.bastion.bastion_role_arn
-  type          = "STANDARD"
-
-  depends_on = [module.eks, module.bastion]
-}
-
-resource "aws_eks_access_policy_association" "bastion" {
-  cluster_name  = var.cluster_name
-  principal_arn = module.bastion.bastion_role_arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.bastion]
-}
-
-# ---------------------------------------------------------------------------
 # Helm: Helm Releases + ALB/Kubecost IAM Roles (IRSA)
 # ---------------------------------------------------------------------------
 module "helm" {
@@ -148,22 +124,17 @@ module "helm" {
   oidc_provider_url = module.eks.oidc_provider_url
   account_id        = data.aws_caller_identity.current.account_id
 
-  enable_karpenter = var.enable_karpenter
-  karpenter_queue_name = (
-    module.karpenter.karpenter_queue_name != null
-    ? module.karpenter.karpenter_queue_name
-    : ""
-  )
-  karpenter_controller_role_arn = (
-    module.karpenter.karpenter_controller_role_arn != null
-    ? module.karpenter.karpenter_controller_role_arn
-    : ""
-  )
-  karpenter_node_role_name = (
-    module.karpenter.karpenter_node_role_name != null
-    ? module.karpenter.karpenter_node_role_name
-    : ""
-  )
+  # enable_karpenter = var.enable_karpenter
+  # karpenter_queue_name = (
+  #   module.karpenter.karpenter_queue_name != null
+  #   ? module.karpenter.karpenter_queue_name
+  #   : ""
+  # )
+  # karpenter_controller_role_arn = (
+  #   module.karpenter.karpenter_controller_role_arn != null
+  #   ? module.karpenter.karpenter_controller_role_arn
+  #   : ""
+  # )
 
   kubecost_token        = var.kubecost_token
   argocd_admin_password = var.argocd_admin_password
@@ -186,15 +157,15 @@ module "irsa" {
 # ---------------------------------------------------------------------------
 # Karpenter: Autoscaler IAM, SQS, EventBridge
 # ---------------------------------------------------------------------------
-module "karpenter" {
-  source = "./modules/karpenter"
-
-  project_name      = var.project_name
-  enable_karpenter  = var.enable_karpenter
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_provider_url = module.eks.oidc_provider_url
-  cluster_name      = var.cluster_name
-  cluster_arn       = module.eks.eks_cluster_arn
-
-  depends_on = [module.eks]
-}
+# module "karpenter" {
+#   source = "./modules/karpenter"
+#
+#   project_name      = var.project_name
+#   enable_karpenter  = var.enable_karpenter
+#   oidc_provider_arn = module.eks.oidc_provider_arn
+#   oidc_provider_url = module.eks.oidc_provider_url
+#   cluster_name      = var.cluster_name
+#   cluster_arn       = module.eks.eks_cluster_arn
+#
+#   depends_on = [module.eks]
+# }
