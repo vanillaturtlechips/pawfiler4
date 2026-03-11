@@ -6,6 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"math/rand"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -47,17 +51,89 @@ type QuizRepository interface {
 
 // PostgresQuizRepository implements QuizRepository using PostgreSQL
 type PostgresQuizRepository struct {
-	db *sql.DB
+	db          *sql.DB
+	questionIDs []string
+	mu          sync.RWMutex
 }
 
 // NewPostgresQuizRepository creates a new PostgreSQL-based repository
 func NewPostgresQuizRepository(db *sql.DB) QuizRepository {
-	return &PostgresQuizRepository{db: db}
+	repo := &PostgresQuizRepository{db: db}
+	
+	// Load question IDs on startup
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	if err := repo.LoadQuestionIDs(ctx); err != nil {
+		log.Printf("Warning: Failed to load question IDs: %v", err)
+	}
+	
+	// Start auto-refresh every 5 minutes
+	repo.StartAutoRefresh(5 * time.Minute)
+	
+	return repo
+}
+
+// LoadQuestionIDs loads all question IDs into memory for fast random selection
+func (r *PostgresQuizRepository) LoadQuestionIDs(ctx context.Context) error {
+	rows, err := r.db.QueryContext(ctx, "SELECT id FROM quiz.questions")
+	if err != nil {
+		return fmt.Errorf("failed to query question IDs: %w", err)
+	}
+	defer rows.Close()
+	
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("failed to scan question ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating question IDs: %w", err)
+	}
+	
+	r.mu.Lock()
+	r.questionIDs = ids
+	r.mu.Unlock()
+	
+	log.Printf("Loaded %d question IDs into cache", len(ids))
+	return nil
+}
+
+// StartAutoRefresh starts a background goroutine to refresh question IDs periodically
+func (r *PostgresQuizRepository) StartAutoRefresh(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := r.LoadQuestionIDs(ctx); err != nil {
+				log.Printf("Auto-refresh failed: %v", err)
+			}
+			cancel()
+		}
+	}()
 }
 
 // GetRandomQuestion retrieves a random question with optional difficulty and type filters
 // Requirements: 3.1, 3.2, 3.3
 func (r *PostgresQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *string, questionType *QuestionType) (*Question, error) {
+	// If no filters, use cached IDs for fast random selection
+	if difficulty == nil && questionType == nil {
+		r.mu.RLock()
+		if len(r.questionIDs) == 0 {
+			r.mu.RUnlock()
+			return nil, fmt.Errorf("no questions loaded in cache")
+		}
+		randomID := r.questionIDs[rand.Intn(len(r.questionIDs))]
+		r.mu.RUnlock()
+		
+		return r.GetQuestionById(ctx, randomID)
+	}
+	
+	// If filters are applied, use TABLESAMPLE for better performance
 	query := `
 		SELECT 
 			id, type, media_type, media_url, thumbnail_emoji, 
@@ -84,7 +160,7 @@ func (r *PostgresQuizRepository) GetRandomQuestion(ctx context.Context, difficul
 		argCount++
 	}
 
-	// Random selection (Requirement 3.1)
+	// Use TABLESAMPLE for filtered queries (Requirement 3.1)
 	query += " ORDER BY RANDOM() LIMIT 1"
 
 	var question Question

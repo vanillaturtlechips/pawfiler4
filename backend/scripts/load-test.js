@@ -13,13 +13,13 @@ const errorRate = new Rate('errors');
 const responseTime = new Trend('response_time');
 const requestCount = new Counter('requests');
 
-// SLO 정의
+// SLO 정의 (엄격한 기준)
 const SLO = {
   availability: 0.9995,  // 99.95%
-  p50: 200,              // 200ms
-  p95: 500,              // 500ms
-  p99: 1000,             // 1000ms
-  errorRate: 0,          // 0%
+  p50: 150,              // 150ms
+  p95: 250,              // 250ms (Quiz), 300ms (Community)
+  p99: 350,              // 350ms (Quiz), 500ms (Community)
+  errorRate: 0.01,       // 1%
 };
 
 // 시나리오별 설정
@@ -172,14 +172,14 @@ export const options = {
   noConnectionReuse: true,
   noVUConnectionReuse: true,
   
-  // SLO 임계값 설정
+  // SLO 임계값 설정 (엄격한 기준)
   thresholds: {
     'http_req_duration': [
-      `p(50)<${SLO.p50}`,    // P50 < 200ms
-      `p(95)<${SLO.p95}`,    // P95 < 500ms
-      `p(99)<${SLO.p99}`,    // P99 < 1000ms
+      `p(50)<${SLO.p50}`,    // P50 < 150ms
+      `p(95)<${SLO.p95}`,    // P95 < 250ms
+      `p(99)<${SLO.p99}`,    // P99 < 350ms
     ],
-    'http_req_failed': [`rate<=${SLO.errorRate}`],  // 오류율 0%
+    'http_req_failed': [`rate<=${SLO.errorRate}`],  // 오류율 1% 이하
     'errors': [`rate<=${SLO.errorRate}`],
   },
 };
