@@ -177,7 +177,7 @@ func (r *PostgresQuizRepository) GetRandomQuestion(ctx context.Context, difficul
 	for _, q := range r.questions {
 		match := true
 		
-		if difficulty != nil && q.Difficulty != *difficulty {
+		if difficulty != nil && string(q.Difficulty) != *difficulty {
 			match = false
 		}
 		
