@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // GORM 모델 정의 - 기존 모델과 호환성 유지

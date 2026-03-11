@@ -16,10 +16,12 @@ import (
 
 // GormQuizRepository GORM + Redis를 사용하는 QuizRepository 구현
 type GormQuizRepository struct {
-	db        *gorm.DB
-	redis     *redis.Client
-	questions []Question
-	mu        sync.RWMutex
+	db           *gorm.DB
+	redis        *redis.Client
+	questions    []Question
+	mu           sync.RWMutex
+	workerStarted bool
+	workerMu     sync.Mutex
 }
 
 // NewGormQuizRepository GORM + Redis 기반 repository 생성
@@ -45,6 +47,9 @@ func NewGormQuizRepository(db *gorm.DB, redisClient *redis.Client) QuizRepositor
 
 	// 30초마다 자동 리프레시
 	repo.StartAutoRefresh(30 * time.Second)
+
+	// Answer Worker 시작
+	repo.ensureWorkerStarted()
 
 	return repo
 }
@@ -199,9 +204,6 @@ func (r *GormQuizRepository) SaveAnswer(ctx context.Context, answer *UserAnswer)
 		return r.saveAnswerToDB(ctx, answer)
 	}
 
-	// 2. 백그라운드 Worker 시작 (한 번만)
-	go r.startAnswerWorker()
-
 	return nil
 }
 
@@ -218,41 +220,44 @@ func (r *GormQuizRepository) saveAnswerToDB(ctx context.Context, answer *UserAns
 	return nil
 }
 
+// ensureWorkerStarted Worker가 한 번만 시작되도록 보장
+func (r *GormQuizRepository) ensureWorkerStarted() {
+	r.workerMu.Lock()
+	defer r.workerMu.Unlock()
+	
+	if !r.workerStarted {
+		r.workerStarted = true
+		go r.startAnswerWorker()
+		log.Println("Answer worker started")
+	}
+}
+
 // startAnswerWorker 백그라운드에서 Redis Queue 처리
 func (r *GormQuizRepository) startAnswerWorker() {
-	// 중복 실행 방지
-	static := struct {
-		once sync.Once
-	}{}
+	log.Println("Starting answer worker...")
+	for {
+		ctx := context.Background()
+		
+		// Redis Queue에서 답변 가져오기 (블로킹, 최대 5초 대기)
+		result := r.redis.BRPop(ctx, 5*time.Second, "quiz:answer_queue").Val()
+		if len(result) < 2 {
+			continue // 타임아웃 또는 빈 큐
+		}
 
-	static.once.Do(func() {
-		go func() {
-			log.Println("Starting answer worker...")
-			for {
-				ctx := context.Background()
-				
-				// Redis Queue에서 답변 가져오기 (블로킹, 최대 5초 대기)
-				result := r.redis.BRPop(ctx, 5*time.Second, "quiz:answer_queue").Val()
-				if len(result) < 2 {
-					continue // 타임아웃 또는 빈 큐
-				}
+		answerJSON := result[1]
+		var answer UserAnswer
+		if err := json.Unmarshal([]byte(answerJSON), &answer); err != nil {
+			log.Printf("Failed to unmarshal answer: %v", err)
+			continue
+		}
 
-				answerJSON := result[1]
-				var answer UserAnswer
-				if err := json.Unmarshal([]byte(answerJSON), &answer); err != nil {
-					log.Printf("Failed to unmarshal answer: %v", err)
-					continue
-				}
-
-				// DB에 저장
-				if err := r.saveAnswerToDB(ctx, &answer); err != nil {
-					log.Printf("Failed to save answer to DB: %v", err)
-					// 실패한 답변을 다시 큐에 넣기 (재시도)
-					r.redis.LPush(ctx, "quiz:answer_queue", answerJSON)
-				}
-			}
-		}()
-	})
+		// DB에 저장
+		if err := r.saveAnswerToDB(ctx, &answer); err != nil {
+			log.Printf("Failed to save answer to DB: %v", err)
+			// 실패한 답변을 다시 큐에 넣기 (재시도)
+			r.redis.LPush(ctx, "quiz:answer_queue", answerJSON)
+		}
+	}
 }
 
 // GetUserStats 사용자 통계 조회 (Redis 캐시 활용)

@@ -60,13 +60,6 @@ func (m *MockAnswerValidator) ValidateComparison(selectedSide string, correctSid
 	return args.Bool(0), args.Error(1)
 }
 
-	mock.Mock
-}
-
-	args := m.Called(ctx, event)
-	return args.Error(0)
-}
-
 // TestGetRandomQuestion_Success tests successful random question retrieval
 // Validates: Requirement 3.1
 func TestGetRandomQuestion_Success(t *testing.T) {
@@ -94,6 +87,7 @@ func TestGetRandomQuestion_Success(t *testing.T) {
 
 	mockRepo.On("GetRandomQuestion", ctx, (*string)(nil), (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetRandomQuestion(ctx, userID, nil, nil)
 
 	assert.NoError(t, err)
@@ -122,6 +116,7 @@ func TestGetRandomQuestion_WithDifficulty(t *testing.T) {
 
 	mockRepo.On("GetRandomQuestion", ctx, &difficulty, (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetRandomQuestion(ctx, userID, &difficulty, nil)
 
 	assert.NoError(t, err)
@@ -149,6 +144,7 @@ func TestGetRandomQuestion_WithType(t *testing.T) {
 
 	mockRepo.On("GetRandomQuestion", ctx, (*string)(nil), &repoQuestionType).Return(expectedQuestion, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetRandomQuestion(ctx, userID, nil, &questionType)
 
 	assert.NoError(t, err)
@@ -180,6 +176,7 @@ func TestGetQuestionById_Success(t *testing.T) {
 
 	mockRepo.On("GetQuestionById", ctx, questionID).Return(expectedQuestion, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetQuestionById(ctx, questionID)
 
 	assert.NoError(t, err)
@@ -200,6 +197,7 @@ func TestGetQuestionById_NotFound(t *testing.T) {
 
 	mockRepo.On("GetQuestionById", ctx, questionID).Return(nil, errors.New("question not found"))
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetQuestionById(ctx, questionID)
 
 	assert.Error(t, err)
@@ -230,6 +228,7 @@ func TestGetUserStats_ExistingUser(t *testing.T) {
 
 	mockStatsTracker.On("GetStats", ctx, userID).Return(expectedStats, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	stats, err := service.GetUserStats(ctx, userID)
 
 	assert.NoError(t, err)
@@ -263,6 +262,7 @@ func TestGetUserStats_NewUser(t *testing.T) {
 
 	mockStatsTracker.On("GetStats", ctx, userID).Return(defaultStats, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	stats, err := service.GetUserStats(ctx, userID)
 
 	assert.NoError(t, err)
@@ -346,13 +346,8 @@ func TestSubmitAnswer_MultipleChoice_Correct(t *testing.T) {
 			ua.CoinsEarned == 5
 	})).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
-		return e.UserID == userID &&
-			e.QuestionID == questionID &&
-			e.Correct == true &&
-			e.XPEarned == 10 &&
-			e.CoinsEarned == 5
-	})).Return(nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
 	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
 

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
