@@ -34,41 +34,119 @@ export const options = {
 
 const API_URL = __ENV.API_URL || 'http://localhost:8080';
 
-function generateUserId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+function generateTestUserId() {
+  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+  return 'test-load-' + uuid;
+}
+
+// 각 문제 유형별 랜덤 답변 생성
+function generateAnswer(questionType) {
+  switch (questionType) {
+    case 'multiple_choice':
+      return {
+        answer_type: 'multiple_choice',
+        selected_index: Math.floor(Math.random() * 4), // 0-3
+      };
+    case 'true_false':
+      return {
+        answer_type: 'true_false',
+        selected_answer: Math.random() < 0.5,
+      };
+    case 'region_select':
+      return {
+        answer_type: 'region_select',
+        selected_region: {
+          x: Math.floor(Math.random() * 800), // 0-800
+          y: Math.floor(Math.random() * 600), // 0-600
+        },
+      };
+    case 'comparison':
+      return {
+        answer_type: 'comparison',
+        selected_side: Math.random() < 0.5 ? 'left' : 'right',
+      };
+    default:
+      return {
+        answer_type: 'multiple_choice',
+        selected_index: 0,
+      };
+  }
 }
 
 export default function () {
-  const userId = generateUserId();
+  const userId = generateTestUserId();
   const isQuizService = Math.random() < 0.5;  // 50% Quiz, 50% Community
   
   if (isQuizService) {
-    // Quiz Service - POST 요청
-    const res = http.post(
-      `${API_URL}/api/quiz.QuizService/GetRandomQuestion`,
-      JSON.stringify({ user_id: userId }),
-      {
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        tags: { service: 'quiz', method: 'POST' },
+    // Quiz Service - 10문제 풀기 (실제 사용자 플로우)
+    for (let i = 0; i < 10; i++) {
+      // 1. 문제 가져오기
+      const getQuestionRes = http.post(
+        `${API_URL}/api/quiz.QuizService/GetRandomQuestion`,
+        JSON.stringify({ user_id: userId }),
+        {
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          tags: { service: 'quiz', method: 'GetRandomQuestion' },
+        }
+      );
+      
+      quizResponseTime.add(getQuestionRes.timings.duration);
+      quizRequests.add(1);
+      totalTransactions.add(1);
+      
+      const getQuestionSuccess = check(getQuestionRes, {
+        'Quiz GetRandomQuestion status is 200': (r) => r.status === 200,
+        'Quiz GetRandomQuestion response time < 2000ms': (r) => r.timings.duration < 2000,
+      });
+      
+      errorRate.add(!getQuestionSuccess);
+      
+      // 2. 답변 제출 (문제를 성공적으로 가져온 경우에만)
+      if (getQuestionSuccess && getQuestionRes.body) {
+        try {
+          const question = JSON.parse(getQuestionRes.body);
+          const answer = generateAnswer(question.type);
+          
+          const submitAnswerRes = http.post(
+            `${API_URL}/api/quiz.QuizService/SubmitAnswer`,
+            JSON.stringify({
+              user_id: userId,
+              question_id: question.id,
+              ...answer,
+            }),
+            {
+              headers: { 
+                'Content-Type': 'application/json',
+              },
+              tags: { service: 'quiz', method: 'SubmitAnswer' },
+            }
+          );
+          
+          quizResponseTime.add(submitAnswerRes.timings.duration);
+          quizRequests.add(1);
+          totalTransactions.add(1);
+          
+          const submitSuccess = check(submitAnswerRes, {
+            'Quiz SubmitAnswer status is 200': (r) => r.status === 200,
+            'Quiz SubmitAnswer response time < 2000ms': (r) => r.timings.duration < 2000,
+          });
+          
+          errorRate.add(!submitSuccess);
+        } catch (e) {
+          // JSON 파싱 실패 시 에러로 기록
+          errorRate.add(true);
+        }
       }
-    );
-    
-    quizResponseTime.add(res.timings.duration);
-    quizRequests.add(1);
-    totalTransactions.add(1);
-    
-    const success = check(res, {
-      'Quiz POST status is 200': (r) => r.status === 200,
-      'Quiz POST response time < 2000ms': (r) => r.timings.duration < 2000,
-    });
-    
-    errorRate.add(!success);
+      
+      // 문제 사이 짧은 대기 (사용자가 문제 읽고 답하는 시간)
+      sleep(0.5);
+    }
     
   } else {
     // Community Service - 10% POST, 90% GET
@@ -84,7 +162,7 @@ export default function () {
           body: `This is a test post created during stress testing at ${new Date().toISOString()}`,
           author_nickname: `Tester${Math.floor(Math.random() * 1000)}`,
           author_emoji: '🤖',
-          tags: ['테스트', '부하테스트'],
+          tags: ['LOAD_TEST', 'DELETE_ME', '부하테스트'],
         }),
         {
           headers: { 

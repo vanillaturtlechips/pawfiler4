@@ -68,8 +68,8 @@ func NewPostgresQuizRepository(db *sql.DB) QuizRepository {
 		log.Printf("Warning: Failed to load questions: %v", err)
 	}
 	
-	// Start auto-refresh every 5 minutes
-	repo.StartAutoRefresh(5 * time.Minute)
+	// Start auto-refresh every 30 seconds
+	repo.StartAutoRefresh(30 * time.Second)
 	
 	return repo
 }
