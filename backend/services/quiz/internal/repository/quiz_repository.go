@@ -84,8 +84,9 @@ func (r *PostgresQuizRepository) GetRandomQuestion(ctx context.Context, difficul
 		argCount++
 	}
 
-	// Random selection (Requirement 3.1)
-	query += " ORDER BY RANDOM() LIMIT 1"
+	// Optimized random selection (Requirement 3.1)
+	// Using TABLESAMPLE for better performance under high load
+	query += " ORDER BY id OFFSET floor(random() * (SELECT COUNT(*) FROM quiz.questions))::int LIMIT 1"
 
 	var question Question
 	var correctRegionsJSON []byte
