@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	pb "github.com/pawfiler/backend/services/quiz/proto"
 	"github.com/pawfiler/backend/services/quiz/internal/handler"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
+	"github.com/pawfiler/backend/services/quiz/internal/rest"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
 )
 
@@ -101,8 +103,21 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterQuizServiceServer(grpcServer, quizHandler)
 
-	log.Printf("Quiz Service started on :%s with GORM + Redis", port)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+	// gRPC 서버 백그라운드 실행
+	go func() {
+		log.Printf("Quiz gRPC server started on :%s", port)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	// REST HTTP 서버 (Envoy transcoder 대체)
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8080"
+	}
+	log.Printf("Quiz REST server started on :%s", httpPort)
+	if err := http.ListenAndServe(":"+httpPort, rest.NewMux(quizHandler)); err != nil {
+		log.Fatalf("Failed to serve HTTP: %v", err)
 	}
 }
