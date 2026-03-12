@@ -179,6 +179,76 @@ func (a ComparisonAnswer) ToJSON() (map[string]interface{}, error) {
 	}, nil
 }
 
+// UserProfile stores gamification data for a user including XP, coins, and energy.
+// Energy is consumed when requesting questions and recovers automatically over time.
+type UserProfile struct {
+	UserID           string    `db:"user_id"`
+	TotalExp         int32     `db:"total_exp"`
+	TotalCoins       int32     `db:"total_coins"`
+	Energy           int32     `db:"energy"`
+	MaxEnergy        int32     `db:"max_energy"`
+	LastEnergyRefill time.Time `db:"last_energy_refill"`
+	UpdatedAt        time.Time `db:"updated_at"`
+}
+
+// Level returns the user's tier level (1-5) based on total XP.
+//
+// Tier thresholds:
+//   - Lv1: 0–149 XP
+//   - Lv2: 150–399 XP
+//   - Lv3: 400–799 XP
+//   - Lv4: 800–1499 XP
+//   - Lv5: 1500+ XP
+func (p *UserProfile) Level() int32 {
+	switch {
+	case p.TotalExp >= 1500:
+		return 5
+	case p.TotalExp >= 800:
+		return 4
+	case p.TotalExp >= 400:
+		return 3
+	case p.TotalExp >= 150:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// TierName returns the Korean display name for the user's current tier.
+func (p *UserProfile) TierName() string {
+	switch p.Level() {
+	case 5:
+		return "불사조 탐정"
+	case 4:
+		return "망토 입은 닭"
+	case 3:
+		return "안경 쓴 병아리"
+	case 2:
+		return "삐약이 정보원"
+	default:
+		return "알 껍데기 병아리"
+	}
+}
+
+// RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since
+// LastEnergyRefill) and caps the result at MaxEnergy. The LastEnergyRefill timestamp
+// is advanced by the number of full 3-hour intervals consumed so that partial hours
+// carry over to the next call.
+func (p *UserProfile) RefillEnergy() {
+	hoursElapsed := time.Since(p.LastEnergyRefill).Hours()
+	intervals := int32(hoursElapsed / 3)
+	if intervals <= 0 {
+		return
+	}
+	refillAmount := intervals * 10
+	p.Energy += refillAmount
+	if p.Energy > p.MaxEnergy {
+		p.Energy = p.MaxEnergy
+	}
+	// Advance the timestamp by the number of full intervals consumed.
+	p.LastEnergyRefill = p.LastEnergyRefill.Add(time.Duration(intervals) * 3 * time.Hour)
+}
+
 // Helper functions for JSONB handling
 
 // MarshalRegions converts a slice of Region to JSON bytes for database storage
@@ -202,4 +272,16 @@ func UnmarshalRegions(data []byte) ([]Region, error) {
 // MarshalAnswerData converts an Answer to a map for JSONB storage
 func MarshalAnswerData(answer Answer) (map[string]interface{}, error) {
 	return answer.ToJSON()
+}
+
+// XPRewardByDifficulty returns the XP and coin rewards for a correct answer based on difficulty
+func XPRewardByDifficulty(difficulty Difficulty) (xp int32, coins int32) {
+	switch difficulty {
+	case DifficultyHard:
+		return 50, 25
+	case DifficultyMedium:
+		return 25, 12
+	default: // easy
+		return 10, 5
+	}
 }

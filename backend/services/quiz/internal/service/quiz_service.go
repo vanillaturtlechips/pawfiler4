@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	pb "github.com/pawfiler/backend/services/quiz/proto"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // QuizService defines the interface for quiz business logic operations
@@ -31,6 +34,9 @@ type QuizService interface {
 	// Returns default values for new users (Requirement 12.3)
 	// Requirements: 12.1, 12.2, 12.3, 12.4
 	GetUserStats(ctx context.Context, userID string) (*repository.UserStats, error)
+
+	// GetUserProfile retrieves gamification profile (level, XP, coins, energy)
+	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
 }
 
 // SubmitResult represents the result of a submitted answer
@@ -67,17 +73,33 @@ func (s *quizServiceImpl) GetRandomQuestion(ctx context.Context, userID string, 
 		repoQuestionType = &converted
 	}
 
+	// Energy check: get or create profile, refill, then deduct 5
+	profile, err := s.repo.GetUserProfile(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserProfileNotFound) {
+			profile, err = s.repo.CreateUserProfile(ctx, userID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create user profile: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to get user profile: %w", err)
+		}
+	}
+	profile.RefillEnergy()
+	if profile.Energy < 5 {
+		return nil, status.Errorf(codes.ResourceExhausted, "insufficient_energy:%d", profile.Energy)
+	}
+	profile.Energy -= 5
+	if err := s.repo.UpdateUserProfile(ctx, profile); err != nil {
+		return nil, fmt.Errorf("failed to update energy: %w", err)
+	}
+
 	// Requirement 3.1: Retrieve random question from database
-	// Requirement 3.2: Apply difficulty filter if provided
-	// Requirement 3.3: Apply question type filter if provided
 	question, err := s.repo.GetRandomQuestion(ctx, difficulty, repoQuestionType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get random question: %w", err)
 	}
 
-	// Requirements 3.5, 3.6, 3.7, 3.8: Answer information is excluded when converting to protobuf
-	// The repository returns the full question, but the handler layer will exclude answer fields
-	// Requirement 3.4: Return as QuizQuestion message (handled by handler layer)
 	return question, nil
 }
 
@@ -109,6 +131,19 @@ func (s *quizServiceImpl) GetUserStats(ctx context.Context, userID string) (*rep
 	// Requirement 12.2: Return as QuizStats message (handled by handler layer)
 	// Requirement 12.4: correct_rate is returned as 0-1 decimal (calculated by CorrectRate() method)
 	return stats, nil
+}
+
+// GetUserProfile retrieves gamification profile, creating one if it doesn't exist
+func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
+	profile, err := s.repo.GetUserProfile(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserProfileNotFound) {
+			return s.repo.CreateUserProfile(ctx, userID)
+		}
+		return nil, fmt.Errorf("failed to get user profile: %w", err)
+	}
+	profile.RefillEnergy()
+	return profile, nil
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType
@@ -207,15 +242,10 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		return nil, fmt.Errorf("unsupported question type: %s", question.Type)
 	}
 
-	// Step 3: Calculate rewards
-	// Requirements 10.1, 10.2, 10.3: 10 XP and 5 coins for correct, 0 for incorrect
+	// Step 3: Calculate rewards based on difficulty
 	var xpEarned, coinsEarned int32
 	if isCorrect {
-		xpEarned = 10    // Requirement 10.1
-		coinsEarned = 5  // Requirement 10.2
-	} else {
-		xpEarned = 0     // Requirement 10.3
-		coinsEarned = 0  // Requirement 10.3
+		xpEarned, coinsEarned = repository.XPRewardByDifficulty(question.Difficulty)
 	}
 
 	// Step 4: Save answer to database
@@ -251,12 +281,26 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 	}
 
 	// Step 5: Update user statistics
-	// Requirements 11.1~11.8: Update all statistics based on correct/incorrect answer
 	_, err = s.statsTracker.UpdateStats(context.Background(), userID, isCorrect)
 	if err != nil {
-		// Requirement 15.3: Return INTERNAL for database errors
-		// Note: Answer is already saved, but stats update failed
 		fmt.Printf("Warning: failed to update user stats: %v\n", err)
+	}
+
+	// Step 5b: Update gamification profile (XP + coins)
+	if xpEarned > 0 || coinsEarned > 0 {
+		profile, err := s.repo.GetUserProfile(context.Background(), userID)
+		if err != nil {
+			if errors.Is(err, repository.ErrUserProfileNotFound) {
+				profile, _ = s.repo.CreateUserProfile(context.Background(), userID)
+			}
+		}
+		if profile != nil {
+			profile.TotalExp += xpEarned
+			profile.TotalCoins += coinsEarned
+			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {
+				fmt.Printf("Warning: failed to update user profile: %v\n", err)
+			}
+		}
 	}
 
 	// Step 6: Return result

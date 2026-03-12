@@ -2,15 +2,18 @@ package rest
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	pb "github.com/pawfiler/backend/services/quiz/proto"
 )
 
@@ -29,10 +32,10 @@ type QuizService interface {
 	SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequest) (*pb.SubmitAnswerResponse, error)
 	GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error)
 	GetQuestionById(ctx context.Context, req *pb.GetQuestionByIdRequest) (*pb.QuizQuestion, error)
+	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
 }
 
 // NewMux returns an HTTP mux with quiz REST endpoints.
-// Registers both /quiz.* and /api/quiz.* to support direct access and ALB ingress routing.
 func NewMux(svc QuizService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +46,7 @@ func NewMux(svc QuizService) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/SubmitAnswer", withCORS(handleSubmitAnswer(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserStats", withCORS(handleGetUserStats(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionById", withCORS(handleGetQuestionById(svc)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserProfile", withCORS(handleGetUserProfile(svc)))
 	}
 	return mux
 }
@@ -60,6 +64,18 @@ func handleGetRandomQuestion(svc QuizService) http.HandlerFunc {
 		}
 		resp, err := svc.GetRandomQuestion(r.Context(), &req)
 		if err != nil {
+			// 에너지 부족 시 429 + 현재 에너지 반환
+			if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
+				msg := st.Message() // "insufficient_energy:N"
+				energy := "0"
+				if parts := strings.SplitN(msg, ":", 2); len(parts) == 2 {
+					energy = parts[1]
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				w.Write([]byte(`{"error":"insufficient_energy","energy":` + energy + `}`))
+				return
+			}
 			writeGRPCError(w, err)
 			return
 		}
@@ -83,7 +99,30 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 			writeGRPCError(w, err)
 			return
 		}
-		writeProto(w, resp)
+
+		// proto 응답 + 프로필 정보 병합
+		jsonBytes, err := marshaler.Marshal(resp)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		var result map[string]interface{}
+		json.Unmarshal(jsonBytes, &result)
+
+		if req.UserId != "" {
+			if profile, err := svc.GetUserProfile(r.Context(), req.UserId); err == nil {
+				result["level"] = profile.Level()
+				result["tier_name"] = profile.TierName()
+				result["total_exp"] = profile.TotalExp
+				result["total_coins"] = profile.TotalCoins
+				result["energy"] = profile.Energy
+				result["max_energy"] = profile.MaxEnergy
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
 	}
 }
 
@@ -103,7 +142,26 @@ func handleGetUserStats(svc QuizService) http.HandlerFunc {
 			writeGRPCError(w, err)
 			return
 		}
-		writeProto(w, resp)
+
+		// proto 응답 + 프로필 정보 병합
+		jsonBytes, _ := marshaler.Marshal(resp)
+		var result map[string]interface{}
+		json.Unmarshal(jsonBytes, &result)
+
+		if req.UserId != "" {
+			if profile, err := svc.GetUserProfile(r.Context(), req.UserId); err == nil {
+				result["level"] = profile.Level()
+				result["tier_name"] = profile.TierName()
+				result["total_exp"] = profile.TotalExp
+				result["total_coins"] = profile.TotalCoins
+				result["energy"] = profile.Energy
+				result["max_energy"] = profile.MaxEnergy
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
 	}
 }
 
@@ -124,6 +182,41 @@ func handleGetQuestionById(svc QuizService) http.HandlerFunc {
 			return
 		}
 		writeProto(w, resp)
+	}
+}
+
+func handleGetUserProfile(svc QuizService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		defer r.Body.Close()
+		var req struct {
+			UserID string `json:"user_id"`
+		}
+		json.Unmarshal(body, &req)
+		if req.UserID == "" {
+			writeError(w, http.StatusBadRequest, "user_id required")
+			return
+		}
+		profile, err := svc.GetUserProfile(r.Context(), req.UserID)
+		if err != nil {
+			writeGRPCError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"user_id":    profile.UserID,
+			"level":      profile.Level(),
+			"tier_name":  profile.TierName(),
+			"total_exp":  profile.TotalExp,
+			"total_coins": profile.TotalCoins,
+			"energy":     profile.Energy,
+			"max_energy": profile.MaxEnergy,
+		})
 	}
 }
 
@@ -178,6 +271,8 @@ func grpcCodeToHTTP(code codes.Code) int {
 		return http.StatusUnauthorized
 	case codes.AlreadyExists:
 		return http.StatusConflict
+	case codes.ResourceExhausted:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}
