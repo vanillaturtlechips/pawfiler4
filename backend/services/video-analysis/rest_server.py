@@ -1,28 +1,62 @@
 import os
-import json
 import logging
+import uuid
+import boto3
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from generated import video_analysis_pb2
 
 logger = logging.getLogger(__name__)
 
+S3_BUCKET = os.getenv('S3_BUCKET', 'pawfiler-videos')
+s3_client = boto3.client('s3', region_name='ap-northeast-2')
+
+
 def create_app(service):
     app = Flask(__name__)
     CORS(app)
 
-    def handle(path, req_keys, handler):
-        @app.route(path, methods=["POST", "OPTIONS"], endpoint=path)
-        def route():
-            if request.method == "OPTIONS":
-                return "", 204
-            data = request.get_json(silent=True) or {}
-            return handler(data)
-        return route
-
     @app.get("/health")
     def health():
         return "", 200
+
+    @app.route("/api/upload-video", methods=["POST", "OPTIONS"])
+    @app.route("/upload-video", methods=["POST", "OPTIONS"])
+    def upload_video():
+        if request.method == "OPTIONS":
+            return "", 204
+        if 'video' not in request.files:
+            return jsonify({"error": "No video file"}), 400
+
+        video = request.files['video']
+        user_id = request.form.get('user_id', '')
+        key = f"uploads/{user_id}/{uuid.uuid4()}-{video.filename}"
+
+        try:
+            s3_client.upload_fileobj(
+                video, S3_BUCKET, key,
+                ExtraArgs={'ContentType': 'video/mp4'}
+            )
+            video_url = f"https://{S3_BUCKET}.s3.ap-northeast-2.amazonaws.com/{key}"
+
+            class FakeContext:
+                def set_code(self, c): pass
+                def set_details(self, d): pass
+
+            req = video_analysis_pb2.AnalyzeVideoRequest(
+                video_url=video_url,
+                user_id=user_id
+            )
+            resp = service.AnalyzeVideo(req, FakeContext())
+            return jsonify({
+                "taskId": resp.task_id,
+                "videoUrl": video_url,
+                "verdict": resp.verdict,
+                "message": resp.message,
+            })
+        except Exception as e:
+            logger.error(f"upload-video error: {e}")
+            return jsonify({"error": str(e)}), 500
 
     def _analyze(data):
         class FakeContext:
