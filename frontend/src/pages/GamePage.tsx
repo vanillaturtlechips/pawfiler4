@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, fetchUserProfile } from "@/lib/api";
 import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import MultipleChoiceQuestion from "@/components/quiz/MultipleChoiceQuestion";
 import TrueFalseQuestion from "@/components/quiz/TrueFalseQuestion";
 import RegionSelectQuestion from "@/components/quiz/RegionSelectQuestion";
@@ -16,6 +17,7 @@ import ComparisonQuestion from "@/components/quiz/ComparisonQuestion";
 
 const GamePage = () => {
   const navigate = useNavigate();
+  const { quizProfile: ctxProfile, updateQuizProfile } = useQuizProfile();
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<QuizStats | null>(null);
@@ -37,7 +39,12 @@ const GamePage = () => {
   const [result, setResult] = useState<QuizSubmitResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [videoOrientation, setVideoOrientation] = useState<"landscape" | "portrait">("landscape");
-  const [profile, setProfile] = useState<QuizGameProfile | null>(null);
+  // 로컬 profile은 context에서 초기화, 업데이트 시 context도 동기화
+  const [profile, setProfileLocal] = useState<QuizGameProfile | null>(ctxProfile);
+  const setProfile = (p: QuizGameProfile | null) => {
+    setProfileLocal(p);
+    if (p) updateQuizProfile(p);
+  };
   const [energyError, setEnergyError] = useState<number | null>(null); // 에너지 부족 시 현재 에너지
 
   // 초기 로드
@@ -45,15 +52,27 @@ const GamePage = () => {
     const initGame = async () => {
       setLoading(true);
       try {
-        const [q, userStats, userProfile] = await Promise.all([
+        const [q, userStats] = await Promise.all([
           fetchQuizQuestion(),
           fetchUserStats(),
-          fetchUserProfile(),
         ]);
         setQuestion(q);
         setQuestionCount(1);
         setStats(userStats);
-        setProfile(userProfile);
+        // stats 응답에 프로필 데이터 포함되어 있으면 그걸 사용
+        if (userStats.level !== undefined) {
+          setProfile({
+            level: userStats.level,
+            tierName: userStats.tierName ?? '알 껍데기 병아리',
+            totalExp: userStats.totalExp ?? 0,
+            totalCoins: userStats.totalCoins ?? 0,
+            energy: userStats.energy ?? 100,
+            maxEnergy: userStats.maxEnergy ?? 100,
+          });
+        } else {
+          // fallback: 별도 프로필 요청 (실패해도 게임은 진행)
+          fetchUserProfile().then(setProfile).catch(() => {});
+        }
       } catch (error: any) {
         if (error?.code === 'INSUFFICIENT_ENERGY') {
           setEnergyError(error.energy ?? 0);

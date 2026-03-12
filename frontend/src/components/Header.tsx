@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useState } from "react";
 import GameProfilePanel from "./GameProfilePanel";
 
@@ -20,7 +21,12 @@ const Header = ({ isVisible = true }: HeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
+  const { quizProfile } = useQuizProfile();
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+
+  // quiz 프로필 우선, 없으면 auth user 폴백
+  const displayLevel = quizProfile?.level ?? user?.level ?? 1;
+  const displayCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   return (
     <>
@@ -109,7 +115,7 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                         boxShadow: "0 2px 4px rgba(0,0,0,0.3)"
                       }}
                     >
-                      {user.level}
+                      {displayLevel}
                     </div>
                   </div>
                   
@@ -120,10 +126,10 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                     </span>
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-bold" style={{ color: "#FFD54F" }}>
-                        ⭐ Lv.{user.level}
+                        ⭐ Lv.{displayLevel}
                       </span>
                       <span className="text-xs" style={{ color: "#FFCC80" }}>
-                        💰{user.coins.toLocaleString()}
+                        🪙{displayCoins.toLocaleString()}
                       </span>
                     </div>
                   </div>
