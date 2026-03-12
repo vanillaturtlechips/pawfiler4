@@ -361,7 +361,27 @@ export const fetchCommunityFeed = async (
       throw new Error(`Failed to fetch feed: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    
+    // gRPC snake_case를 camelCase로 변환
+    const transformedPosts: CommunityPost[] = data.posts?.map((post: any) => ({
+      id: post.id,
+      authorNickname: post.author_nickname || "익명",
+      authorEmoji: post.author_emoji || "👤",
+      title: post.title,
+      body: post.body,
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      createdAt: post.created_at || new Date().toISOString(),
+      tags: post.tags || [],
+      userId: post.author_id,
+    })) || [];
+
+    return {
+      posts: transformedPosts,
+      totalCount: data.total_count || 0,
+      page: data.page || page,
+    };
   } catch (error) {
     return handleApiError(error, '커뮤니티 피드 로드');
   }
@@ -560,7 +580,19 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
     }
 
     const data = await response.json();
-    return data.comments || [];
+    
+    // gRPC snake_case를 camelCase로 변환
+    const transformedComments: CommunityComment[] = data.comments?.map((comment: any) => ({
+      id: comment.id,
+      postId: comment.post_id,
+      authorNickname: comment.author_nickname || "익명",
+      authorEmoji: comment.author_emoji || "👤",
+      body: comment.body,
+      createdAt: comment.created_at || new Date().toISOString(),
+      userId: comment.author_id,
+    })) || [];
+    
+    return transformedComments;
   } catch (error) {
     console.error('Failed to fetch comments:', error);
     return [];
