@@ -197,14 +197,89 @@ client.listQuizzes(request, {}, (err, response) => {
 
 ## 결론
 
-**권장: Gateway API + gRPC-Web**
-- proto.pb 관리 불필요
-- 간단한 설정
-- Kubernetes 표준
-- 이미 설치된 인프라 활용
+### 근본적인 질문: 왜 프록시가 필요한가?
 
-**Istio는 현재 프로젝트 규모에 과도함**
-- Service Mesh 기능이 필요할 때 고려
-- 트래픽 관리, mTLS, 관찰성이 중요한 경우
+**프록시를 사용하는 이유:**
+- REST API를 gRPC 백엔드로 변환
+- CORS 처리
+- 라우팅
 
-**BFF는 비즈니스 로직이 복잡해질 때 고려**
+**문제:**
+- 프록시 = 추가 관리 포인트
+- 설정 복잡도 증가
+- 레이턴시 증가
+- 장애 포인트 추가
+
+### 최선의 해결책: 프록시 제거
+
+**방안 1: Frontend에서 직접 gRPC 호출 (가장 단순)** ⭐
+
+```typescript
+// Frontend에서 gRPC-Web 직접 사용
+import { QuizServiceClient } from './generated/quiz_grpc_web_pb';
+
+const client = new QuizServiceClient('https://quiz-service.pawfiler.com');
+```
+
+**장점:**
+- 프록시 불필요
+- 설정 최소화
+- 레이턴시 최소
+- 관리 포인트 감소
+
+**필요한 것:**
+- gRPC 서비스에 gRPC-Web 지원 추가 (간단)
+- Ingress로 각 서비스 직접 노출
+
+```go
+// 백엔드에 gRPC-Web 추가 (한 줄)
+grpcServer := grpc.NewServer()
+grpcWebServer := grpcweb.WrapServer(grpcServer)
+```
+
+**방안 2: REST API가 필요하면 각 서비스에서 제공**
+
+```go
+// 각 gRPC 서비스에 REST endpoint 추가
+func main() {
+    // gRPC 서버
+    go grpc.Serve(lis)
+    
+    // REST 서버 (같은 서비스 내)
+    http.HandleFunc("/api/quiz/list", restHandler)
+    http.ListenAndServe(":8080", nil)
+}
+```
+
+**장점:**
+- 프록시 불필요
+- 각 팀이 자기 서비스만 관리
+- 변환 로직이 서비스 내부에 있어 디버깅 쉬움
+
+### 권장 아키텍처
+
+```
+Before (복잡):
+Client → ALB → Envoy (proto.pb 관리) → gRPC Services
+
+After (단순):
+Client → ALB → gRPC Services (gRPC-Web 지원)
+```
+
+**또는:**
+
+```
+Client (REST 필요 시) → ALB → Services (gRPC + REST 둘 다 제공)
+```
+
+### 결론
+
+1. **프록시는 필요악이 아니라 불필요한 복잡도**
+2. **Frontend gRPC-Web 직접 사용 권장**
+3. **REST가 꼭 필요하면 각 서비스에서 제공**
+4. **Gateway API, Istio, Envoy 모두 불필요**
+
+**Envoy/Gateway API/Istio는 다음 경우에만 고려:**
+- 레거시 REST 클라이언트 지원 필수
+- 중앙화된 인증/인가 필요
+- 트래픽 분할, 카나리 배포 등 고급 기능 필요
