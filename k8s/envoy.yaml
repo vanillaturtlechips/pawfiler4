@@ -1,3 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pawfiler
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -32,25 +36,20 @@ data:
                   domains: ["*"]
                   routes:
                   - match:
-                      prefix: "/upload-video"
-                    route:
-                      cluster: video_analysis_http
-                      timeout: 300s
-                  - match:
-                      prefix: "/video_analysis.VideoAnalysisService"
-                    route:
-                      cluster: video_analysis_service
-                      timeout: 60s
-                  - match:
-                      prefix: "/quiz.QuizService"
+                      prefix: "/quiz"
                     route:
                       cluster: quiz_service
                       timeout: 30s
                   - match:
-                      prefix: "/community.CommunityService"
+                      prefix: "/community"
                     route:
                       cluster: community_service
                       timeout: 30s
+                  - match:
+                      prefix: "/video_analysis"
+                    route:
+                      cluster: video_analysis_service
+                      timeout: 60s
                   cors:
                     allow_origin_string_match:
                     - safe_regex:
@@ -145,68 +144,78 @@ data:
                   socket_address:
                     address: video-analysis
                     port_value: 50054
-      - name: video_analysis_http
-        connect_timeout: 5s
-        type: STRICT_DNS
-        lb_policy: ROUND_ROBIN
-        load_assignment:
-          cluster_name: video_analysis_http
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: video-analysis
-                    port_value: 8000
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: envoy-proxy
+  name: envoy
   namespace: pawfiler
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: envoy-proxy
+      app: envoy
   template:
     metadata:
       labels:
-        app: envoy-proxy
+        app: envoy
     spec:
       containers:
       - name: envoy
         image: envoyproxy/envoy:v1.28-latest
+        args:
+        - -c
+        - /etc/envoy/envoy.yaml
         ports:
-        - containerPort: 8080
-          name: http
-        - containerPort: 9901
-          name: admin
+        - name: http
+          containerPort: 8080
+        - name: admin
+          containerPort: 9901
         volumeMounts:
-        - name: config
-          mountPath: /etc/envoy
-          readOnly: true
-        command: ["/usr/local/bin/envoy"]
-        args: ["-c", "/etc/envoy/envoy.yaml"]
+        - name: envoy-config
+          mountPath: /etc/envoy/envoy.yaml
+          subPath: envoy.yaml
+        - name: proto-volume
+          mountPath: /etc/envoy/proto.pb
+          subPath: proto.pb
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9901
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /server_info
+            port: 9901
+          initialDelaySeconds: 20
+          periodSeconds: 20
       volumes:
-      - name: config
-        projected:
-          sources:
-          - configMap:
-              name: envoy-config
-          - configMap:
-              name: proto-descriptor
+      - name: envoy-config
+        configMap:
+          name: envoy-config
+      - name: proto-volume
+        configMap:
+          name: envoy-proto
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: envoy-proxy
+  name: envoy
   namespace: pawfiler
 spec:
-  type: ClusterIP
   selector:
-    app: envoy-proxy
+    app: envoy
   ports:
   - name: http
-    port: 80
+    protocol: TCP
+    port: 8080
     targetPort: 8080
+  type: ClusterIP
