@@ -39,7 +39,7 @@ RUN mkdir -p generated && \
 # 나머지 코드 복사
 COPY . .
 
-EXPOSE 50054
+EXPOSE 50054 8080
 
 ENV PYTHONPATH=/app
 

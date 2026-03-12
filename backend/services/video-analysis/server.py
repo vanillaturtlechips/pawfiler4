@@ -281,20 +281,29 @@ class VideoAnalysisService(video_analysis_pb2_grpc.VideoAnalysisServiceServicer)
             logger.error(f"❌ {task_id}: {e}")
 
 def serve():
+    import threading
     from grpc_health.v1 import health
     from grpc_health.v1 import health_pb2, health_pb2_grpc
-    
+    from rest_server import run_rest_server
+
+    svc = VideoAnalysisService()
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    video_analysis_pb2_grpc.add_VideoAnalysisServiceServicer_to_server(VideoAnalysisService(), server)
-    
+    video_analysis_pb2_grpc.add_VideoAnalysisServiceServicer_to_server(svc, server)
+
     # Health check 추가
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
     health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
-    
+
     server.add_insecure_port("[::]:50054")
-    logger.info("🚀 Server started on :50054")
+    logger.info("🚀 gRPC Server started on :50054")
     server.start()
+
+    # REST 서버 백그라운드 스레드로 실행
+    rest_thread = threading.Thread(target=run_rest_server, args=(svc,), daemon=True)
+    rest_thread.start()
+
     server.wait_for_termination()
 
 if __name__ == "__main__":

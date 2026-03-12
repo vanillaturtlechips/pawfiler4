@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
+	"community/internal/rest"
 	"community/pb"
 
 	"github.com/google/uuid"
@@ -38,9 +40,9 @@ func initDB() error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Connection pool settings
-	db.SetMaxOpenConns(50)                 // 최대 연결 수
-	db.SetMaxIdleConns(25)                 // 유휴 연결 수
+	// Connection pool settings optimized for high load
+	db.SetMaxOpenConns(150)                // 최대 연결 수
+	db.SetMaxIdleConns(50)                 // 유휴 연결 수
 	db.SetConnMaxLifetime(5 * time.Minute) // 연결 최대 수명
 	db.SetConnMaxIdleTime(2 * time.Minute) // 유휴 연결 타임아웃
 
@@ -301,12 +303,24 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	svc := &server{}
 	s := grpc.NewServer()
-	pb.RegisterCommunityServiceServer(s, &server{})
+	pb.RegisterCommunityServiceServer(s, svc)
 
-	log.Printf("Community gRPC server listening on :%s", port)
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	go func() {
+		log.Printf("Community gRPC server listening on :%s", port)
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8080"
+	}
+	log.Printf("Community REST server started on :%s", httpPort)
+	if err := http.ListenAndServe(":"+httpPort, rest.NewMux(svc)); err != nil {
+		log.Fatalf("Failed to serve HTTP: %v", err)
 	}
 }
 
