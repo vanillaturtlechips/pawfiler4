@@ -52,7 +52,14 @@ resource "aws_iam_role_policy" "karpenter_controller" {
           "ec2:RunInstances",
           "ec2:TerminateInstances",
           "pricing:GetProducts",
-          "ssm:GetParameter"
+          "ssm:GetParameter",
+          "iam:GetInstanceProfile",
+          "iam:ListInstanceProfiles",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "iam:TagInstanceProfile",
+          "iam:AddRoleToInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile"
         ]
         Resource = "*"
       },
