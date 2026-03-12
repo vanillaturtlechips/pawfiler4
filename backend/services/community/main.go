@@ -39,8 +39,8 @@ func initDB() error {
 	}
 
 	// Connection pool settings optimized for high load
-	db.SetMaxOpenConns(50)                 // 최대 연결 수
-	db.SetMaxIdleConns(25)                 // 유휴 연결 수
+	db.SetMaxOpenConns(150)                // 최대 연결 수
+	db.SetMaxIdleConns(50)                 // 유휴 연결 수
 	db.SetConnMaxLifetime(5 * time.Minute) // 연결 최대 수명
 
 	if err := db.Ping(); err != nil {
