@@ -1,18 +1,33 @@
 # PawFiler 데이터베이스 최적화 전략
 
-## 📊 현재 DB 구조
+## 📊 현재 DB 구조 (2026-03-12 업데이트)
 
 ### 스키마 구성
-- `auth`: 사용자 인증
-- `quiz`: 퀴즈 서비스
-- `community`: 커뮤니티
-- `video_analysis`: 영상 분석
-- `payment`: 결제 (미구현)
+- `auth`: 사용자 인증 (1 테이블)
+- `quiz`: 퀴즈 서비스 (3 테이블)
+- `community`: 커뮤니티 (3 테이블)
+- `video_analysis`: 영상 분석 (2 테이블)
+- `payment`: 결제 (2 테이블)
 
 ### ORM 사용 현황
-- **Quiz Service**: GORM (Go)
+- **Quiz Service**: GORM (Go) - PostgreSQL
 - **Community Service**: 직접 SQL (lib/pq)
 - **Admin Service**: 직접 SQL (lib/pq)
+
+### 전체 테이블 목록 (11개)
+```
+auth.users
+quiz.questions
+quiz.user_answers
+quiz.user_stats
+community.posts
+community.comments
+community.likes
+video_analysis.tasks
+video_analysis.results
+payment.subscriptions
+payment.transactions
+```
 
 ---
 

@@ -47,10 +47,11 @@ func main() {
 		log.Fatalf("Failed to get underlying sql.DB: %v", err)
 	}
 
-	// 최적화된 커넥션 풀 설정
-	sqlDB.SetMaxOpenConns(100)    // 50 → 100 (증가)
-	sqlDB.SetMaxIdleConns(50)     // 25 → 50 (증가)
+	// Connection pool settings (RDS db.t3.micro: max 87 connections)
+	sqlDB.SetMaxOpenConns(30)             // Quiz는 가장 빈번 (총 60 이하 유지)
+	sqlDB.SetMaxIdleConns(10)             // 유휴 연결 수
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
