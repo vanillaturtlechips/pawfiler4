@@ -53,6 +53,7 @@ func main() {
 	sqlDB.SetMaxOpenConns(30)     // 파드당 30개 (총 300개)
 	sqlDB.SetMaxIdleConns(15)     // 파드당 15개 (총 150개)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
