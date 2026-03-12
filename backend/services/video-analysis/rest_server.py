@@ -3,6 +3,7 @@ import json
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from generated import video_analysis_pb2
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,6 @@ def create_app(service):
         return "", 200
 
     def _analyze(data):
-        import video_analysis_pb2
         class FakeContext:
             def set_code(self, c): pass
             def set_details(self, d): pass
@@ -41,7 +41,6 @@ def create_app(service):
         })
 
     def _get_result(data):
-        import video_analysis_pb2
         class FakeContext:
             def set_code(self, c): pass
             def set_details(self, d): pass
@@ -59,7 +58,6 @@ def create_app(service):
         })
 
     def _get_status(data):
-        import video_analysis_pb2
         class FakeContext:
             def set_code(self, c): pass
             def set_details(self, d): pass
