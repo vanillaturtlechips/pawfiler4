@@ -2,23 +2,26 @@
 
 ## 🎯 현재 상태 분석
 
+### RDS 인스턴스
+```
+타입: db.t3.medium
+RAM: 4GB
+max_connections: ~413
+```
+
 ### Connection Pool 설정
 ```go
 // Community Service
 db.SetMaxOpenConns(50)
 db.SetMaxIdleConns(25)
-db.SetConnMaxLifetime(5 * time.Minute)
 
 // Quiz Service
 sqlDB.SetMaxOpenConns(100)
 sqlDB.SetMaxIdleConns(50)
-sqlDB.SetConnMaxLifetime(time.Hour)
-```
 
-**문제점**:
-- 서비스별로 설정이 다름 (일관성 없음)
-- 실제 부하 측정 없이 임의 설정
-- RDS db.t3.micro 스펙 고려 안 됨
+총: ~150 연결 (RDS 한계 413의 36%)
+상태: ✅ 충분한 여유
+```
 
 ---
 
