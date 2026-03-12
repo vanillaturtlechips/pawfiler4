@@ -54,46 +54,27 @@ func NewGormQuizRepository(db *gorm.DB, redisClient *redis.Client) QuizRepositor
 	return repo
 }
 
-// LoadQuestions 모든 문제를 메모리에 로드 (Redis 캐시 활용)
+// LoadQuestions 모든 문제를 메모리에 로드 (DB 직접 조회)
 func (r *GormQuizRepository) LoadQuestions(ctx context.Context) error {
-	// 1. Redis 캐시 확인
-	cacheKey := "quiz:questions:all"
-	cached := r.redis.Get(ctx, cacheKey).Val()
-	
-	if cached != "" {
-		var questions []Question
-		if err := json.Unmarshal([]byte(cached), &questions); err == nil {
-			r.mu.Lock()
-			r.questions = questions
-			r.mu.Unlock()
-			log.Printf("Loaded %d questions from Redis cache", len(questions))
-			return nil
-		}
-	}
-
-	// 2. Redis 캐시 미스 시 DB에서 로드
+	// 1. DB에서 직접 로드
 	var gormQuestions []GormQuestion
 	err := r.db.WithContext(ctx).Find(&gormQuestions).Error
 	if err != nil {
 		return fmt.Errorf("failed to query questions: %w", err)
 	}
 
-	// 3. GORM 모델을 기존 모델로 변환
+	// 2. GORM 모델을 기존 모델로 변환
 	questions := make([]Question, len(gormQuestions))
 	for i, gq := range gormQuestions {
 		questions[i] = *gq.ToQuestion()
 	}
 
-	// 4. 메모리에 저장
+	// 3. 메모리에 저장
 	r.mu.Lock()
 	r.questions = questions
 	r.mu.Unlock()
 
-	// 5. Redis에 캐시 (5분 TTL)
-	questionsJSON, _ := json.Marshal(questions)
-	r.redis.Set(ctx, cacheKey, questionsJSON, 5*time.Minute)
-
-	log.Printf("Loaded %d questions from database and cached to Redis", len(questions))
+	log.Printf("Loaded %d questions from database into memory", len(questions))
 	return nil
 }
 
@@ -122,8 +103,8 @@ func (r *GormQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *
 
 	// 필터 없음: 랜덤 선택
 	if difficulty == nil && questionType == nil {
-		randomQuestion := r.questions[rand.Intn(len(r.questions))]
-		return &randomQuestion, nil
+		idx := rand.Intn(len(r.questions))
+		return &r.questions[idx], nil
 	}
 
 	// 필터 적용: 메모리에서 필터링
@@ -148,43 +129,26 @@ func (r *GormQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *
 		return nil, fmt.Errorf("no questions found matching criteria")
 	}
 
-	randomQuestion := filtered[rand.Intn(len(filtered))]
-	return &randomQuestion, nil
+	idx := rand.Intn(len(filtered))
+	return &filtered[idx], nil
 }
 
-// GetQuestionById ID로 특정 문제 조회 (Redis 캐시 활용)
+// GetQuestionById ID로 특정 문제 조회 (메모리에서 검색)
 func (r *GormQuizRepository) GetQuestionById(ctx context.Context, questionID string) (*Question, error) {
-	// 1. Redis 캐시 확인
-	cacheKey := fmt.Sprintf("quiz:question:%s", questionID)
-	cached := r.redis.Get(ctx, cacheKey).Val()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	
-	if cached != "" {
-		var question Question
-		if err := json.Unmarshal([]byte(cached), &question); err == nil {
-			return &question, nil
+	// 메모리에서 ID로 검색
+	for _, q := range r.questions {
+		if q.ID == questionID {
+			return &q, nil
 		}
 	}
-
-	// 2. DB에서 조회
-	var gormQuestion GormQuestion
-	err := r.db.WithContext(ctx).Where("id = ?", questionID).First(&gormQuestion).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("question not found: %s", questionID)
-		}
-		return nil, fmt.Errorf("failed to get question by id: %w", err)
-	}
-
-	question := gormQuestion.ToQuestion()
-
-	// 3. Redis에 캐시 (10분 TTL)
-	questionJSON, _ := json.Marshal(question)
-	r.redis.Set(ctx, cacheKey, questionJSON, 10*time.Minute)
-
-	return question, nil
+	
+	return nil, fmt.Errorf("question not found: %s", questionID)
 }
 
-// SaveAnswer 답변을 Redis Queue에 저장 (비동기 처리)
+// SaveAnswer 답변을 Redis Queue에 저장 (배치 처리)
 func (r *GormQuizRepository) SaveAnswer(ctx context.Context, answer *UserAnswer) error {
 	// UUID 생성
 	if answer.ID == "" {
@@ -202,6 +166,14 @@ func (r *GormQuizRepository) SaveAnswer(ctx context.Context, answer *UserAnswer)
 		// Redis 실패 시 DB 직접 저장 (fallback)
 		log.Printf("Redis queue failed, falling back to direct DB save: %v", err)
 		return r.saveAnswerToDB(ctx, answer)
+	}
+
+	// 2. 카운터 증가
+	count := r.redis.Incr(ctx, "quiz:answer_queue:count").Val()
+
+	// 3. 10개 이상 쌓이면 Pub/Sub 알림
+	if count >= 10 {
+		r.redis.Publish(ctx, "quiz:batch_ready", fmt.Sprintf("%d", count))
 	}
 
 	return nil
@@ -232,48 +204,133 @@ func (r *GormQuizRepository) ensureWorkerStarted() {
 	}
 }
 
-// startAnswerWorker 백그라운드에서 Redis Queue 처리
+// startAnswerWorker 백그라운드에서 Redis Queue 배치 처리
 func (r *GormQuizRepository) startAnswerWorker() {
-	log.Println("Starting answer worker...")
+	log.Println("Starting answer worker with batch processing...")
+	
+	ctx := context.Background()
+	
+	// Pub/Sub 구독
+	pubsub := r.redis.Subscribe(ctx, "quiz:batch_ready")
+	defer pubsub.Close()
+
+	// 백오프 설정
+	backoff := 100 * time.Millisecond
+	maxBackoff := 1 * time.Second
+
 	for {
-		ctx := context.Background()
-		
-		// Redis Queue에서 답변 가져오기 (블로킹, 최대 5초 대기)
-		result := r.redis.BRPop(ctx, 5*time.Second, "quiz:answer_queue").Val()
-		if len(result) < 2 {
-			continue // 타임아웃 또는 빈 큐
-		}
+		select {
+		case msg := <-pubsub.Channel():
+			// 알림 받음
+			log.Printf("Received batch ready signal: %s", msg.Payload)
+			
+			// 락 획득 시도 (5초 타임아웃)
+			lockKey := "quiz:answer_queue:lock"
+			locked, err := r.redis.SetNX(ctx, lockKey, "1", 5*time.Second).Result()
+			if err != nil || !locked {
+				// 락 획득 실패 (다른 워커가 처리 중)
+				time.Sleep(backoff)
+				backoff = minDuration(backoff*2, maxBackoff)
+				continue
+			}
 
-		answerJSON := result[1]
-		var answer UserAnswer
-		if err := json.Unmarshal([]byte(answerJSON), &answer); err != nil {
-			log.Printf("Failed to unmarshal answer: %v", err)
-			continue
-		}
+			// 락 획득 성공! 배치 처리
+			r.processBatch()
+			
+			// 백오프 리셋
+			backoff = 100 * time.Millisecond
 
-		// DB에 저장
-		if err := r.saveAnswerToDB(ctx, &answer); err != nil {
-			log.Printf("Failed to save answer to DB: %v", err)
-			// 실패한 답변을 다시 큐에 넣기 (재시도)
-			r.redis.LPush(ctx, "quiz:answer_queue", answerJSON)
+		case <-time.After(5 * time.Second):
+			// 타임아웃: 혹시 알림 놓쳤는지 확인
+			countStr := r.redis.Get(ctx, "quiz:answer_queue:count").Val()
+			if countStr != "" {
+				var count int
+				fmt.Sscanf(countStr, "%d", &count)
+				if count >= 10 {
+					// 10개 이상인데 알림 안 왔으면 직접 처리 시도
+					r.redis.Publish(ctx, "quiz:batch_ready", countStr)
+				}
+			}
 		}
 	}
 }
 
-// GetUserStats 사용자 통계 조회 (Redis 캐시 활용)
-func (r *GormQuizRepository) GetUserStats(ctx context.Context, userID string) (*UserStats, error) {
-	// 1. Redis 캐시 확인
-	cacheKey := fmt.Sprintf("quiz:user_stats:%s", userID)
-	cached := r.redis.Get(ctx, cacheKey).Val()
+// processBatch 배치 처리 로직
+func (r *GormQuizRepository) processBatch() {
+	ctx := context.Background()
+	batchSize := 10
 	
-	if cached != "" {
-		var stats UserStats
-		if err := json.Unmarshal([]byte(cached), &stats); err == nil {
-			return &stats, nil
+	// 1. Redis에서 배치 크기만큼 가져오기
+	batch := []UserAnswer{}
+	for i := 0; i < batchSize; i++ {
+		result := r.redis.RPop(ctx, "quiz:answer_queue").Val()
+		if result == "" {
+			break // 큐가 비었음
 		}
+
+		var answer UserAnswer
+		if err := json.Unmarshal([]byte(result), &answer); err != nil {
+			log.Printf("Failed to unmarshal answer: %v", err)
+			// Unmarshal 실패 시 카운터 복구
+			r.redis.Incr(ctx, "quiz:answer_queue:count")
+			continue
+		}
+
+		// 성공 시에만 카운터 감소 (큐와 동기화)
+		r.redis.Decr(ctx, "quiz:answer_queue:count")
+		batch = append(batch, answer)
 	}
 
-	// 2. DB에서 조회
+	if len(batch) == 0 {
+		// 가져올 데이터 없음
+		r.redis.Del(ctx, "quiz:answer_queue:lock")
+		return
+	}
+
+	// 2. DB에 배치 저장
+	gormAnswers := make([]GormUserAnswer, len(batch))
+	for i, answer := range batch {
+		gormAnswers[i].FromUserAnswer(&answer)
+	}
+
+	err := r.db.CreateInBatches(gormAnswers, len(gormAnswers)).Error
+	if err != nil {
+		log.Printf("Failed to save batch to DB: %v", err)
+		// 실패 시 다시 큐에 넣고 카운터 복구
+		for _, answer := range batch {
+			answerJSON, _ := json.Marshal(answer)
+			r.redis.LPush(ctx, "quiz:answer_queue", answerJSON)
+			r.redis.Incr(ctx, "quiz:answer_queue:count")
+		}
+	} else {
+		log.Printf("Successfully saved %d answers to DB", len(batch))
+	}
+
+	// 3. 락 해제
+	r.redis.Del(ctx, "quiz:answer_queue:lock")
+
+	// 4. 아직 10개 이상 남았으면 다시 알림
+	remainingCountStr := r.redis.Get(ctx, "quiz:answer_queue:count").Val()
+	if remainingCountStr != "" {
+		var remainingCount int
+		fmt.Sscanf(remainingCountStr, "%d", &remainingCount)
+		if remainingCount >= 10 {
+			r.redis.Publish(ctx, "quiz:batch_ready", remainingCountStr)
+		}
+	}
+}
+
+// minDuration 두 Duration 중 작은 값 반환
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// GetUserStats 사용자 통계 조회 (DB 직접 조회)
+func (r *GormQuizRepository) GetUserStats(ctx context.Context, userID string) (*UserStats, error) {
+	// DB에서 직접 조회
 	var gormStats GormUserStats
 	err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&gormStats).Error
 	if err != nil {
@@ -283,16 +340,10 @@ func (r *GormQuizRepository) GetUserStats(ctx context.Context, userID string) (*
 		return nil, fmt.Errorf("failed to get user stats: %w", err)
 	}
 
-	stats := gormStats.ToUserStats()
-
-	// 3. Redis에 캐시 (5분 TTL)
-	statsJSON, _ := json.Marshal(stats)
-	r.redis.Set(ctx, cacheKey, statsJSON, 5*time.Minute)
-
-	return stats, nil
+	return gormStats.ToUserStats(), nil
 }
 
-// UpdateUserStats 사용자 통계 업데이트 (Redis 캐시 무효화)
+// UpdateUserStats 사용자 통계 업데이트 (DB 직접 업데이트)
 func (r *GormQuizRepository) UpdateUserStats(ctx context.Context, stats *UserStats) error {
 	var gormStats GormUserStats
 	gormStats.FromUserStats(stats)
@@ -301,10 +352,6 @@ func (r *GormQuizRepository) UpdateUserStats(ctx context.Context, stats *UserSta
 	if err != nil {
 		return fmt.Errorf("failed to update user stats: %w", err)
 	}
-
-	// Redis 캐시 무효화
-	cacheKey := fmt.Sprintf("quiz:user_stats:%s", stats.UserID)
-	r.redis.Del(ctx, cacheKey)
 
 	return nil
 }
