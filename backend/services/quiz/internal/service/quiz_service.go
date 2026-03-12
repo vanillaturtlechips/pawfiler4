@@ -244,7 +244,7 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		AnsweredAt:  answeredAt, // Requirement 9.4
 	}
 
-	err = s.repo.SaveAnswer(ctx, userAnswer)
+	err = s.repo.SaveAnswer(context.Background(), userAnswer)
 	if err != nil {
 		// Requirement 15.3: Return INTERNAL for database errors
 		return nil, fmt.Errorf("failed to save answer: %w", err)
@@ -252,7 +252,7 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 
 	// Step 5: Update user statistics
 	// Requirements 11.1~11.8: Update all statistics based on correct/incorrect answer
-	_, err = s.statsTracker.UpdateStats(ctx, userID, isCorrect)
+	_, err = s.statsTracker.UpdateStats(context.Background(), userID, isCorrect)
 	if err != nil {
 		// Requirement 15.3: Return INTERNAL for database errors
 		// Note: Answer is already saved, but stats update failed
