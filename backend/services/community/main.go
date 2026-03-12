@@ -38,9 +38,9 @@ func initDB() error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Connection pool settings optimized for high load
-	db.SetMaxOpenConns(50)                 // 최대 연결 수
-	db.SetMaxIdleConns(25)                 // 유휴 연결 수
+	// Connection pool settings optimized for high load (최대 5000명 동시 사용자 기준)
+	db.SetMaxOpenConns(30)                 // 파드당 30개 (총 300개)
+	db.SetMaxIdleConns(15)                 // 파드당 15개 (총 150개)
 	db.SetConnMaxLifetime(5 * time.Minute) // 연결 최대 수명
 
 	if err := db.Ping(); err != nil {
