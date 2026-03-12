@@ -7,8 +7,9 @@ import (
 
 // Common repository errors
 var (
-	ErrQuestionNotFound = errors.New("question not found")
-	ErrUserStatsNotFound = errors.New("user stats not found")
+	ErrQuestionNotFound    = errors.New("question not found")
+	ErrUserStatsNotFound   = errors.New("user stats not found")
+	ErrUserProfileNotFound = errors.New("user profile not found")
 )
 
 // QuizRepository defines the interface for quiz data access operations
@@ -37,4 +38,15 @@ type QuizRepository interface {
 	// CreateUserStats creates initial statistics for a new user
 	// Requirement: 12.3
 	CreateUserStats(ctx context.Context, userID string) (*UserStats, error)
+
+	// GetUserProfile retrieves the gamification profile for a user.
+	// Returns ErrUserProfileNotFound if no profile exists yet.
+	GetUserProfile(ctx context.Context, userID string) (*UserProfile, error)
+
+	// CreateUserProfile creates a new gamification profile with default values
+	// (Energy=100, MaxEnergy=100, TotalExp=0, TotalCoins=0).
+	CreateUserProfile(ctx context.Context, userID string) (*UserProfile, error)
+
+	// UpdateUserProfile persists the current state of a UserProfile.
+	UpdateUserProfile(ctx context.Context, profile *UserProfile) error
 }

@@ -32,7 +32,7 @@ func NewGormQuizRepository(db *gorm.DB, redisClient *redis.Client) QuizRepositor
 	}
 
 	// 테이블 자동 마이그레이션
-	err := db.AutoMigrate(&GormQuestion{}, &GormUserAnswer{}, &GormUserStats{})
+	err := db.AutoMigrate(&GormQuestion{}, &GormUserAnswer{}, &GormUserStats{}, &GormUserProfile{})
 	if err != nil {
 		log.Printf("Failed to migrate tables: %v", err)
 	}
@@ -327,4 +327,56 @@ func (r *GormQuizRepository) CreateUserStats(ctx context.Context, userID string)
 	}
 
 	return gormStats.ToUserStats(), nil
+}
+
+// GetUserProfile 사용자 게임화 프로필 조회
+func (r *GormQuizRepository) GetUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
+	cacheKey := fmt.Sprintf("quiz:user_profile:%s", userID)
+	if cached := r.redis.Get(ctx, cacheKey).Val(); cached != "" {
+		var p UserProfile
+		if err := json.Unmarshal([]byte(cached), &p); err == nil {
+			return &p, nil
+		}
+	}
+
+	var g GormUserProfile
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&g).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrUserProfileNotFound
+		}
+		return nil, fmt.Errorf("failed to get user profile: %w", err)
+	}
+
+	p := g.ToUserProfile()
+	if b, err := json.Marshal(p); err == nil {
+		r.redis.Set(ctx, cacheKey, b, 2*time.Minute)
+	}
+	return p, nil
+}
+
+// CreateUserProfile 새 사용자 게임화 프로필 생성
+func (r *GormQuizRepository) CreateUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
+	g := GormUserProfile{
+		UserID:           userID,
+		TotalExp:         0,
+		TotalCoins:       0,
+		Energy:           100,
+		MaxEnergy:        100,
+		LastEnergyRefill: time.Now(),
+	}
+	if err := r.db.WithContext(ctx).Create(&g).Error; err != nil {
+		return nil, fmt.Errorf("failed to create user profile: %w", err)
+	}
+	return g.ToUserProfile(), nil
+}
+
+// UpdateUserProfile 사용자 게임화 프로필 저장
+func (r *GormQuizRepository) UpdateUserProfile(ctx context.Context, profile *UserProfile) error {
+	var g GormUserProfile
+	g.FromUserProfile(profile)
+	if err := r.db.WithContext(ctx).Where("user_id = ?", profile.UserID).Save(&g).Error; err != nil {
+		return fmt.Errorf("failed to update user profile: %w", err)
+	}
+	r.redis.Del(ctx, fmt.Sprintf("quiz:user_profile:%s", profile.UserID))
+	return nil
 }

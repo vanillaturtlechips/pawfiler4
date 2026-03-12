@@ -128,6 +128,11 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 	return response, nil
 }
 
+// GetUserProfile is called by the REST handler to get gamification profile
+func (h *QuizHandler) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
+	return h.service.GetUserProfile(ctx, userID)
+}
+
 // GetUserStats handles the GetUserStats RPC
 // Requirements: 12.1~12.4
 func (h *QuizHandler) GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error) {
