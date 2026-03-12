@@ -116,3 +116,26 @@ BEGIN
     RAISE NOTICE '📊 위 통계를 확인하세요.';
     RAISE NOTICE '⏰ 다음 단계: Connection Pool 설정 조정';
 END $$;
+
+
+-- ============================================
+-- 4. 트랜잭션 격리 수준 최적화
+-- ============================================
+
+-- Quiz Service: user_stats 동시성 제어
+COMMENT ON TABLE quiz.user_stats IS 
+'동시성 제어: SELECT FOR UPDATE 사용 권장';
+
+-- ============================================
+-- 5. 쿼리 최적화 (Window Function)
+-- ============================================
+
+-- Community GetFeed: Window Function 사용 권장
+COMMENT ON TABLE community.posts IS 
+'GetFeed 최적화: COUNT(*) OVER() 사용';
+
+-- ============================================
+-- 6. pg_stat_statements 활성화
+-- ============================================
+
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;

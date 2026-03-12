@@ -171,3 +171,44 @@ LIMIT 10;
 \echo '  - Dead ratio > 20%: VACUUM 필요'
 \echo '  - Cache hit ratio < 90%: 메모리 부족'
 \echo '  - Unused indexes: 제거 고려'
+
+
+-- ============================================
+-- 고급 분석 쿼리
+-- ============================================
+
+-- 1. 실행 계획 분석
+SELECT 
+    schemaname,
+    tablename,
+    seq_scan,
+    idx_scan,
+    CASE 
+        WHEN seq_scan + idx_scan = 0 THEN 0
+        ELSE ROUND(100.0 * seq_scan / (seq_scan + idx_scan), 2)
+    END AS seq_scan_pct
+FROM pg_stat_user_tables
+WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY seq_scan_pct DESC;
+
+-- 2. 느린 쿼리 (pg_stat_statements 필요)
+SELECT 
+    query,
+    calls,
+    mean_exec_time / 1000 AS mean_sec,
+    max_exec_time / 1000 AS max_sec
+FROM pg_stat_statements
+ORDER BY mean_exec_time DESC
+LIMIT 10;
+
+-- 3. 사용되지 않는 인덱스
+SELECT 
+    schemaname,
+    tablename,
+    indexname,
+    idx_scan,
+    pg_size_pretty(pg_relation_size(indexrelid)) AS size
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0
+  AND schemaname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY pg_relation_size(indexrelid) DESC;
