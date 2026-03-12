@@ -22,6 +22,15 @@ services:
     networks:
       - pawfiler-network
 
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: pawfiler-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pawfiler-network
+
   # Quiz Service
   quiz-service:
     build:
@@ -31,11 +40,16 @@ services:
     environment:
       DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
       GRPC_PORT: "50052"
+      HTTP_PORT: "8080"
+      REDIS_ADDR: "redis:6379"
     ports:
       - "50052:50052"
+      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - pawfiler-network
 
