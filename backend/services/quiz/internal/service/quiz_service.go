@@ -306,14 +306,14 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 			profile.TotalExp += xpEarned
 			profile.TotalCoins += coinsEarned
 			
-			// 티어 경계 넘으면 XP 리셋
+			// 티어 경계 넘으면 경계값만 빼기
 			newExp := profile.TotalExp
 			if oldExp < 1 && newExp >= 1 {
-				profile.TotalExp = newExp - 1
+				profile.TotalExp -= 1
 			} else if oldExp < 15 && newExp >= 15 {
-				profile.TotalExp = newExp - 15
+				profile.TotalExp -= 15
 			} else if oldExp < 100 && newExp >= 100 {
-				profile.TotalExp = newExp - 100
+				profile.TotalExp -= 100
 			}
 			
 			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +25,16 @@ interface ShopItem {
 
 const ShopPage = () => {
   const { user } = useAuth();
-  const { quizProfile } = useQuizProfile();
+  const { quizProfile, refreshQuizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ShopTab>("packages");
 
   const userCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
+  // 페이지 로드 시 프로필 새로고침
+  useEffect(() => {
+    refreshQuizProfile();
+  }, []);
 
   // 상점 아이템 데이터
   const subscriptionItems: ShopItem[] = [
