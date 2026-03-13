@@ -32,7 +32,7 @@ const DetectiveDesk = () => {
           ⭐ Lv. 5 (전문가)
         </span>
         <span className="font-jua text-base mt-2 inline-block rounded-lg bg-black/30 px-2 py-0.5" style={{ color: "#FFD54F" }}>
-          💰 1,200 닢
+          💰 1,200 코인
         </span>
       </div>
     </motion.div>

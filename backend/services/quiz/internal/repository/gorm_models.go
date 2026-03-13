@@ -311,3 +311,29 @@ func (ra RegionArray) Value() (driver.Value, error) {
 	}
 	return json.Marshal(ra)
 }
+
+// GormUserProfile GORM용 UserProfile 모델 (XP, 코인, 에너지)
+type GormUserProfile struct {
+	UserID         string    `gorm:"primaryKey;type:uuid" json:"user_id"`
+	TotalExp       int32     `gorm:"default:0" json:"total_exp"`
+	TotalCoins     int32     `gorm:"default:0" json:"total_coins"`
+	Energy         int32     `gorm:"default:100" json:"energy"`
+	MaxEnergy      int32     `gorm:"default:100" json:"max_energy"`
+	LastEnergyTime time.Time `gorm:"default:now()" json:"last_energy_time"`
+	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// TableName GORM 테이블 이름 지정
+func (GormUserProfile) TableName() string { return "quiz.user_profiles" }
+
+// ToUserProfile GORM 모델을 기존 UserProfile 모델로 변환
+func (gup *GormUserProfile) ToUserProfile() *UserProfile {
+	return &UserProfile{
+		UserID:         gup.UserID,
+		TotalExp:       gup.TotalExp,
+		TotalCoins:     gup.TotalCoins,
+		Energy:         gup.Energy,
+		MaxEnergy:      gup.MaxEnergy,
+		LastEnergyTime: gup.LastEnergyTime,
+	}
+}

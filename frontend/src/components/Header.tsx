@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useState } from "react";
 import GameProfilePanel from "./GameProfilePanel";
 
@@ -20,7 +21,21 @@ const Header = ({ isVisible = true }: HeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
+  const { quizProfile, isPlaying, setPendingNav } = useQuizProfile();
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+
+  const handleNav = (path: string) => {
+    if (isPlaying && location.pathname === "/game" && path !== "/game") {
+      setPendingNav(path);
+    } else {
+      navigate(path);
+    }
+  };
+
+  const TIER_EMOJI_BY_GROUP: Record<number, string> = { 1: "🥚", 2: "🐣", 3: "🐥", 4: "🐓", 5: "🦅" };
+  const displayTierEmoji = TIER_EMOJI_BY_GROUP[Math.ceil((quizProfile?.level ?? 1) / 5)] ?? "🥚";
+  const displayTierName = quizProfile?.tierName ?? '알병아리';
+  const displayCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   return (
     <>
@@ -37,7 +52,7 @@ const Header = ({ isVisible = true }: HeaderProps) => {
       >
       <motion.div
         className="font-jua cursor-pointer flex items-center gap-2.5 text-3xl text-foreground text-shadow-deep"
-        onClick={() => navigate("/")}
+        onClick={() => handleNav("/")}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
@@ -50,7 +65,7 @@ const Header = ({ isVisible = true }: HeaderProps) => {
           return (
             <motion.button
               key={item.key}
-              onClick={() => navigate(item.id)}
+              onClick={() => handleNav(item.id)}
               className={`font-jua rounded-xl px-4 py-2.5 text-lg cursor-pointer transition-colors ${
                 isActive
                   ? "bg-wood-base text-foreground border-2 border-wood-darkest"
@@ -83,13 +98,13 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                 {/* Game-style Profile Button */}
                 <motion.button
                   className="font-jua rounded-xl px-4 py-2 cursor-pointer flex items-center gap-3 relative overflow-hidden group"
-                  style={{ 
+                  style={{
                     background: "linear-gradient(135deg, hsl(var(--wood-base)), hsl(var(--wood-dark)))",
                     border: "3px solid hsl(var(--wood-darkest))",
                     boxShadow: "0 4px 0 hsl(var(--wood-darkest)), inset 0 2px 5px rgba(255,255,255,0.1)",
                   }}
-                  whileHover={{ 
-                    y: -2, 
+                  whileHover={{
+                    y: -2,
                     scale: 1.05,
                     boxShadow: "0 6px 0 hsl(var(--wood-darkest)), 0 0 15px rgba(255,215,0,0.3)"
                   }}
@@ -98,21 +113,12 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                 >
                   {/* Glow effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  
-                  {/* Avatar with level badge */}
+
+                  {/* Avatar */}
                   <div className="relative">
                     <span className="text-3xl drop-shadow-lg">{user.avatarEmoji}</span>
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{
-                        background: "linear-gradient(135deg, #FFD54F, #FFA726)",
-                        color: "#333",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.3)"
-                      }}
-                    >
-                      {user.level}
-                    </div>
                   </div>
-                  
+
                   {/* User info */}
                   <div className="flex flex-col items-start">
                     <span className="font-jua text-sm text-foreground text-shadow-deep leading-tight">
@@ -120,14 +126,14 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                     </span>
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-bold" style={{ color: "#FFD54F" }}>
-                        ⭐ Lv.{user.level}
+                        {displayTierEmoji} {displayTierName}
                       </span>
-                      <span className="text-xs" style={{ color: "#FFCC80" }}>
-                        💰{user.coins.toLocaleString()}
+                      <span className="text-xs font-bold" style={{ color: "#FFD700" }}>
+                        💰{displayCoins.toLocaleString()}
                       </span>
                     </div>
                   </div>
-                  
+
                   {/* Premium badge */}
                   {user.subscriptionType === "premium" && (
                     <div className="ml-1 px-2 py-0.5 rounded-full text-xs font-jua"
@@ -140,7 +146,7 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                       PRO
                     </div>
                   )}
-                  
+
                   {/* Dropdown arrow */}
                   <span className="text-lg transition-transform group-hover:rotate-180">▼</span>
                 </motion.button>
@@ -180,12 +186,12 @@ const Header = ({ isVisible = true }: HeaderProps) => {
         </div>
       </nav>
     </motion.header>
-    
+
     {/* Game-style Profile Panel */}
     {isLoggedIn && user && (
-      <GameProfilePanel 
-        isOpen={showProfilePanel} 
-        onClose={() => setShowProfilePanel(false)} 
+      <GameProfilePanel
+        isOpen={showProfilePanel}
+        onClose={() => setShowProfilePanel(false)}
       />
     )}
   </>
