@@ -100,7 +100,10 @@ const Header = ({ isVisible = true }: HeaderProps) => {
                     boxShadow: "0 6px 0 hsl(var(--wood-darkest)), 0 0 15px rgba(255,215,0,0.3)"
                   }}
                   whileTap={{ scale: 0.95, y: 2 }}
-                  onClick={() => setShowProfilePanel(!showProfilePanel)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowProfilePanel(!showProfilePanel);
+                  }}
                 >
                   {/* Glow effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -188,12 +191,14 @@ const Header = ({ isVisible = true }: HeaderProps) => {
     </motion.header>
     
     {/* Game-style Profile Panel */}
-    {isLoggedIn && user && (
-      <GameProfilePanel 
-        isOpen={showProfilePanel} 
-        onClose={() => setShowProfilePanel(false)} 
-      />
-    )}
+    <AnimatePresence>
+      {isLoggedIn && user && (
+        <GameProfilePanel 
+          isOpen={showProfilePanel} 
+          onClose={() => setShowProfilePanel(false)} 
+        />
+      )}
+    </AnimatePresence>
   </>
   );
 };

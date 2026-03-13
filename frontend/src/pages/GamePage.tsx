@@ -117,6 +117,14 @@ const GamePage = () => {
       return;
     }
     
+    // 에너지 5 차감
+    if (user) {
+      setUser(prev => ({
+        ...prev,
+        energy: Math.max(0, prev.energy - 5)
+      }));
+    }
+    
     setLoading(true);
     setSelectedIndex(null);
     setSelectedAnswer(null);
@@ -157,6 +165,14 @@ const GamePage = () => {
     setSelectedRegion(null);
     setSelectedSide(null);
     setResult(null);
+    
+    // 코인 500 지급
+    if (user) {
+      setUser(prev => ({
+        ...prev,
+        coins: prev.coins + 500
+      }));
+    }
     
     fetchQuizQuestion()
       .then(q => {

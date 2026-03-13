@@ -73,7 +73,12 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        {isOpen && (
         <>
           {/* Backdrop */}
           <motion.div
@@ -92,6 +97,7 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Panel */}
               <div className="h-full flex flex-col bg-gradient-to-b from-wood-800 to-wood-900 border-l-4 border-wood-700 shadow-2xl"
@@ -328,8 +334,8 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
               </div>
             </motion.div>
           </div>
-        </>
-      )}
+        )}
+      </motion.div>
     </AnimatePresence>
   );
 };
