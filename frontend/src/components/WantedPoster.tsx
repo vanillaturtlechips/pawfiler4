@@ -42,7 +42,7 @@ const WantedPoster = () => {
         className="font-jua rounded-xl border-2 border-parchment-border bg-white p-2 text-base"
         style={{ color: "hsl(var(--magic-orange))" }}
       >
-        보상: 🪙 50닢
+        보상: 💰 50코인
       </div>
     </motion.div>
   );

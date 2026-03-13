@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
 
 const ProfilePage = () => {
   const { user } = useAuth();
+  const { quizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"journey" | "stats" | "settings">("journey");
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -88,7 +90,7 @@ const ProfilePage = () => {
                 </div>
                 {/* Level Badge */}
                 <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm bg-gradient-to-br from-amber-400 to-orange-500 text-white border-2 border-white shadow-lg">
-                  {user.level}
+                  {quizProfile?.level ?? user.level}
                 </div>
                 {/* Premium Crown */}
                 {user.subscriptionType === "premium" && (
@@ -105,7 +107,7 @@ const ProfilePage = () => {
                 </h2>
                 <div className="px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 inline-block mb-1">
                   <span className="font-jua text-xs text-amber-800">
-                    {user.levelTitle} 탐정
+                    {quizProfile?.tierName ?? user.levelTitle}
                   </span>
                 </div>
                 <p className="text-xs text-wood-dark truncate">{user.email}</p>
@@ -121,13 +123,73 @@ const ProfilePage = () => {
                     <Star className="w-3 h-3 text-amber-500" />
                     경험치
                   </span>
-                  <span className="text-xs">{user.xp} / {(user.level + 1) * 1000}</span>
+                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(() => {
+                    const tierName = quizProfile?.tierName ?? '알 Lv.1';
+                    const exp = quizProfile?.totalExp ?? 0;
+                    if (tierName.startsWith('불사조')) {
+                      if (exp >= 4000) return 5000;
+                      if (exp >= 3000) return 4000;
+                      if (exp >= 2000) return 3000;
+                      if (exp >= 1000) return 2000;
+                      return 1000;
+                    }
+                    if (tierName.startsWith('맹금닭')) {
+                      if (exp >= 1600) return 2000;
+                      if (exp >= 1200) return 1600;
+                      if (exp >= 800) return 1200;
+                      if (exp >= 400) return 800;
+                      return 400;
+                    }
+                    if (tierName.startsWith('삐약이')) {
+                      if (exp >= 800) return 1000;
+                      if (exp >= 600) return 800;
+                      if (exp >= 400) return 600;
+                      if (exp >= 200) return 400;
+                      return 200;
+                    }
+                    // 알
+                    if (exp >= 400) return 500;
+                    if (exp >= 300) return 400;
+                    if (exp >= 200) return 300;
+                    if (exp >= 100) return 200;
+                    return 100;
+                  })()} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
                   <motion.div
                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
                     initial={{ width: 0 }}
-                    animate={{ width: `${(user.xp / ((user.level + 1) * 1000)) * 100}%` }}
+                    animate={{ width: `${(() => {
+                      const tierName = quizProfile?.tierName ?? '알 Lv.1';
+                      const exp = quizProfile?.totalExp ?? 0;
+                      let maxXP = 100;
+                      if (tierName.startsWith('불사조')) {
+                        if (exp >= 4000) maxXP = 5000;
+                        else if (exp >= 3000) maxXP = 4000;
+                        else if (exp >= 2000) maxXP = 3000;
+                        else if (exp >= 1000) maxXP = 2000;
+                        else maxXP = 1000;
+                      } else if (tierName.startsWith('맹금닭')) {
+                        if (exp >= 1600) maxXP = 2000;
+                        else if (exp >= 1200) maxXP = 1600;
+                        else if (exp >= 800) maxXP = 1200;
+                        else if (exp >= 400) maxXP = 800;
+                        else maxXP = 400;
+                      } else if (tierName.startsWith('삐약이')) {
+                        if (exp >= 800) maxXP = 1000;
+                        else if (exp >= 600) maxXP = 800;
+                        else if (exp >= 400) maxXP = 600;
+                        else if (exp >= 200) maxXP = 400;
+                        else maxXP = 200;
+                      } else {
+                        if (exp >= 400) maxXP = 500;
+                        else if (exp >= 300) maxXP = 400;
+                        else if (exp >= 200) maxXP = 300;
+                        else if (exp >= 100) maxXP = 200;
+                        else maxXP = 100;
+                      }
+                      return Math.min(100, (exp / maxXP) * 100);
+                    })()}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                   />
                 </div>
@@ -138,10 +200,33 @@ const ProfilePage = () => {
                 <div className="flex items-center justify-center gap-2">
                   <Coins className="w-4 h-4 text-amber-600" />
                   <span className="font-jua text-lg font-bold text-amber-800">
-                    {user.coins.toLocaleString()} 닢
+                    {(quizProfile?.totalCoins ?? user.coins).toLocaleString()} 코인
                   </span>
                 </div>
               </div>
+
+              {/* Energy Bar */}
+              {quizProfile && (
+                <div className="w-full">
+                  <div className="flex justify-between text-xs font-bold mb-1 text-wood-dark">
+                    <span className="flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-yellow-500" />
+                      에너지
+                    </span>
+                    <span className="text-xs">{quizProfile.energy} / {quizProfile.maxEnergy}</span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden bg-yellow-100 border border-yellow-300">
+                    <motion.div
+                      className="h-full"
+                      style={{ background: quizProfile.energy > 30 ? "linear-gradient(90deg,#facc15,#f59e0b)" : "linear-gradient(90deg,#ef4444,#dc2626)" }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(quizProfile.energy / quizProfile.maxEnergy) * 100}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                    />
+                  </div>
+                  <p className="text-xs text-wood-dark opacity-60 mt-0.5 text-right">3시간마다 +10 자동 충전</p>
+                </div>
+              )}
 
               {/* Divider */}
               <div className="w-full h-px bg-gradient-to-r from-transparent via-parchment-border to-transparent"></div>

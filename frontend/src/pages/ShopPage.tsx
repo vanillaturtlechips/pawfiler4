@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { ArrowLeft, Coins, Sparkles, Gift, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -24,9 +25,16 @@ interface ShopItem {
 
 const ShopPage = () => {
   const { user } = useAuth();
+  const { quizProfile, refreshQuizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ShopTab>("packages");
 
+  const userCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
+
+  // 페이지 로드 시 프로필 새로고침
+  useEffect(() => {
+    refreshQuizProfile();
+  }, []);
 
   // 상점 아이템 데이터
   const subscriptionItems: ShopItem[] = [
@@ -56,7 +64,7 @@ const ShopPage = () => {
       name: "소량 코인",
       description: "기본 코인 팩",
       price: 1000,
-      icon: "🪙",
+      icon: "💰",
       type: "coins",
       quantity: 100,
     },
@@ -152,7 +160,7 @@ const ShopPage = () => {
       return;
     }
     
-    if (user.coins < item.price) {
+    if (userCoins < item.price) {
       toast.error("코인이 부족합니다!");
       return;
     }
@@ -210,7 +218,7 @@ const ShopPage = () => {
                   {/* Level Display on Top */}
                   <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
                     <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-1 rounded-full border-3 border-white shadow-lg">
-                      <span className="font-jua text-sm">Lv. {user?.level || 1}</span>
+                      <span className="font-jua text-sm">{quizProfile?.tierName ?? 'Lv. 1'}</span>
                     </div>
                   </div>
                   
@@ -238,7 +246,37 @@ const ShopPage = () => {
                         <motion.div
                           className="h-full bg-gradient-to-r from-yellow-400 to-orange-500"
                           initial={{ width: 0 }}
-                          animate={{ width: `${((user?.xp || 0) / ((user?.level || 1) + 1) * 1000) * 100}%` }}
+                          animate={{ width: `${(() => {
+                            const tierName = quizProfile?.tierName ?? '알 Lv.1';
+                            const exp = quizProfile?.totalExp ?? 0;
+                            let maxXP = 100;
+                            if (tierName.startsWith('불사조')) {
+                              if (exp >= 4000) maxXP = 5000;
+                              else if (exp >= 3000) maxXP = 4000;
+                              else if (exp >= 2000) maxXP = 3000;
+                              else if (exp >= 1000) maxXP = 2000;
+                              else maxXP = 1000;
+                            } else if (tierName.startsWith('맹금닭')) {
+                              if (exp >= 1600) maxXP = 2000;
+                              else if (exp >= 1200) maxXP = 1600;
+                              else if (exp >= 800) maxXP = 1200;
+                              else if (exp >= 400) maxXP = 800;
+                              else maxXP = 400;
+                            } else if (tierName.startsWith('삐약이')) {
+                              if (exp >= 800) maxXP = 1000;
+                              else if (exp >= 600) maxXP = 800;
+                              else if (exp >= 400) maxXP = 600;
+                              else if (exp >= 200) maxXP = 400;
+                              else maxXP = 200;
+                            } else {
+                              if (exp >= 400) maxXP = 500;
+                              else if (exp >= 300) maxXP = 400;
+                              else if (exp >= 200) maxXP = 300;
+                              else if (exp >= 100) maxXP = 200;
+                              else maxXP = 100;
+                            }
+                            return Math.min(100, (exp / maxXP) * 100);
+                          })()}%` }}
                           transition={{ duration: 1, ease: "easeOut" }}
                         />
                       </div>
@@ -270,9 +308,9 @@ const ShopPage = () => {
                   </div>
                   <div className="relative flex items-center justify-center">
                     <span className="font-jua text-2xl font-bold text-amber-900 drop-shadow-sm">
-                      {user?.coins.toLocaleString() || 0}
+                      {userCoins.toLocaleString()}
                     </span>
-                    <span className="font-jua text-sm text-amber-800 ml-1">닢</span>
+                    <span className="font-jua text-sm text-amber-800 ml-1">코인</span>
                   </div>
                 </div>
 
@@ -437,7 +475,7 @@ const ShopPage = () => {
                         {item.description}
                         {item.quantity && (
                           <span className="block font-bold text-amber-700 text-xs mt-0.5">
-                            {item.quantity}닢 {item.bonus && `+${item.bonus}`}
+                            {item.quantity}코인 {item.bonus && `+${item.bonus}`}
                           </span>
                         )}
                       </p>

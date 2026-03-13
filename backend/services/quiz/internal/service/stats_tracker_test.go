@@ -59,6 +59,35 @@ func (m *MockQuizRepository) CreateUserStats(ctx context.Context, userID string)
 	return args.Get(0).(*repository.UserStats), args.Error(1)
 }
 
+func (m *MockQuizRepository) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*repository.UserProfile), args.Error(1)
+}
+
+func (m *MockQuizRepository) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
+	args := m.Called(ctx, profile)
+	return args.Error(0)
+}
+
+func (m *MockQuizRepository) AddProfileRewards(ctx context.Context, userID string, xpDelta, coinsDelta int32) (*repository.UserProfile, error) {
+	args := m.Called(ctx, userID, xpDelta, coinsDelta)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*repository.UserProfile), args.Error(1)
+}
+
+func (m *MockQuizRepository) DeductEnergy(ctx context.Context, userID string, amount int32) (*repository.UserProfile, error) {
+	args := m.Called(ctx, userID, amount)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*repository.UserProfile), args.Error(1)
+}
+
 // Test UpdateStats with correct answer
 func TestUpdateStats_CorrectAnswer(t *testing.T) {
 	mockRepo := new(MockQuizRepository)
