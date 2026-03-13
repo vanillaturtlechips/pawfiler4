@@ -123,17 +123,29 @@ const ProfilePage = () => {
                     <Star className="w-3 h-3 text-amber-500" />
                     경험치
                   </span>
-                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} XP</span>
+                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(() => {
+                    const level = quizProfile?.level ?? user.level ?? 1;
+                    // 다음 레벨 필요 XP 계산
+                    const nextLevelXP = [0, 1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 800, 1100, 1400, 1700, 2000, 2500, 3000, 3500, 4000, 5000];
+                    return nextLevelXP[level] || 5000;
+                  })()} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
                   <motion.div
                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
                     initial={{ width: 0 }}
-                    animate={{ width: "0%" }}
+                    animate={{ width: `${(() => {
+                      const exp = quizProfile?.totalExp ?? user.xp ?? 0;
+                      const level = quizProfile?.level ?? user.level ?? 1;
+                      const thresholds = [0, 1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 800, 1100, 1400, 1700, 2000, 2500, 3000, 3500, 4000, 5000];
+                      const currentThreshold = thresholds[level - 1] || 0;
+                      const nextThreshold = thresholds[level] || 5000;
+                      const progress = ((exp - currentThreshold) / (nextThreshold - currentThreshold)) * 100;
+                      return Math.min(100, Math.max(0, progress));
+                    })()}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                   />
                 </div>
-                <p className="text-xs text-center mt-1 opacity-70">다음 레벨까지 필요 XP는 레벨에 따라 다릅니다</p>
               </div>
 
               {/* Coins */}
