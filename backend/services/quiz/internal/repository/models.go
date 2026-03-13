@@ -202,31 +202,41 @@ type UserProfile struct {
 //   - Lv5: 1500+ XP
 func (p *UserProfile) Level() int32 {
 	exp := p.TotalExp
+	// 티어별로 점점 어렵게 (0 XP = Lv.1)
 	switch {
-	case exp >= 2000: return 25
-	case exp >= 1900: return 24
-	case exp >= 1800: return 23
-	case exp >= 1700: return 22
-	case exp >= 1500: return 21
-	case exp >= 1300: return 20
-	case exp >= 1200: return 19
+	// 티어 5: 불사조 (21-25) - 각 500 XP씩 증가
+	case exp >= 4000: return 25
+	case exp >= 3500: return 24
+	case exp >= 3000: return 23
+	case exp >= 2500: return 22
+	case exp >= 2000: return 21
+	
+	// 티어 4: 맹금닭 (16-20) - 각 300 XP씩 증가
+	case exp >= 1700: return 20
+	case exp >= 1400: return 19
 	case exp >= 1100: return 18
-	case exp >= 1000: return 17
-	case exp >= 800: return 16
-	case exp >= 700: return 15
-	case exp >= 650: return 14
-	case exp >= 550: return 13
-	case exp >= 500: return 12
-	case exp >= 400: return 11
-	case exp >= 350: return 10
-	case exp >= 300: return 9
-	case exp >= 250: return 8
-	case exp >= 200: return 7
-	case exp >= 150: return 6
-	case exp >= 120: return 5
-	case exp >= 90: return 4
-	case exp >= 60: return 3
-	case exp >= 30: return 2
+	case exp >= 800: return 17
+	case exp >= 500: return 16
+	
+	// 티어 3: 삐약이 (11-15) - 각 100 XP씩 증가
+	case exp >= 400: return 15
+	case exp >= 300: return 14
+	case exp >= 200: return 13
+	case exp >= 100: return 12
+	case exp >= 50: return 11
+	
+	// 티어 2: 알병아리 (6-10) - 각 10 XP씩 증가
+	case exp >= 40: return 10
+	case exp >= 30: return 9
+	case exp >= 20: return 8
+	case exp >= 10: return 7
+	case exp >= 5: return 6
+	
+	// 티어 1: 알 (1-5)
+	case exp >= 4: return 5
+	case exp >= 3: return 4
+	case exp >= 2: return 3
+	case exp >= 1: return 2
 	default: return 1
 	}
 }

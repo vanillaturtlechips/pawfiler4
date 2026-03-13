@@ -262,10 +262,13 @@ const GamePage = () => {
 
   // ──────────────────────────────
   // 선택 화면
-  const handleEnergyRefill = () => {
+  const handleEnergyRefill = async () => {
     if (profile) {
-      setProfile({ ...profile, energy: profile.maxEnergy });
-      refreshQuizProfile();
+      // 로컬 업데이트
+      const refilled = { ...profile, energy: profile.maxEnergy };
+      setProfile(refilled);
+      // 백엔드에도 반영 (임시: 프로필 새로고침으로 에너지 자동 충전 트리거)
+      await refreshQuizProfile();
     }
   };
 
