@@ -223,7 +223,6 @@ func (p *UserProfile) Level() int32 {
 	}
 }
 
-}
 
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
