@@ -184,43 +184,6 @@ func (gus *GormUserStats) CorrectRate() float64 {
 	return float64(gus.CorrectCount) / float64(gus.TotalAnswered)
 }
 
-// GormUserProfile GORM 용 UserProfile 모델
-// 사용자의 게임화 데이터(XP, 코인, 에너지)를 quiz.user_profiles 테이블에 저장한다.
-type GormUserProfile struct {
-	UserID           string    `gorm:"primaryKey;type:uuid"`
-	TotalExp         int32     `gorm:"default:0"`
-	TotalCoins       int32     `gorm:"default:0"`
-	Energy           int32     `gorm:"default:100"`
-	MaxEnergy        int32     `gorm:"default:100"`
-	LastEnergyRefill time.Time `gorm:"default:now()"`
-	UpdatedAt        time.Time `gorm:"autoUpdateTime"`
-}
-
-// TableName GORM 테이블 이름 지정
-func (GormUserProfile) TableName() string { return "quiz.user_profiles" }
-
-// ToUserProfile GORM 모델을 기존 UserProfile 모델로 변환
-func (g *GormUserProfile) ToUserProfile() *UserProfile {
-	return &UserProfile{
-		UserID:           g.UserID,
-		TotalExp:         g.TotalExp,
-		TotalCoins:       g.TotalCoins,
-		Energy:           g.Energy,
-		MaxEnergy:        g.MaxEnergy,
-		LastEnergyRefill: g.LastEnergyRefill,
-		UpdatedAt:        g.UpdatedAt,
-	}
-}
-
-// FromUserProfile 기존 UserProfile 모델을 GORM 모델로 변환
-func (g *GormUserProfile) FromUserProfile(p *UserProfile) {
-	g.UserID = p.UserID
-	g.TotalExp = p.TotalExp
-	g.TotalCoins = p.TotalCoins
-	g.Energy = p.Energy
-	g.MaxEnergy = p.MaxEnergy
-	g.LastEnergyRefill = p.LastEnergyRefill
-	g.UpdatedAt = p.UpdatedAt
 }
 
 // 커스텀 타입 정의 - PostgreSQL 배열 및 JSONB 지원
@@ -319,7 +282,7 @@ type GormUserProfile struct {
 	TotalCoins     int32     `gorm:"default:0" json:"total_coins"`
 	Energy         int32     `gorm:"default:100" json:"energy"`
 	MaxEnergy      int32     `gorm:"default:100" json:"max_energy"`
-	LastEnergyTime time.Time `gorm:"default:now()" json:"last_energy_time"`
+	LastEnergyRefill time.Time `gorm:"default:now()" json:"last_energy_time"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
@@ -334,6 +297,6 @@ func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 		TotalCoins:     gup.TotalCoins,
 		Energy:         gup.Energy,
 		MaxEnergy:      gup.MaxEnergy,
-		LastEnergyTime: gup.LastEnergyTime,
+		LastEnergyRefill: gup.LastEnergyRefill,
 	}
 }
