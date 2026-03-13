@@ -262,6 +262,13 @@ const GamePage = () => {
 
   // ──────────────────────────────
   // 선택 화면
+  const handleEnergyRefill = () => {
+    if (profile) {
+      setProfile({ ...profile, energy: profile.maxEnergy });
+      refreshQuizProfile();
+    }
+  };
+
   // ──────────────────────────────
   if (phase === "select") {
     return (
@@ -272,6 +279,7 @@ const GamePage = () => {
         selectedCount={selectedCount}
         onDifficultyChange={setSelectedDifficulty}
         onCountChange={setSelectedCount}
+        onEnergyRefill={handleEnergyRefill}
       />
     );
   }
@@ -550,6 +558,11 @@ const GamePage = () => {
                                 {result.correct ? `🎉 정답! +${result.coinsEarned} 코인` : "😢 아쉬워요..."}
                               </p>
                               <p className="text-base mt-2 text-foreground">{result.explanation}</p>
+                              <div className="mt-3 pt-3 border-t border-wood-dark/30">
+                                <p className="font-jua text-sm opacity-70">
+                                  📊 이 문제 정답률: <span className="text-yellow-400">준비 중</span>
+                                </p>
+                              </div>
                             </WoodPanel>
                             <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
                           </>

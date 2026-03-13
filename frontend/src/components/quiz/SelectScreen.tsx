@@ -10,6 +10,7 @@ interface SelectScreenProps {
   selectedCount: number;
   onDifficultyChange: (d: string) => void;
   onCountChange: (c: number) => void;
+  onEnergyRefill?: () => void;
 }
 
 const DIFFICULTY_OPTIONS = [
@@ -31,11 +32,18 @@ const SelectScreen = ({
   selectedCount,
   onDifficultyChange,
   onCountChange,
+  onEnergyRefill,
 }: SelectScreenProps) => {
   const energy = profile?.energy ?? 100;
   const maxEnergy = profile?.maxEnergy ?? 100;
   const energyCost = selectedCount === 5 ? 25 : 40; // 5문제=25, 10문제=40
   const canStart = energy >= energyCost;
+
+  const handleEmojiClick = () => {
+    if (onEnergyRefill) {
+      onEnergyRefill();
+    }
+  };
   const sessionAccuracy = null; // 세션 시작 전이므로 없음
 
   return (
@@ -50,9 +58,13 @@ const SelectScreen = ({
           {/* 헤더 */}
           <div className="flex flex-col items-center gap-2">
             <motion.span
-              className="text-7xl"
+              className="text-7xl cursor-pointer"
               animate={{ y: [-4, 4, -4] }}
               transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              onClick={handleEmojiClick}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              title="클릭하면 에너지 풀충!"
             >
               🦊
             </motion.span>
