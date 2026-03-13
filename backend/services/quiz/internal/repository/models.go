@@ -293,25 +293,4 @@ func XPRewardByDifficulty(difficulty Difficulty) (xp int32, coins int32) {
 		return 10, 50
 	}
 }
-func (p *UserProfile) Level() int32 {
-	exp := p.TotalExp
-	// 레벨당 필요 XP (레벨업 시 초기화)
-	switch {
-	case exp >= 500: return 25  // 불사조
-	case exp >= 400: return 24
-	case exp >= 300: return 23
-	case exp >= 200: return 22
-	case exp >= 100: return 21
-	case exp >= 90: return 20   // 맹금닭
-	case exp >= 70: return 19
-	case exp >= 50: return 18
-	case exp >= 30: return 17
-	case exp >= 15: return 16
-	case exp >= 12: return 15   // 삐약이
-	case exp >= 9: return 14
-	case exp >= 6: return 13
-	case exp >= 3: return 12
-	case exp >= 1: return 11
-	default: return 1           // 알 (1-10)
-	}
 }
