@@ -218,15 +218,15 @@ func (p *UserProfile) Level() int32 {
 func (p *UserProfile) TierName() string {
 	switch p.Level() {
 	case 5:
-		return "불사조 탐정"
+		return "불사조"
 	case 4:
-		return "망토 입은 닭"
+		return "맹금닭"
 	case 3:
-		return "안경 쓴 병아리"
+		return "삐약이"
 	case 2:
-		return "삐약이 정보원"
+		return "알병아리"
 	default:
-		return "알 껍데기 병아리"
+		return "계란"
 	}
 }
 

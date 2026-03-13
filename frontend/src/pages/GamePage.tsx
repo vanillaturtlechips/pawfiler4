@@ -58,6 +58,8 @@ const GamePage = () => {
     if (p) updateQuizProfile(p);
   };
   const [energyError, setEnergyError] = useState<number | null>(null);
+  const [showTierUpModal, setShowTierUpModal] = useState(false);
+  const [newTier, setNewTier] = useState<{ level: number; name: string } | null>(null);
 
   // 게임 완료 시 폭죽 효과
   useEffect(() => {
@@ -187,6 +189,7 @@ const GamePage = () => {
 
       // 프로필 업데이트 (에너지/XP/코인)
       if (res.level !== undefined && profile) {
+        const prevLevel = profile.level;
         const updatedProfile: QuizGameProfile = {
           level: res.level,
           tierName: res.tierName ?? profile.tierName,
@@ -196,6 +199,12 @@ const GamePage = () => {
           maxEnergy: res.maxEnergy ?? profile.maxEnergy,
         };
         setProfile(updatedProfile);
+        
+        // 레벨업 감지
+        if (res.level > prevLevel) {
+          setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName });
+          setShowTierUpModal(true);
+        }
       } else if (profile) {
         // 에너지 2 차감 (백엔드 연동 전 로컬 처리)
         setProfile({ ...profile, energy: Math.max(0, profile.energy - 2) });
@@ -571,6 +580,46 @@ const GamePage = () => {
                 <GameButton variant="green" onClick={() => setPendingNav(null)}>계속하기</GameButton>
               </div>
             </WoodPanel>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 티어 업 모달 */}
+      <AnimatePresence>
+        {showTierUpModal && newTier && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+            onClick={() => setShowTierUpModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <WoodPanel className="max-w-md p-8 text-center">
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 10, 0], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.6, repeat: 2 }}
+                  className="text-8xl mb-4"
+                >
+                  🎉
+                </motion.div>
+                <h2 className="font-jua text-4xl text-yellow-400 mb-2">레벨 업!</h2>
+                <p className="font-jua text-2xl mb-4">
+                  Lv.{newTier.level} {newTier.name}
+                </p>
+                <p className="font-jua text-lg opacity-70 mb-6">
+                  축하합니다! 새로운 티어에 도달했습니다!
+                </p>
+                <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>
+                  확인
+                </GameButton>
+              </WoodPanel>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
