@@ -249,31 +249,31 @@ const ShopPage = () => {
                           animate={{ width: `${(() => {
                             const tierName = quizProfile?.tierName ?? '알 Lv.1';
                             const exp = quizProfile?.totalExp ?? 0;
-                            let maxXP = 2;
+                            let maxXP = 100;
                             if (tierName.startsWith('불사조')) {
-                              if (exp >= 2000) maxXP = 2000;
-                              else if (exp >= 1500) maxXP = 2000;
-                              else if (exp >= 1000) maxXP = 1500;
-                              else if (exp >= 500) maxXP = 1000;
-                              else maxXP = 500;
+                              if (exp >= 4000) maxXP = 5000;
+                              else if (exp >= 3000) maxXP = 4000;
+                              else if (exp >= 2000) maxXP = 3000;
+                              else if (exp >= 1000) maxXP = 2000;
+                              else maxXP = 1000;
                             } else if (tierName.startsWith('맹금닭')) {
+                              if (exp >= 1600) maxXP = 2000;
+                              else if (exp >= 1200) maxXP = 1600;
+                              else if (exp >= 800) maxXP = 1200;
+                              else if (exp >= 400) maxXP = 800;
+                              else maxXP = 400;
+                            } else if (tierName.startsWith('삐약이')) {
                               if (exp >= 800) maxXP = 1000;
                               else if (exp >= 600) maxXP = 800;
                               else if (exp >= 400) maxXP = 600;
                               else if (exp >= 200) maxXP = 400;
                               else maxXP = 200;
-                            } else if (tierName.startsWith('삐약이')) {
-                              if (exp >= 80) maxXP = 100;
-                              else if (exp >= 60) maxXP = 80;
-                              else if (exp >= 40) maxXP = 60;
-                              else if (exp >= 20) maxXP = 40;
-                              else maxXP = 20;
                             } else {
-                              if (exp >= 8) maxXP = 10;
-                              else if (exp >= 6) maxXP = 8;
-                              else if (exp >= 4) maxXP = 6;
-                              else if (exp >= 2) maxXP = 4;
-                              else maxXP = 2;
+                              if (exp >= 400) maxXP = 500;
+                              else if (exp >= 300) maxXP = 400;
+                              else if (exp >= 200) maxXP = 300;
+                              else if (exp >= 100) maxXP = 200;
+                              else maxXP = 100;
                             }
                             return Math.min(100, (exp / maxXP) * 100);
                           })()}%` }}

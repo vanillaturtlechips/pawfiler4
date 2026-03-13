@@ -314,58 +314,34 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 				leveledUp := false
 				switch tier {
 				case "알":
-					if exp >= 10 {
+					if exp >= 500 {
 						profile.CurrentTier = "삐약이"
-						profile.TotalExp = exp - 10
+						profile.TotalExp = exp - 500
 						tier = "삐약이"
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 8 {
-						profile.TotalExp = exp - 8
+					} else if exp >= 400 {
+						profile.TotalExp = exp - 400
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 6 {
-						profile.TotalExp = exp - 6
+					} else if exp >= 300 {
+						profile.TotalExp = exp - 300
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 4 {
-						profile.TotalExp = exp - 4
+					} else if exp >= 200 {
+						profile.TotalExp = exp - 200
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 2 {
-						profile.TotalExp = exp - 2
+					} else if exp >= 100 {
+						profile.TotalExp = exp - 100
 						exp = profile.TotalExp
 						leveledUp = true
 					}
 				case "삐약이":
-					if exp >= 100 {
-						profile.CurrentTier = "맹금닭"
-						profile.TotalExp = exp - 100
-						tier = "맹금닭"
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 80 {
-						profile.TotalExp = exp - 80
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 60 {
-						profile.TotalExp = exp - 60
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 40 {
-						profile.TotalExp = exp - 40
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 20 {
-						profile.TotalExp = exp - 20
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "맹금닭":
 					if exp >= 1000 {
-						profile.CurrentTier = "불사조"
+						profile.CurrentTier = "맹금닭"
 						profile.TotalExp = exp - 1000
-						tier = "불사조"
+						tier = "맹금닭"
 						exp = profile.TotalExp
 						leveledUp = true
 					} else if exp >= 800 {
@@ -385,21 +361,45 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 						exp = profile.TotalExp
 						leveledUp = true
 					}
-				case "불사조":
+				case "맹금닭":
 					if exp >= 2000 {
+						profile.CurrentTier = "불사조"
 						profile.TotalExp = exp - 2000
+						tier = "불사조"
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 1500 {
-						profile.TotalExp = exp - 1500
+					} else if exp >= 1600 {
+						profile.TotalExp = exp - 1600
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 1200 {
+						profile.TotalExp = exp - 1200
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 800 {
+						profile.TotalExp = exp - 800
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 400 {
+						profile.TotalExp = exp - 400
+						exp = profile.TotalExp
+						leveledUp = true
+					}
+				case "불사조":
+					if exp >= 4000 {
+						profile.TotalExp = exp - 4000
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 3000 {
+						profile.TotalExp = exp - 3000
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 2000 {
+						profile.TotalExp = exp - 2000
 						exp = profile.TotalExp
 						leveledUp = true
 					} else if exp >= 1000 {
 						profile.TotalExp = exp - 1000
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 500 {
-						profile.TotalExp = exp - 500
 						exp = profile.TotalExp
 						leveledUp = true
 					}
