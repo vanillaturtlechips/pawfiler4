@@ -200,33 +200,45 @@ type UserProfile struct {
 //   - Lv4: 800–1499 XP
 //   - Lv5: 1500+ XP
 func (p *UserProfile) Level() int32 {
+	exp := p.TotalExp
 	switch {
-	case p.TotalExp >= 1500:
-		return 5
-	case p.TotalExp >= 800:
-		return 4
-	case p.TotalExp >= 400:
-		return 3
-	case p.TotalExp >= 150:
-		return 2
-	default:
-		return 1
+	case exp >= 2000: return 25
+	case exp >= 1900: return 24
+	case exp >= 1800: return 23
+	case exp >= 1700: return 22
+	case exp >= 1500: return 21
+	case exp >= 1300: return 20
+	case exp >= 1200: return 19
+	case exp >= 1100: return 18
+	case exp >= 1000: return 17
+	case exp >= 800: return 16
+	case exp >= 700: return 15
+	case exp >= 650: return 14
+	case exp >= 550: return 13
+	case exp >= 500: return 12
+	case exp >= 400: return 11
+	case exp >= 350: return 10
+	case exp >= 300: return 9
+	case exp >= 250: return 8
+	case exp >= 200: return 7
+	case exp >= 150: return 6
+	case exp >= 120: return 5
+	case exp >= 90: return 4
+	case exp >= 60: return 3
+	case exp >= 30: return 2
+	default: return 1
 	}
 }
 
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
-	switch p.Level() {
-	case 5:
-		return "불사조"
-	case 4:
-		return "맹금닭"
-	case 3:
-		return "삐약이"
-	case 2:
-		return "알병아리"
-	default:
-		return "계란"
+	level := p.Level()
+	switch {
+	case level >= 21: return "불사조"
+	case level >= 16: return "맹금닭"
+	case level >= 11: return "삐약이"
+	case level >= 6: return "알병아리"
+	default: return "알"
 	}
 }
 

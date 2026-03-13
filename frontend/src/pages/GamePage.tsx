@@ -103,8 +103,14 @@ const GamePage = () => {
       setStats(userStats);
     } catch (error: any) {
       if (error?.code === "INSUFFICIENT_ENERGY") {
-        setEnergyError(error.energy ?? 0);
-        setPhase("select");
+        const currentEnergy = error.energy ?? 0;
+        if (currentEnergy === 0) {
+          // 에너지 0이면 상점으로 이동
+          navigate("/shop");
+        } else {
+          setEnergyError(currentEnergy);
+          setPhase("select");
+        }
       } else {
         console.error("게임 초기화 실패:", error);
       }
@@ -134,7 +140,12 @@ const GamePage = () => {
       setQuestionCount(prev => prev + 1);
     } catch (error: any) {
       if (error?.code === "INSUFFICIENT_ENERGY") {
-        setEnergyError(error.energy ?? 0);
+        const currentEnergy = error.energy ?? 0;
+        if (currentEnergy === 0) {
+          navigate("/shop");
+        } else {
+          setEnergyError(currentEnergy);
+        }
       } else {
         console.error("문제 불러오기 실패:", error);
       }
