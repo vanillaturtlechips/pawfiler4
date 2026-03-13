@@ -138,7 +138,7 @@ export const signup = async (req: SignupRequest) => {
   }
 };
 
-export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
+export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuestion> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockFetchQuizQuestion(token || "");
@@ -147,15 +147,18 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
   try {
     const userId = getUserId();
     
-    // Envoy gRPC-JSON transcoding을 통한 요청
+    const body: any = { user_id: userId };
+    // 난이도 파라미터 추가 (all이 아닐 때만)
+    if (difficulty && difficulty !== "all") {
+      body.difficulty = difficulty;
+    }
+    
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRandomQuestion`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        user_id: userId,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (response.status === 429) {
