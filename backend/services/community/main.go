@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
+	"community/internal/rest"
 	"community/pb"
 
 	"github.com/google/uuid"
@@ -42,6 +44,7 @@ func initDB() error {
 	db.SetMaxOpenConns(150)                // 최대 연결 수
 	db.SetMaxIdleConns(50)                 // 유휴 연결 수
 	db.SetConnMaxLifetime(5 * time.Minute) // 연결 최대 수명
+	db.SetConnMaxIdleTime(2 * time.Minute) // 유휴 연결 타임아웃
 
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
@@ -87,32 +90,26 @@ func (s *server) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.FeedR
 		}
 		whereClause += " OR $2 = ANY(tags)"
 		
-		// 단일 쿼리로 count와 데이터를 함께 조회
+		// Window Function으로 최적화 (CTE + Cross Join 제거)
 		rows, err = db.QueryContext(ctx, fmt.Sprintf(`
-			WITH total AS (
-				SELECT COUNT(*) as count FROM community.posts WHERE %s
-			)
 			SELECT 
-				p.id, p.author_id, p.author_nickname, p.author_emoji, p.title, p.body, 
-				p.likes, p.comments, p.created_at::text, p.tags,
-				t.count as total_count
-			FROM community.posts p, total t
+				id, author_id, author_nickname, author_emoji, title, body, 
+				likes, comments, created_at::text, tags,
+				COUNT(*) OVER() as total_count
+			FROM community.posts
 			WHERE %s
-			ORDER BY p.created_at DESC
+			ORDER BY created_at DESC
 			LIMIT $3 OFFSET $4
-		`, whereClause, whereClause), searchPattern, searchQuery, pageSize, offset)
+		`, whereClause), searchPattern, searchQuery, pageSize, offset)
 	} else {
-		// 단일 쿼리로 count와 데이터를 함께 조회
+		// Window Function으로 최적화 (CTE + Cross Join 제거)
 		rows, err = db.QueryContext(ctx, `
-			WITH total AS (
-				SELECT COUNT(*) as count FROM community.posts
-			)
 			SELECT 
-				p.id, p.author_id, p.author_nickname, p.author_emoji, p.title, p.body, 
-				p.likes, p.comments, p.created_at::text, p.tags,
-				t.count as total_count
-			FROM community.posts p, total t
-			ORDER BY p.created_at DESC
+				id, author_id, author_nickname, author_emoji, title, body, 
+				likes, comments, created_at::text, tags,
+				COUNT(*) OVER() as total_count
+			FROM community.posts
+			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2
 		`, pageSize, offset)
 	}
@@ -306,12 +303,24 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	svc := &server{}
 	s := grpc.NewServer()
-	pb.RegisterCommunityServiceServer(s, &server{})
+	pb.RegisterCommunityServiceServer(s, svc)
 
-	log.Printf("Community gRPC server listening on :%s", port)
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	go func() {
+		log.Printf("Community gRPC server listening on :%s", port)
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8080"
+	}
+	log.Printf("Community REST server started on :%s", httpPort)
+	if err := http.ListenAndServe(":"+httpPort, rest.NewMux(svc)); err != nil {
+		log.Fatalf("Failed to serve HTTP: %v", err)
 	}
 }
 

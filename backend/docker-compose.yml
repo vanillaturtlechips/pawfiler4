@@ -22,6 +22,15 @@ services:
     networks:
       - pawfiler-network
 
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: pawfiler-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pawfiler-network
+
   # Quiz Service
   quiz-service:
     build:
@@ -39,6 +48,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - pawfiler-network
 

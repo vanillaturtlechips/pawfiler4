@@ -13,8 +13,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	pb "github.com/pawfiler/backend/services/quiz/proto"
-	repository "github.com/pawfiler/backend/services/quiz/internal/repository"
 )
 
 var marshaler = protojson.MarshalOptions{
@@ -36,7 +36,6 @@ type QuizService interface {
 }
 
 // NewMux returns an HTTP mux with quiz REST endpoints.
-// Registers both /quiz.* and /api/quiz.* to support direct access and ALB ingress routing.
 func NewMux(svc QuizService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -65,23 +64,16 @@ func handleGetRandomQuestion(svc QuizService) http.HandlerFunc {
 		}
 		resp, err := svc.GetRandomQuestion(r.Context(), &req)
 		if err != nil {
-			// insufficient_energy 에러는 HTTP 429로 반환
-			if strings.Contains(err.Error(), "insufficient_energy") {
-				// 현재 에너지 값을 포함하여 응답
-				var energy int32
-				if req.UserId != "" {
-					if profile, profErr := svc.GetUserProfile(r.Context(), req.UserId); profErr == nil {
-						profile.RefillEnergy()
-						energy = profile.Energy
-					}
+			// 에너지 부족 시 429 + 현재 에너지 반환
+			if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
+				msg := st.Message() // "insufficient_energy:N"
+				energy := "0"
+				if parts := strings.SplitN(msg, ":", 2); len(parts) == 2 {
+					energy = parts[1]
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
-				jsonBytes, _ := json.Marshal(map[string]interface{}{
-					"error":  "insufficient energy",
-					"energy": energy,
-				})
-				w.Write(jsonBytes)
+				w.Write([]byte(`{"error":"insufficient_energy","energy":` + energy + `}`))
 				return
 			}
 			writeGRPCError(w, err)
@@ -108,37 +100,29 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 			return
 		}
 
-		// proto 응답을 JSON으로 변환
-		protoBytes, err := marshaler.Marshal(resp)
+		// proto 응답 + 프로필 정보 병합
+		jsonBytes, err := marshaler.Marshal(resp)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
-
-		// profile 데이터 추가
 		var result map[string]interface{}
-		if err := json.Unmarshal(protoBytes, &result); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal server error")
-			return
-		}
+		json.Unmarshal(jsonBytes, &result)
 
-		// 프로필 조회 후 응답에 추가
 		if req.UserId != "" {
-			if profile, profErr := svc.GetUserProfile(r.Context(), req.UserId); profErr == nil {
-				profile.RefillEnergy()
+			if profile, err := svc.GetUserProfile(r.Context(), req.UserId); err == nil {
+				result["level"] = profile.Level()
+				result["tier_name"] = profile.TierName()
 				result["total_exp"] = profile.TotalExp
 				result["total_coins"] = profile.TotalCoins
 				result["energy"] = profile.Energy
 				result["max_energy"] = profile.MaxEnergy
-				result["level"] = profile.Level()
-				result["tier_name"] = profile.TierName()
 			}
 		}
 
-		jsonBytes, _ := json.Marshal(result)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(jsonBytes)
+		json.NewEncoder(w).Encode(result)
 	}
 }
 
@@ -159,37 +143,25 @@ func handleGetUserStats(svc QuizService) http.HandlerFunc {
 			return
 		}
 
-		// proto 응답을 JSON으로 변환
-		protoBytes, err := marshaler.Marshal(resp)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal server error")
-			return
-		}
-
-		// profile 데이터 추가
+		// proto 응답 + 프로필 정보 병합
+		jsonBytes, _ := marshaler.Marshal(resp)
 		var result map[string]interface{}
-		if err := json.Unmarshal(protoBytes, &result); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal server error")
-			return
-		}
+		json.Unmarshal(jsonBytes, &result)
 
-		// 프로필 조회 후 응답에 추가
 		if req.UserId != "" {
-			if profile, profErr := svc.GetUserProfile(r.Context(), req.UserId); profErr == nil {
-				profile.RefillEnergy()
+			if profile, err := svc.GetUserProfile(r.Context(), req.UserId); err == nil {
+				result["level"] = profile.Level()
+				result["tier_name"] = profile.TierName()
 				result["total_exp"] = profile.TotalExp
 				result["total_coins"] = profile.TotalCoins
 				result["energy"] = profile.Energy
 				result["max_energy"] = profile.MaxEnergy
-				result["level"] = profile.Level()
-				result["tier_name"] = profile.TierName()
 			}
 		}
 
-		jsonBytes, _ := json.Marshal(result)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(jsonBytes)
+		json.NewEncoder(w).Encode(result)
 	}
 }
 
@@ -219,32 +191,32 @@ func handleGetUserProfile(svc QuizService) http.HandlerFunc {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		var body struct {
+		body, _ := io.ReadAll(r.Body)
+		defer r.Body.Close()
+		var req struct {
 			UserID string `json:"user_id"`
 		}
-		if data, err := io.ReadAll(r.Body); err == nil {
-			json.Unmarshal(data, &body)
-		}
-
-		profile, err := svc.GetUserProfile(r.Context(), body.UserID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to get profile")
+		json.Unmarshal(body, &req)
+		if req.UserID == "" {
+			writeError(w, http.StatusBadRequest, "user_id required")
 			return
 		}
-		profile.RefillEnergy()
-
-		jsonBytes, _ := json.Marshal(map[string]interface{}{
-			"user_id":     profile.UserID,
-			"total_exp":   profile.TotalExp,
-			"total_coins": profile.TotalCoins,
-			"energy":      profile.Energy,
-			"max_energy":  profile.MaxEnergy,
-			"level":       profile.Level(),
-			"tier_name":   profile.TierName(),
-		})
+		profile, err := svc.GetUserProfile(r.Context(), req.UserID)
+		if err != nil {
+			writeGRPCError(w, err)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(jsonBytes)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"user_id":    profile.UserID,
+			"level":      profile.Level(),
+			"tier_name":  profile.TierName(),
+			"total_exp":  profile.TotalExp,
+			"total_coins": profile.TotalCoins,
+			"energy":     profile.Energy,
+			"max_energy": profile.MaxEnergy,
+		})
 	}
 }
 
@@ -299,6 +271,8 @@ func grpcCodeToHTTP(code codes.Code) int {
 		return http.StatusUnauthorized
 	case codes.AlreadyExists:
 		return http.StatusConflict
+	case codes.ResourceExhausted:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

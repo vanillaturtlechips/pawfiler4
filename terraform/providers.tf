@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.25"
     }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
+    }
     tls = {
       source  = "hashicorp/tls"
       version = "~> 4.0"
@@ -39,6 +43,17 @@ provider "helm" {
 provider "kubernetes" {
   host                   = module.eks.eks_cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate_authority)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.eks_cluster_name]
+  }
+}
+
+provider "kubectl" {
+  host                   = module.eks.eks_cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate_authority)
+  load_config_file       = false
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"

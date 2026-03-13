@@ -12,5 +12,5 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/quiz-service .
-EXPOSE 50052
+EXPOSE 50052 8080
 CMD ["./quiz-service"]

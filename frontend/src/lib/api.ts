@@ -12,6 +12,7 @@ import type {
   CheckoutResponse,
   SubscriptionPlan,
   QuizStats,
+  QuizGameProfile,
   CommunityPost,
   MediaType,
   MultipleChoiceQuestion,
@@ -137,7 +138,7 @@ export const signup = async (req: SignupRequest) => {
   }
 };
 
-export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuestion> => {
+export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockFetchQuizQuestion(token || "");
@@ -146,23 +147,22 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
   try {
     const userId = getUserId();
     
-    const body: any = { user_id: userId };
-    if (difficulty && difficulty !== "all") body.difficulty = difficulty;
-    
+    // Envoy gRPC-JSON transcoding을 통한 요청
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRandomQuestion`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: userId,
+      }),
     });
 
     if (response.status === 429) {
       const errData = await response.json().catch(() => ({}));
-      const err: any = new Error("에너지가 부족합니다");
-      err.code = "INSUFFICIENT_ENERGY";
-      err.energy = errData.energy ?? 0;
-      throw err;
+      const energy = errData.energy ?? 0;
+      throw Object.assign(new Error('insufficient_energy'), { code: 'INSUFFICIENT_ENERGY', energy });
     }
-
     if (!response.ok) {
       throw new Error(`Failed to fetch question: ${response.statusText}`);
     }
@@ -329,32 +329,25 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
 
     const data = await response.json();
     
-    const profile = (data.level !== undefined) ? {
-      level: data.level,
-      tierName: data.tier_name ?? '알병아리',
-      totalExp: data.total_exp ?? 0,
-      totalCoins: data.total_coins ?? 0,
-      energy: data.energy ?? 100,
-      maxEnergy: data.max_energy ?? 100,
-    } : undefined;
-
     return {
       totalAnswered: data.total_answered ?? 0,
       correctRate: data.correct_rate ?? 0,
       currentStreak: data.current_streak ?? 0,
       bestStreak: data.best_streak ?? 0,
       lives: data.lives ?? 3,
-      profile,
+      level: data.level,
+      tierName: data.tier_name,
+      totalExp: data.total_exp,
+      totalCoins: data.total_coins,
+      energy: data.energy,
+      maxEnergy: data.max_energy,
     };
   } catch (error) {
     return handleApiError(error, '통계 로드');
   }
 };
 
-export const fetchUserProfile = async (): Promise<import("./types").QuizGameProfile | null> => {
-  if (config.useMockApi) {
-    return { level: 1, tierName: "알병아리", totalExp: 0, totalCoins: 1200, energy: 80, maxEnergy: 100 };
-  }
+export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
   try {
     const userId = getUserId();
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetUserProfile`, {
@@ -362,18 +355,18 @@ export const fetchUserProfile = async (): Promise<import("./types").QuizGameProf
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId }),
     });
-    if (!response.ok) return null;
+    if (!response.ok) throw new Error(`Failed to fetch profile: ${response.statusText}`);
     const data = await response.json();
     return {
       level: data.level ?? 1,
-      tierName: data.tier_name ?? '알병아리',
+      tierName: data.tier_name ?? '알 껍데기 병아리',
       totalExp: data.total_exp ?? 0,
       totalCoins: data.total_coins ?? 0,
       energy: data.energy ?? 100,
       maxEnergy: data.max_energy ?? 100,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    return handleApiError(error, '프로필 로드');
   }
 };
 
@@ -409,7 +402,27 @@ export const fetchCommunityFeed = async (
       throw new Error(`Failed to fetch feed: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    
+    // gRPC snake_case를 camelCase로 변환
+    const transformedPosts: CommunityPost[] = data.posts?.map((post: any) => ({
+      id: post.id,
+      authorNickname: post.author_nickname || "익명",
+      authorEmoji: post.author_emoji || "👤",
+      title: post.title,
+      body: post.body,
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      createdAt: post.created_at || new Date().toISOString(),
+      tags: post.tags || [],
+      userId: post.author_id,
+    })) || [];
+
+    return {
+      posts: transformedPosts,
+      totalCount: data.total_count || 0,
+      page: data.page || page,
+    };
   } catch (error) {
     return handleApiError(error, '커뮤니티 피드 로드');
   }
@@ -525,7 +538,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       formData.append('video', videoFile);
       formData.append('user_id', userId);
       
-      const response = await fetch(`${config.apiBaseUrl}/upload-video`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/upload-video`, {
         method: 'POST',
         body: formData,
       });
@@ -608,7 +621,19 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
     }
 
     const data = await response.json();
-    return data.comments || [];
+    
+    // gRPC snake_case를 camelCase로 변환
+    const transformedComments: CommunityComment[] = data.comments?.map((comment: any) => ({
+      id: comment.id,
+      postId: comment.post_id,
+      authorNickname: comment.author_nickname || "익명",
+      authorEmoji: comment.author_emoji || "👤",
+      body: comment.body,
+      createdAt: comment.created_at || new Date().toISOString(),
+      userId: comment.author_id,
+    })) || [];
+    
+    return transformedComments;
   } catch (error) {
     console.error('Failed to fetch comments:', error);
     return [];

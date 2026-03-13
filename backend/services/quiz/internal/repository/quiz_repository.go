@@ -7,8 +7,9 @@ import (
 
 // Common repository errors
 var (
-	ErrQuestionNotFound = errors.New("question not found")
-	ErrUserStatsNotFound = errors.New("user stats not found")
+	ErrQuestionNotFound    = errors.New("question not found")
+	ErrUserStatsNotFound   = errors.New("user stats not found")
+	ErrUserProfileNotFound = errors.New("user profile not found")
 )
 
 // QuizRepository defines the interface for quiz data access operations
@@ -38,19 +39,14 @@ type QuizRepository interface {
 	// Requirement: 12.3
 	CreateUserStats(ctx context.Context, userID string) (*UserStats, error)
 
-	// GetUserProfile retrieves user profile (XP, coins, energy)
-	// Creates a default profile if none exists
+	// GetUserProfile retrieves the gamification profile for a user.
+	// Returns ErrUserProfileNotFound if no profile exists yet.
 	GetUserProfile(ctx context.Context, userID string) (*UserProfile, error)
 
-	// UpdateUserProfile updates user profile fields
+	// CreateUserProfile creates a new gamification profile with default values
+	// (Energy=100, MaxEnergy=100, TotalExp=0, TotalCoins=0).
+	CreateUserProfile(ctx context.Context, userID string) (*UserProfile, error)
+
+	// UpdateUserProfile persists the current state of a UserProfile.
 	UpdateUserProfile(ctx context.Context, profile *UserProfile) error
-
-	// AddProfileRewards adds XP and coins to a user's profile (upsert)
-	// Returns updated profile
-	AddProfileRewards(ctx context.Context, userID string, xpDelta, coinsDelta int32) (*UserProfile, error)
-
-	// DeductEnergy deducts energy from a user's profile.
-	// Returns error if insufficient energy.
-	// Also auto-refills energy based on time elapsed.
-	DeductEnergy(ctx context.Context, userID string, amount int32) (*UserProfile, error)
 }

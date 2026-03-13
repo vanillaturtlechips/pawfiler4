@@ -49,23 +49,24 @@ func main() {
 		log.Fatalf("Failed to get underlying sql.DB: %v", err)
 	}
 
-	// 최적화된 커넥션 풀 설정
-	sqlDB.SetMaxOpenConns(100)    // 50 → 100 (증가)
-	sqlDB.SetMaxIdleConns(50)     // 25 → 50 (증가)
+	// 최적화된 커넥션 풀 설정 (최대 5000명 동시 사용자 기준)
+	sqlDB.SetMaxOpenConns(30)     // 파드당 30개 (총 300개)
+	sqlDB.SetMaxIdleConns(15)     // 파드당 15개 (총 150개)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 	log.Println("Successfully connected to PostgreSQL with GORM")
 
-	// Redis 클라이언트 연결 (고부하 대응 최적화)
+	// Redis 클라이언트 연결 (최적화된 설정)
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:         redisAddr,
 		Password:     "", // 패스워드 없음
 		DB:           0,  // 기본 DB
-		PoolSize:     100, // 커넥션 풀 크기 (20 → 100, 1000명 동시 사용자 대응)
-		MinIdleConns: 20,  // 최소 유지 커넥션 (5 → 20)
+		PoolSize:     30, // 파드당 30개 (총 300개)
+		MinIdleConns: 10, // 파드당 10개 (총 100개)
 		DialTimeout:  5 * time.Second,  // 연결 타임아웃
 		ReadTimeout:  3 * time.Second,  // 읽기 타임아웃
 		WriteTimeout: 3 * time.Second,  // 쓰기 타임아웃

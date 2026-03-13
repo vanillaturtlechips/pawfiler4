@@ -4,17 +4,56 @@
 
 ## 아키텍처
 
-```
-CloudFront (Frontend)
-  ├─ / → S3 (React SPA)
-  └─ /api/* → ALB → Envoy Proxy
-                     ├─ gRPC-JSON Transcoding
-                     ├─ Lua Filter (/api prefix 제거)
-                     └─ Routes:
-                         ├─ quiz-service (gRPC)
-                         └─ community-service (gRPC)
+```mermaid
+graph TD
+    User([사용자])
+    Admin([관리자])
 
-Admin Service (NLB) ← IRSA → S3 (Quiz Media)
+    R53[Route 53]
+    CF_FE[CloudFront\nFrontend]
+    CF_MEDIA[CloudFront\nQuiz Images / Videos]
+    S3_FE[S3\nReact SPA]
+    S3_MEDIA[S3\nMedia Storage]
+
+    S3_ADMIN[S3\nAdmin Frontend]
+    ADMIN_LB[Load Balancer\nAdmin]
+    ADMIN_SVC[Admin Service\nGo REST]
+
+    INGRESS[Ingress\nALB\n※ Istio 확장 예정]
+    ENVOY[Envoy Proxy\nREST → gRPC]
+
+    QUIZ[Quiz Service\nGo gRPC]
+    COMMUNITY[Community Service\nGo gRPC]
+    VIDEO[Video Analysis\nPython gRPC]
+    USER[User Service\n추가 예정]
+
+    RDS[(RDS\nPostgreSQL)]
+
+    User -->|DNS| R53
+    Admin -->|DNS| R53
+
+    R53 -->|frontend| CF_FE
+    R53 -->|media| CF_MEDIA
+    R53 -->|admin| S3_ADMIN
+
+    CF_FE -->|/| S3_FE
+    CF_FE -->|/api/*| INGRESS
+    CF_MEDIA --> S3_MEDIA
+
+    S3_ADMIN --> ADMIN_LB
+    ADMIN_LB --> ADMIN_SVC
+    ADMIN_SVC -->|IRSA| S3_MEDIA
+
+    INGRESS --> ENVOY
+    ENVOY --> QUIZ
+    ENVOY --> COMMUNITY
+    ENVOY --> VIDEO
+    ENVOY -.->|예정| USER
+
+    QUIZ --> RDS
+    COMMUNITY --> RDS
+    VIDEO --> RDS
+    ADMIN_SVC --> RDS
 ```
 
 ## 프로젝트 구조

@@ -84,14 +84,7 @@ start_eks() {
   echo "${BLUE}EKS 클러스터 시작 중...${NC}"
   echo ""
 
-  TEAM_ARNS=(
-    "arn:aws:iam::009946608368:user/SGO-Junghan"
-    "arn:aws:iam::009946608368:user/SGO-Jaewon"
-    "arn:aws:iam::009946608368:user/RAPA_Admin"
-    "arn:aws:iam::009946608368:user/SGO-Moonjae"
-    "arn:aws:iam::009946608368:user/SGO-LeeMyungil"
-  )
-
+  # EKS + Bastion + 팀원 Access Entry (module.eks 내부)
   terraform apply -auto-approve \
     -target=module.eks \
     -target=module.bastion
@@ -101,10 +94,10 @@ start_eks() {
   terraform apply -auto-approve \
     -target=module.helm
 
-  BASTION_ROLE_ARN=$(terraform output -raw bastion_role_arn 2>/dev/null || echo "")
-  if [ -n "$BASTION_ROLE_ARN" ]; then
-    TEAM_ARNS+=("$BASTION_ROLE_ARN")
-  fi
+  # Bastion Role Access Entry (순환 의존성으로 main.tf에 별도 관리)
+  terraform apply -auto-approve \
+    -target=aws_eks_access_entry.bastion \
+    -target=aws_eks_access_policy_association.bastion
 
   echo ""
   echo "${BLUE}kubectl 설정 중...${NC}"
@@ -113,23 +106,6 @@ start_eks() {
   echo ""
   echo "${BLUE}노드 Ready 대기 중...${NC}"
   kubectl wait --for=condition=Ready nodes --all --timeout=300s
-
-  echo ""
-  echo "${BLUE}팀원 Access Entry 등록 중...${NC}"
-  for ARN in "${TEAM_ARNS[@]}"; do
-    echo "  -> $ARN"
-    aws eks create-access-entry \
-      --cluster-name "$CLUSTER_NAME" \
-      --principal-arn "$ARN" \
-      --region "$REGION" 2>/dev/null && echo "    생성 완료" || echo "    이미 존재"
-
-    aws eks associate-access-policy \
-      --cluster-name "$CLUSTER_NAME" \
-      --principal-arn "$ARN" \
-      --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-      --access-scope type=cluster \
-      --region "$REGION" 2>/dev/null || true
-  done
 
   echo ""
   echo "${GREEN}EKS 클러스터 준비 완료!${NC}"
@@ -142,6 +118,11 @@ stop_eks() {
   echo ""
   echo "${YELLOW}EKS 클러스터 중지 중...${NC}"
   echo ""
+
+  # Bastion Access Entry 먼저 제거 (EKS 삭제 전)
+  terraform destroy -auto-approve \
+    -target=aws_eks_access_policy_association.bastion \
+    -target=aws_eks_access_entry.bastion 2>/dev/null || true
 
   terraform destroy -auto-approve \
     -target=module.helm \
@@ -218,6 +199,11 @@ start_bastion() {
   terraform apply -auto-approve \
     -target=module.bastion
 
+  # EKS가 이미 있는 경우 Access Entry 등록
+  terraform apply -auto-approve \
+    -target=aws_eks_access_entry.bastion \
+    -target=aws_eks_access_policy_association.bastion 2>/dev/null || true
+
   echo ""
   echo "${GREEN}Bastion 시작 완료!${NC}"
   terraform output bastion_public_ip
@@ -253,6 +239,10 @@ destroy_all() {
 
   echo ""
   echo "${YELLOW}유료 리소스 삭제 중...${NC}"
+
+  terraform destroy -auto-approve \
+    -target=aws_eks_access_policy_association.bastion \
+    -target=aws_eks_access_entry.bastion 2>/dev/null || true
 
   terraform destroy -auto-approve \
     -target=module.helm \
