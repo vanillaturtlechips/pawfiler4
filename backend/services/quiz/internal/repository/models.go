@@ -234,7 +234,6 @@ func (p *UserProfile) TierName() string {
 	}
 	return fmt.Sprintf("%s Lv.%d", baseTier, level)
 }
-}
 
 // RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since
 // LastEnergyRefill) and caps the result at MaxEnergy. The LastEnergyRefill timestamp
