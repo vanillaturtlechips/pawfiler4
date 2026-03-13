@@ -126,26 +126,32 @@ type UserProfile struct {
 }
 
 func (p *UserProfile) Level() int32 {
-	level := p.TotalExp/100 + 1
-	if level > 25 {
-		level = 25
+	switch {
+	case p.TotalExp >= 1500:
+		return 5
+	case p.TotalExp >= 800:
+		return 4
+	case p.TotalExp >= 400:
+		return 3
+	case p.TotalExp >= 150:
+		return 2
+	default:
+		return 1
 	}
-	return level
 }
 
 func (p *UserProfile) TierName() string {
-	tier := (p.Level()-1)/5 + 1
-	switch tier {
+	switch p.Level() {
 	case 5:
-		return "불사조"
+		return "불사조 탐정"
 	case 4:
-		return "맹금닭"
+		return "망토 입은 닭"
 	case 3:
-		return "삐약이"
+		return "안경 쓴 병아리"
 	case 2:
-		return "알병아리"
-	default: // tier 1
-		return "계란"
+		return "삐약이 정보원"
+	default:
+		return "알 껍데기 병아리"
 	}
 }
 
