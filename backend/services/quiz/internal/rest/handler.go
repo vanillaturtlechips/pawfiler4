@@ -59,7 +59,7 @@ func handleGetRandomQuestion(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.GetRandomQuestionRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -91,7 +91,7 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.SubmitAnswerRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -134,7 +134,7 @@ func handleGetUserStats(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.GetUserStatsRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -173,7 +173,7 @@ func handleGetQuestionById(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.GetQuestionByIdRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -301,7 +301,7 @@ func handleRefillEnergy(svc QuizService) http.HandlerFunc {
 		var req struct {
 			UserID string `json:"user_id"`
 		}
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
