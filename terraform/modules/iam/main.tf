@@ -3,6 +3,10 @@
 # (Access entries managed in eks module)
 # ============================================================================
 
+<<<<<<< Updated upstream:terraform/modules/iam/main.tf
+=======
+# Resources
+>>>>>>> Stashed changes:terraform/iam.tf
 resource "aws_iam_role" "eks_cluster_role" {
   name = "${var.project_name}-eks-cluster-role"
 

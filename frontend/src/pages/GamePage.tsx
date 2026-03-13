@@ -6,10 +6,9 @@ import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, fetchUserProfile } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats } from "@/lib/api";
 import { config } from "@/lib/config";
-import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
-import { useQuizProfile } from "@/contexts/QuizProfileContext";
+import type { QuizQuestion, QuizSubmitResponse, LegacyQuizQuestion, QuizStats } from "@/lib/types";
 import MultipleChoiceQuestion from "@/components/quiz/MultipleChoiceQuestion";
 import TrueFalseQuestion from "@/components/quiz/TrueFalseQuestion";
 import RegionSelectQuestion from "@/components/quiz/RegionSelectQuestion";
@@ -17,8 +16,7 @@ import ComparisonQuestion from "@/components/quiz/ComparisonQuestion";
 
 const GamePage = () => {
   const navigate = useNavigate();
-  const { quizProfile: ctxProfile, updateQuizProfile } = useQuizProfile();
-  const [question, setQuestion] = useState<QuizQuestion | null>(null);
+  const [question, setQuestion] = useState<QuizQuestion | LegacyQuizQuestion | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<QuizStats | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
@@ -39,13 +37,6 @@ const GamePage = () => {
   const [result, setResult] = useState<QuizSubmitResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [videoOrientation, setVideoOrientation] = useState<"landscape" | "portrait">("landscape");
-  // 로컬 profile은 context에서 초기화, 업데이트 시 context도 동기화
-  const [profile, setProfileLocal] = useState<QuizGameProfile | null>(ctxProfile);
-  const setProfile = (p: QuizGameProfile | null) => {
-    setProfileLocal(p);
-    if (p) updateQuizProfile(p);
-  };
-  const [energyError, setEnergyError] = useState<number | null>(null); // 에너지 부족 시 현재 에너지
 
   // 초기 로드
   useEffect(() => {
@@ -54,31 +45,13 @@ const GamePage = () => {
       try {
         const [q, userStats] = await Promise.all([
           fetchQuizQuestion(),
-          fetchUserStats(),
+          fetchUserStats()
         ]);
         setQuestion(q);
         setQuestionCount(1);
         setStats(userStats);
-        // stats 응답에 프로필 데이터 포함되어 있으면 그걸 사용
-        if (userStats.level !== undefined) {
-          setProfile({
-            level: userStats.level,
-            tierName: userStats.tierName ?? '알 껍데기 병아리',
-            totalExp: userStats.totalExp ?? 0,
-            totalCoins: userStats.totalCoins ?? 0,
-            energy: userStats.energy ?? 100,
-            maxEnergy: userStats.maxEnergy ?? 100,
-          });
-        } else {
-          // fallback: 별도 프로필 요청 (실패해도 게임은 진행)
-          fetchUserProfile().then(setProfile).catch(() => {});
-        }
-      } catch (error: any) {
-        if (error?.code === 'INSUFFICIENT_ENERGY') {
-          setEnergyError(error.energy ?? 0);
-        } else {
-          console.error("Failed to initialize game:", error);
-        }
+      } catch (error) {
+        console.error("Failed to initialize game:", error);
       } finally {
         setLoading(false);
       }
@@ -117,14 +90,6 @@ const GamePage = () => {
       return;
     }
     
-    // 에너지 5 차감
-    if (user) {
-      setUser(prev => ({
-        ...prev,
-        energy: Math.max(0, prev.energy - 5)
-      }));
-    }
-    
     setLoading(true);
     setSelectedIndex(null);
     setSelectedAnswer(null);
@@ -136,12 +101,8 @@ const GamePage = () => {
       const q = await fetchQuizQuestion();
       setQuestion(q);
       setQuestionCount(prev => prev + 1);
-    } catch (error: any) {
-      if (error?.code === 'INSUFFICIENT_ENERGY') {
-        setEnergyError(error.energy ?? 0);
-      } else {
-        console.error("Failed to load question:", error);
-      }
+    } catch (error) {
+      console.error("Failed to load question:", error);
     } finally {
       setLoading(false);
     }
@@ -165,14 +126,6 @@ const GamePage = () => {
     setSelectedRegion(null);
     setSelectedSide(null);
     setResult(null);
-    
-    // 코인 500 지급
-    if (user) {
-      setUser(prev => ({
-        ...prev,
-        coins: prev.coins + 500
-      }));
-    }
     
     fetchQuizQuestion()
       .then(q => {
@@ -210,19 +163,7 @@ const GamePage = () => {
         selectedSide: actualSelectedSide ?? undefined,
       });
       setResult(res);
-
-      // 프로필 업데이트 (에너지/XP/코인)
-      if (res.level !== undefined) {
-        setProfile({
-          level: res.level,
-          tierName: res.tierName ?? '알 껍데기 병아리',
-          totalExp: res.totalExp ?? 0,
-          totalCoins: res.totalCoins ?? 0,
-          energy: res.energy ?? 0,
-          maxEnergy: res.maxEnergy ?? 100,
-        });
-      }
-
+      
       console.log('[handleSubmit] Result:', res);
       console.log('[handleSubmit] Question before update:', question);
       
@@ -258,19 +199,22 @@ const GamePage = () => {
 
   const canSubmit = () => {
     if (!question) return false;
-    
-    switch (question.type) {
-      case 'multiple_choice':
-        return selectedIndex !== null;
-      case 'true_false':
-        return selectedAnswer !== null;
-      case 'region_select':
-        return selectedRegion !== null;
-      case 'comparison':
-        return selectedSide !== null;
-      default:
-        return false;
+    if ('type' in question) {
+      switch (question.type) {
+        case 'multiple_choice':
+          return selectedIndex !== null;
+        case 'true_false':
+          return selectedAnswer !== null;
+        case 'region_select':
+          return selectedRegion !== null;
+        case 'comparison':
+          return selectedSide !== null;
+        default:
+          return false;
+      }
     }
+    // Legacy support
+    return selectedIndex !== null;
   };
 
   const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -278,39 +222,6 @@ const GamePage = () => {
     const aspectRatio = video.videoWidth / video.videoHeight;
     setVideoOrientation(aspectRatio > 1 ? "landscape" : "portrait");
   };
-
-  // 에너지 부족 화면
-  if (energyError !== null) {
-    const refillMinutes = Math.ceil((5 - energyError) / 10 * 180); // 부족한 에너지 * 18분
-    return (
-      <div className="h-[calc(100vh-5rem)] w-full flex items-center justify-center">
-        <WoodPanel className="flex flex-col items-center gap-6 p-10 max-w-md text-center">
-          <motion.div
-            animate={{ y: [-5, 5, -5] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-            className="text-7xl"
-          >
-            😴
-          </motion.div>
-          <h2 className="font-jua text-3xl text-shadow-deep">에너지 부족!</h2>
-          <p className="font-jua text-lg opacity-80">
-            동물 식량이 부족해요.<br />
-            현재 에너지: <span className="text-yellow-400">{energyError}</span> / 5 필요
-          </p>
-          <div className="w-full bg-wood-dark rounded-full h-4 overflow-hidden">
-            <div
-              className="h-full bg-yellow-400 rounded-full transition-all"
-              style={{ width: `${Math.min(100, (energyError / (profile?.maxEnergy ?? 100)) * 100)}%` }}
-            />
-          </div>
-          <p className="font-jua text-sm opacity-60">3시간마다 에너지 +10 자동 충전</p>
-          <GameButton variant="blue" onClick={() => navigate('/')}>
-            마을로 돌아가기
-          </GameButton>
-        </WoodPanel>
-      </div>
-    );
-  }
 
   return (
     <div className="h-[calc(100vh-5rem)] w-full overflow-hidden">
@@ -426,22 +337,6 @@ const GamePage = () => {
                     <p className="font-jua text-3xl text-yellow-500">{sessionBestStreak}개</p>
                   </div>
                 </div>
-                {profile && (
-                  <div className="grid grid-cols-3 gap-3 w-full mt-1">
-                    <div className="bg-wood-dark rounded-xl p-3">
-                      <p className="font-jua text-sm opacity-70">티어</p>
-                      <p className="font-jua text-base">🐣 {profile.tierName}</p>
-                    </div>
-                    <div className="bg-wood-dark rounded-xl p-3">
-                      <p className="font-jua text-sm opacity-70">총 XP</p>
-                      <p className="font-jua text-xl text-yellow-400">✨ {profile.totalExp}</p>
-                    </div>
-                    <div className="bg-wood-dark rounded-xl p-3">
-                      <p className="font-jua text-sm opacity-70">보유 닢</p>
-                      <p className="font-jua text-xl text-amber-400">🪙 {profile.totalCoins}</p>
-                    </div>
-                  </div>
-                )}
               </div>
               
               <div className="flex flex-row gap-4 mt-4 justify-center">
@@ -511,7 +406,7 @@ const GamePage = () => {
                   minHeight: "600px",
                 }}
               >
-                {question?.mediaUrl ? (
+                {question && 'type' in question && question.mediaUrl ? (
                   question.mediaType === 'video' ? (
                     <video
                       src={question.mediaUrl}
@@ -529,6 +424,17 @@ const GamePage = () => {
                       className="w-full h-auto"
                     />
                   )
+                ) : question && 'videoUrl' in question && question.videoUrl ? (
+                  // Legacy support
+                  <video
+                    src={question.videoUrl}
+                    className="w-full h-auto"
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    onLoadedMetadata={handleVideoLoad}
+                  />
                 ) : (
                   <motion.span
                     className="text-9xl"
@@ -547,52 +453,24 @@ const GamePage = () => {
           {/* Right: Quiz Section - 고정 */}
       <WoodPanel className="flex flex-col relative z-30 overflow-y-auto">
         {/* Header - 모든 유형 통일 */}
-        <div className="flex flex-col gap-2 mb-5 relative z-40">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="font-jua text-2xl sm:text-3xl text-shadow-deep flex-shrink-0">
-              {question && 'type' in question && question.type === 'region_select'
-                ? "🔍 조작된 흔적을 찾아라!!"
-                : question && 'type' in question && question.type === 'comparison'
-                ? "⚖️ 가짜 비교하기"
-                : question && 'type' in question && question.type === 'true_false'
-                ? "O/X 퀴즈 - 진짜를 맞춰라!!"
-                : "🎬 가짜를 찾아라!"}
-            </h2>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
-                📊 {sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0}%
-              </div>
-              <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
-                📈 {questionCount}/{config.quizQuestionsPerGame}
-              </div>
+        <div className="flex items-center justify-between mb-5 relative z-40 flex-wrap gap-2">
+          <h2 className="font-jua text-2xl sm:text-3xl text-shadow-deep flex-shrink-0">
+            {question && 'type' in question && question.type === 'region_select' 
+              ? "🔍 조작된 흔적을 찾아라!!"
+              : question && 'type' in question && question.type === 'comparison'
+              ? "⚖️ 가짜 비교하기"
+              : question && 'type' in question && question.type === 'true_false'
+              ? "O/X 퀴즈 - 진짜를 맞춰라!!"
+              : "🎬 가짜를 찾아라!"}
+          </h2>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
+              📊 {sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0}%
+            </div>
+            <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
+              📈 {questionCount}/{config.quizQuestionsPerGame}
             </div>
           </div>
-          {/* 게임화 HUD */}
-          {profile && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="font-jua text-sm bg-wood-dark px-2 py-1 rounded-lg whitespace-nowrap">
-                🐣 {profile.tierName} (Lv.{profile.level})
-              </span>
-              <span className="font-jua text-sm text-yellow-400 whitespace-nowrap">
-                ✨ {profile.totalExp} XP
-              </span>
-              <span className="font-jua text-sm text-amber-400 whitespace-nowrap">
-                🪙 {profile.totalCoins}닢
-              </span>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="font-jua text-sm whitespace-nowrap">⚡{profile.energy}/{profile.maxEnergy}</span>
-                <div className="w-20 bg-wood-dark rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${(profile.energy / profile.maxEnergy) * 100}%`,
-                      background: profile.energy > 30 ? '#facc15' : '#ef4444',
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {loading ? (
@@ -607,9 +485,8 @@ const GamePage = () => {
             {/* Render appropriate question type */}
             <div className="flex-1 min-h-0 overflow-y-auto px-1">
               {(() => {
-                if (!question) return null;
-                
-                switch (question.type) {
+                if ('type' in question) {
+                  switch (question.type) {
                     case 'multiple_choice':
                       return (
                         <MultipleChoiceQuestion
@@ -675,6 +552,40 @@ const GamePage = () => {
                     default:
                       return null;
                   }
+                } else {
+                  // Legacy support
+                  return (
+                    <div className="flex flex-col gap-3 flex-1">
+                      {question.options.map((opt, i) => {
+                        const isSelected = selectedIndex === i;
+                        const showResult = result !== null;
+                        const isCorrectAnswer = showResult && i === question.correctIndex;
+                        const isWrong = showResult && isSelected && !result.correct;
+
+                        return (
+                          <motion.button
+                            key={i}
+                            className={`font-jua rounded-2xl p-5 text-xl cursor-pointer border-4 transition-colors ${
+                              isCorrectAnswer
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : isWrong
+                                ? "bg-destructive text-destructive-foreground border-destructive"
+                                : isSelected
+                                ? "bg-wood-base text-foreground border-foreground"
+                                : "bg-wood-dark text-foreground border-wood-darkest"
+                            }`}
+                            whileHover={!showResult ? { scale: 1.02 } : {}}
+                            whileTap={!showResult ? { scale: 0.98 } : {}}
+                            onClick={() => !showResult && setSelectedIndex(i)}
+                            disabled={showResult}
+                          >
+                            {opt}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  );
+                }
               })()}
             </div>
 
