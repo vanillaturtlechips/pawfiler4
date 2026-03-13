@@ -302,14 +302,20 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 			}
 		}
 		if profile != nil {
-			oldLevel := profile.Level()
+			oldExp := profile.TotalExp
 			profile.TotalExp += xpEarned
 			profile.TotalCoins += coinsEarned
-			newLevel := profile.Level()
-			// 레벨업 시 XP 초기화
-			if newLevel > oldLevel {
-				profile.TotalExp = 0
+			
+			// 티어 경계 넘으면 XP 리셋
+			newExp := profile.TotalExp
+			if oldExp < 1 && newExp >= 1 {
+				profile.TotalExp = newExp - 1
+			} else if oldExp < 15 && newExp >= 15 {
+				profile.TotalExp = newExp - 15
+			} else if oldExp < 100 && newExp >= 100 {
+				profile.TotalExp = newExp - 100
 			}
+			
 			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {
 				fmt.Printf("Warning: failed to update user profile: %v\n", err)
 			}

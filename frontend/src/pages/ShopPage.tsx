@@ -214,7 +214,7 @@ const ShopPage = () => {
                   {/* Level Display on Top */}
                   <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
                     <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-1 rounded-full border-3 border-white shadow-lg">
-                      <span className="font-jua text-sm">Lv. {user?.level || 1}</span>
+                      <span className="font-jua text-sm">{quizProfile?.tierName ?? 'Lv. 1'}</span>
                     </div>
                   </div>
                   
@@ -242,7 +242,14 @@ const ShopPage = () => {
                         <motion.div
                           className="h-full bg-gradient-to-r from-yellow-400 to-orange-500"
                           initial={{ width: 0 }}
-                          animate={{ width: `${((user?.xp || 0) / ((user?.level || 1) + 1) * 1000) * 100}%` }}
+                          animate={{ width: `${(() => {
+                            const exp = quizProfile?.totalExp ?? 0;
+                            let maxXP = 1;
+                            if (exp >= 100) maxXP = 500;
+                            else if (exp >= 15) maxXP = 100;
+                            else if (exp >= 1) maxXP = 15;
+                            return Math.min(100, (exp / maxXP) * 100);
+                          })()}%` }}
                           transition={{ duration: 1, ease: "easeOut" }}
                         />
                       </div>
