@@ -32,9 +32,15 @@ const Header = ({ isVisible = true }: HeaderProps) => {
     }
   };
 
-  const TIER_EMOJI_BY_GROUP: Record<number, string> = { 1: "🥚", 2: "🐣", 3: "🐥", 4: "🐓", 5: "🦅" };
-  const displayTierEmoji = TIER_EMOJI_BY_GROUP[Math.ceil((quizProfile?.level ?? 1) / 5)] ?? "🥚";
-  const displayTierName = quizProfile?.tierName ?? '알병아리';
+  const TIER_EMOJI_BY_LEVEL: Record<number, string> = { 
+    1: "🥚",  // 알 껍데기 병아리
+    2: "🐣",  // 삐약이 정보원
+    3: "🐥",  // 안경 쓴 병아리
+    4: "🐓",  // 망토 입은 닭
+    5: "🦅"   // 불사조 탐정
+  };
+  const displayTierEmoji = TIER_EMOJI_BY_LEVEL[quizProfile?.level ?? 1] ?? "🥚";
+  const displayTierName = quizProfile?.tierName ?? '알 껍데기 병아리';
   const displayCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   return (
