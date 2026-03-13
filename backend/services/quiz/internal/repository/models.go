@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -233,13 +234,15 @@ func (p *UserProfile) Level() int32 {
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
 	level := p.Level()
+	var baseTier string
 	switch {
-	case level >= 21: return "불사조"
-	case level >= 16: return "맹금닭"
-	case level >= 11: return "삐약이"
-	case level >= 6: return "알병아리"
-	default: return "알"
+	case level >= 21: baseTier = "불사조"
+	case level >= 16: baseTier = "맹금닭"
+	case level >= 11: baseTier = "삐약이"
+	case level >= 6: baseTier = "알병아리"
+	default: baseTier = "알"
 	}
+	return fmt.Sprintf("%s Lv.%d", baseTier, level)
 }
 
 // RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since

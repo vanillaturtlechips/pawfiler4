@@ -41,7 +41,7 @@ const Header = ({ isVisible = true }: HeaderProps) => {
   };
   
   const displayTierEmoji = getTierEmoji(quizProfile?.level ?? 1);
-  const displayTierName = quizProfile?.tierName ?? '알';
+  const displayTierName = quizProfile?.tierName ?? '알 Lv.1';
   const displayCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   return (
