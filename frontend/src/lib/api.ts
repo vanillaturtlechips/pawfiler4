@@ -8,6 +8,7 @@ import type {
   CommunityFeed,
   CommunityComment,
   DeepfakeReport,
+  UnifiedReport,
   CheckoutRequest,
   CheckoutResponse,
   SubscriptionPlan,
@@ -527,6 +528,48 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
     }
   } catch (error) {
     return handleApiError(error, '영상 분석');
+  }
+};
+
+export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> => {
+  if (config.useMockApi) {
+    // Mock 데이터
+    return {
+      taskId,
+      finalVerdict: "FAKE",
+      confidence: 0.87,
+      visual: {
+        verdict: "FAKE",
+        confidence: 0.89,
+        aiModel: {
+          modelName: "Sora",
+          confidence: 0.87,
+          candidates: [
+            { name: "Sora", score: 0.87 },
+            { name: "Runway Gen-3", score: 0.12 },
+            { name: "Pika", score: 0.01 }
+          ]
+        },
+        framesAnalyzed: 30
+      },
+      audio: {
+        isSynthetic: true,
+        confidence: 0.82,
+        method: "TTS"
+      },
+      warnings: [],
+      totalProcessingTimeMs: 3200
+    };
+  }
+  
+  try {
+    const response = await request<UnifiedReport>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetUnifiedResult`, {
+      method: "POST",
+      body: JSON.stringify({ task_id: taskId }),
+    });
+    return response;
+  } catch (error) {
+    return handleApiError(error, '통합 결과 조회');
   }
 };
 

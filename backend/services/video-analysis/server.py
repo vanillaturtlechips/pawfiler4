@@ -15,6 +15,9 @@ import boto3
 
 from generated import video_analysis_pb2, video_analysis_pb2_grpc
 from local_detector import LocalDeepfakeDetector
+from media_inspector import MediaInspector
+from lambda_invoker import LambdaInvoker
+from result_aggregator import ResultAggregator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,6 +29,7 @@ class VideoAnalysisService(video_analysis_pb2_grpc.VideoAnalysisServiceServicer)
     def __init__(self):
         self.detector = LocalDeepfakeDetector()
         self.tasks = {}
+        self.lambda_invoker = LambdaInvoker()
 
     def GetUploadUrl(self, request, context):
         """Deprecated - use direct upload instead"""
@@ -108,11 +112,17 @@ class VideoAnalysisService(video_analysis_pb2_grpc.VideoAnalysisServiceServicer)
         task_id = str(uuid.uuid4())
         video_url = request.video_url
         
-        self.tasks[task_id] = {"status": "PROCESSING", "logs": [], "video_url": video_url}
+        self.tasks[task_id] = {
+            "status": "PROCESSING",
+            "logs": [],
+            "video_url": video_url,
+            "visual_result": None,
+            "audio_result": None
+        }
         
         # 백그라운드 스레드에서 실행
         import threading
-        thread = threading.Thread(target=self._analyze_url_sync, args=(task_id, video_url))
+        thread = threading.Thread(target=self._analyze_multimodal, args=(task_id, video_url))
         thread.start()
         
         return video_analysis_pb2.AnalyzeVideoResponse(
@@ -121,17 +131,18 @@ class VideoAnalysisService(video_analysis_pb2_grpc.VideoAnalysisServiceServicer)
             confidence_score=0.0,
             message="Analysis started"
         )
-
-    def _analyze_url_sync(self, task_id, video_url):
+    
+    def _analyze_multimodal(self, task_id, video_url):
+        """멀티모달 분석 오케스트레이션"""
         import urllib.request
         from urllib.parse import quote
-        self.tasks[task_id]["status"] = "DOWNLOADING"
         
         try:
+            # 1. 다운로드
+            self.tasks[task_id]["status"] = "DOWNLOADING"
             os.makedirs("/tmp/videos", exist_ok=True)
             video_path = f"/tmp/videos/{task_id}.mp4"
             
-            # URL encode non-ASCII characters
             if '://' in video_url:
                 scheme, rest = video_url.split('://', 1)
                 if '/' in rest:
@@ -144,19 +155,36 @@ class VideoAnalysisService(video_analysis_pb2_grpc.VideoAnalysisServiceServicer)
             
             urllib.request.urlretrieve(encoded_url, video_path)
             
-            self.tasks[task_id]["video_path"] = video_path
-            self.tasks[task_id]["status"] = "ANALYZING"
+            # 2. 메타데이터 검사
+            self.tasks[task_id]["status"] = "INSPECTING"
+            meta = MediaInspector.inspect(video_path)
+            self.tasks[task_id]["metadata"] = meta
             
-            # 동기 방식으로 실행
+            # 3. S3 업로드
+            s3_key = f"analysis/{task_id}.mp4"
+            s3_client.upload_file(video_path, S3_BUCKET, s3_key)
+            
+            # 4. Lambda 호출 (병렬)
+            self.tasks[task_id]["status"] = "LAMBDA_INVOKED"
+            self.lambda_invoker.invoke_visual(s3_key, task_id)
+            
+            if meta['has_audio']:
+                self.lambda_invoker.invoke_audio(s3_key, task_id)
+            
+            # 5. 결과 대기 (폴링 - 실제로는 Lambda가 RDS에 저장)
+            # 여기서는 로컬 실행으로 대체
+            self.tasks[task_id]["status"] = "ANALYZING"
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(self.detector.analyze(video_path))
+            visual_result = loop.run_until_complete(self.detector.analyze(video_path))
             loop.close()
             
-            self.tasks[task_id]["result"] = result
+            self.tasks[task_id]["visual_result"] = visual_result
             self.tasks[task_id]["status"] = "COMPLETED"
-            logger.info(f"✅ {task_id}: {result['verdict']} ({result['confidence_score']:.2%})")
+            
+            logger.info(f"✅ {task_id}: Analysis completed")
+            
         except Exception as e:
             self.tasks[task_id]["status"] = "ERROR"
             logger.error(f"❌ {task_id}: {e}")
@@ -245,6 +273,51 @@ class VideoAnalysisService(video_analysis_pb2_grpc.VideoAnalysisServiceServicer)
             frame_samples_analyzed=r["frame_samples_analyzed"],
             model_version=r["model_version"],
             processing_time_ms=r["processing_time_ms"]
+        )
+    
+    def GetUnifiedResult(self, request, context):
+        """통합 결과 반환 (멀티모달)"""
+        task = self.tasks.get(request.task_id)
+        if not task:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Task not found")
+        
+        if task["status"] != "COMPLETED":
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Analysis not completed")
+        
+        # 결과 통합
+        unified = ResultAggregator.merge(
+            visual=task.get("visual_result"),
+            audio=task.get("audio_result"),
+            meta=task.get("metadata", {})
+        )
+        
+        # proto 메시지 생성
+        visual_pb = None
+        if unified['visual']:
+            v = unified['visual']
+            visual_pb = video_analysis_pb2.VisualAnalysis(
+                verdict=v['verdict'],
+                confidence=v['confidence_score'],
+                frames_analyzed=v['frame_samples_analyzed']
+            )
+        
+        audio_pb = None
+        if unified['audio']:
+            a = unified['audio']
+            audio_pb = video_analysis_pb2.AudioAnalysis(
+                is_synthetic=a['is_synthetic'],
+                confidence=a['confidence'],
+                method=a['method']
+            )
+        
+        return video_analysis_pb2.UnifiedReport(
+            task_id=request.task_id,
+            final_verdict=unified['final_verdict'],
+            confidence=unified['confidence'],
+            visual=visual_pb,
+            audio=audio_pb,
+            warnings=unified['warnings'],
+            total_processing_time_ms=unified['total_processing_time_ms']
         )
 
     async def _analyze(self, task_id):
