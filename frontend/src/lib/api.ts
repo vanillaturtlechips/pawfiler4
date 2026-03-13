@@ -834,3 +834,12 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
     return { tag: "없음", count: 0 };
   }
 };
+
+export const refillEnergy = async (): Promise<void> => {
+  const userId = getUserId();
+  await fetch(`${config.apiBaseUrl}/quiz.QuizService/RefillEnergy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+};

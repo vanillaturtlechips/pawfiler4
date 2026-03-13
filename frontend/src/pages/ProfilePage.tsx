@@ -123,16 +123,17 @@ const ProfilePage = () => {
                     <Star className="w-3 h-3 text-amber-500" />
                     경험치
                   </span>
-                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(quizProfile?.level ?? user.level) * 100} XP</span>
+                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
                   <motion.div
                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, ((quizProfile?.totalExp ?? user.xp) % 100))}%` }}
+                    animate={{ width: "0%" }}
                     transition={{ duration: 1, ease: "easeOut" }}
                   />
                 </div>
+                <p className="text-xs text-center mt-1 opacity-70">다음 레벨까지 필요 XP는 레벨에 따라 다릅니다</p>
               </div>
 
               {/* Coins */}

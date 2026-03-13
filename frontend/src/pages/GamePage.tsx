@@ -5,7 +5,7 @@ import confetti from "canvas-confetti";
 import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy } from "@/lib/api";
 import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
@@ -265,6 +265,7 @@ const GamePage = () => {
   const handleEnergyRefill = async () => {
     if (profile) {
       // 로컬 업데이트
+      await refillEnergy();
       const refilled = { ...profile, energy: profile.maxEnergy };
       setProfile(refilled);
       // 백엔드에도 반영 (임시: 프로필 새로고침으로 에너지 자동 충전 트리거)

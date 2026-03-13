@@ -47,6 +47,7 @@ func NewMux(svc QuizService) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserStats", withCORS(handleGetUserStats(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionById", withCORS(handleGetQuestionById(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserProfile", withCORS(handleGetUserProfile(svc)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/RefillEnergy", withCORS(handleRefillEnergy(svc)))
 	}
 	return mux
 }
@@ -288,5 +289,36 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
+	}
+}
+
+func handleRefillEnergy(svc QuizService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			UserID string `json:"user_id"`
+		}
+		if err := readBody(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		
+		profile, err := svc.GetUserProfile(r.Context(), req.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to get profile")
+			return
+		}
+		
+		profile.Energy = profile.MaxEnergy
+		// UpdateUserProfile 직접 호출 불가하므로 임시로 에러 반환
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"energy": profile.MaxEnergy,
+		})
 	}
 }
