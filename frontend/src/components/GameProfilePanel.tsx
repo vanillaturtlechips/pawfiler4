@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
 
 interface Quest {
@@ -53,13 +54,31 @@ interface GameProfilePanelProps {
 
 const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
   const { user } = useAuth();
+  const { quizProfile } = useQuizProfile();
   const navigate = useNavigate();
 
   if (!user) return null;
 
+  const displayLevel = quizProfile?.level ?? user.level ?? 1;
+  const displayTierName = quizProfile?.tierName ?? user.levelTitle ?? '알 껍데기 병아리';
+  const displayXp = quizProfile?.totalExp ?? user.xp ?? 0;
+  const displayCoins = quizProfile?.totalCoins ?? user.coins ?? 0;
+  const displayEnergy = quizProfile?.energy ?? 100;
+  const displayMaxEnergy = quizProfile?.maxEnergy ?? 100;
+  // 다음 레벨까지 필요한 XP: 150, 400, 800, 1500 기준
+  const xpThresholds = [0, 150, 400, 800, 1500, 9999];
+  const currentThreshold = xpThresholds[displayLevel - 1] ?? 0;
+  const nextThreshold = xpThresholds[displayLevel] ?? 9999;
+  const xpProgress = Math.min(100, ((displayXp - currentThreshold) / (nextThreshold - currentThreshold)) * 100);
+
   return (
     <AnimatePresence>
-      {isOpen && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        {isOpen && (
         <>
           {/* Backdrop */}
           <motion.div
@@ -78,6 +97,7 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Panel */}
               <div className="h-full flex flex-col bg-gradient-to-b from-wood-800 to-wood-900 border-l-4 border-wood-700 shadow-2xl"
@@ -143,7 +163,7 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
                             boxShadow: "0 3px 6px rgba(0,0,0,0.3)"
                           }}
                         >
-                          {user.level}
+                          {displayLevel}
                         </div>
                       </div>
                       
@@ -165,7 +185,7 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
                           )}
                         </div>
                         <p className="text-sm font-bold text-amber-200">
-                          {user.levelTitle} 탐정
+                          {displayTierName}
                         </p>
                       </div>
                     </div>
@@ -173,28 +193,50 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
                     {/* XP Bar */}
                     <div className="mt-4">
                       <div className="flex justify-between text-xs font-bold mb-1 text-amber-100">
-                        <span>경험치</span>
-                        <span>{user.xp} / {(user.level + 1) * 1000} XP</span>
+                        <span>경험치 ✨</span>
+                        <span>{displayXp} / {nextThreshold} XP</span>
                       </div>
                       <div className="h-2 rounded-full overflow-hidden bg-gray-800">
                         <motion.div
                           className="h-full rounded-full"
-                          style={{ 
+                          style={{
                             background: "linear-gradient(90deg, #4CAF50, #8BC34A)",
                             boxShadow: "0 0 10px #4CAF50"
                           }}
                           initial={{ width: 0 }}
-                          animate={{ width: `${(user.xp / ((user.level + 1) * 1000)) * 100}%` }}
+                          animate={{ width: `${xpProgress}%` }}
                           transition={{ duration: 1, ease: "easeOut" }}
                         />
                       </div>
                     </div>
-                    
+
+                    {/* Energy Bar */}
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs font-bold mb-1 text-amber-100">
+                        <span>동물 식량 ⚡</span>
+                        <span>{displayEnergy} / {displayMaxEnergy}</span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden bg-gray-800">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{
+                            background: displayEnergy > 30
+                              ? "linear-gradient(90deg, #FACC15, #FCD34D)"
+                              : "linear-gradient(90deg, #EF4444, #F87171)",
+                            boxShadow: displayEnergy > 30 ? "0 0 8px #FACC15" : "0 0 8px #EF4444"
+                          }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(displayEnergy / displayMaxEnergy) * 100}%` }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+
                     {/* Coins */}
                     <div className="mt-3 flex items-center justify-center gap-2 p-2 rounded-lg bg-amber-900/30 border border-amber-700/50">
-                      <span className="text-xl">💰</span>
+                      <span className="text-xl">🪙</span>
                       <span className="font-jua text-lg font-bold text-amber-300">
-                        {user.coins.toLocaleString()} 닢
+                        {displayCoins.toLocaleString()} 닢
                       </span>
                     </div>
                   </motion.div>
@@ -292,8 +334,8 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
               </div>
             </motion.div>
           </div>
-        </>
-      )}
+        )}
+      </motion.div>
     </AnimatePresence>
   );
 };
