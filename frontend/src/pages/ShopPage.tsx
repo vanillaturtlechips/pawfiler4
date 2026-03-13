@@ -4,6 +4,7 @@ import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { ArrowLeft, Coins, Sparkles, Gift, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -24,8 +25,11 @@ interface ShopItem {
 
 const ShopPage = () => {
   const { user } = useAuth();
+  const { quizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ShopTab>("packages");
+
+  const userCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
 
   // 상점 아이템 데이터
@@ -152,7 +156,7 @@ const ShopPage = () => {
       return;
     }
     
-    if (user.coins < item.price) {
+    if (userCoins < item.price) {
       toast.error("코인이 부족합니다!");
       return;
     }
@@ -270,7 +274,7 @@ const ShopPage = () => {
                   </div>
                   <div className="relative flex items-center justify-center">
                     <span className="font-jua text-2xl font-bold text-amber-900 drop-shadow-sm">
-                      {user?.coins.toLocaleString() || 0}
+                      {userCoins.toLocaleString()}
                     </span>
                     <span className="font-jua text-sm text-amber-800 ml-1">코인</span>
                   </div>

@@ -32,6 +32,19 @@ const Header = ({ isVisible = true }: HeaderProps) => {
     }
   };
 
+  const handleEasterEgg = async () => {
+    if (!quizProfile) return;
+    try {
+      // 에너지 풀충 (임시로 로컬 업데이트)
+      updateQuizProfile({ ...quizProfile, energy: quizProfile.maxEnergy });
+      await refreshQuizProfile();
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGS57OihUBELTKXh8bllHAU2jdXvzn0pBSh+zPDajzsKElyx6OyrWBQLSKDf8sFuJAUuhM/z2Ik2CBhku+zooVARC0yl4fG5ZRwFNo3V7859KQUofsz');
+      audio.play().catch(() => {});
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const getTierEmoji = (level: number): string => {
     if (level >= 21) return "🦅"; // 불사조
     if (level >= 16) return "🐓"; // 맹금닭
@@ -60,8 +73,10 @@ const Header = ({ isVisible = true }: HeaderProps) => {
       <motion.div
         className="font-jua cursor-pointer flex items-center gap-2.5 text-3xl text-foreground text-shadow-deep"
         onClick={() => handleNav("/")}
+        onDoubleClick={handleEasterEgg}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
+        title="더블클릭으로 에너지 충전!"
       >
         <span className="text-4xl drop-shadow-lg">🐾</span> PawFiler
       </motion.div>

@@ -293,10 +293,10 @@ func MarshalAnswerData(answer Answer) (map[string]interface{}, error) {
 func XPRewardByDifficulty(difficulty Difficulty) (xp int32, coins int32) {
 	switch difficulty {
 	case DifficultyHard:
-		return 50, 25
+		return 50, 250
 	case DifficultyMedium:
-		return 25, 12
+		return 25, 120
 	default: // easy
-		return 10, 5
+		return 10, 50
 	}
 }
