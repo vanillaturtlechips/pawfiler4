@@ -3,7 +3,6 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -200,7 +199,6 @@ type UserProfile struct {
 //   - Lv3: 400–799 XP
 //   - Lv4: 800–1499 XP
 //   - Lv5: 1500+ XP
-
 func (p *UserProfile) Level() int32 {
 	exp := p.TotalExp
 	switch {
@@ -223,7 +221,6 @@ func (p *UserProfile) Level() int32 {
 	}
 }
 
-
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
 	level := p.Level()
@@ -236,6 +233,7 @@ func (p *UserProfile) TierName() string {
 	default: baseTier = "알"
 	}
 	return fmt.Sprintf("%s Lv.%d", baseTier, level)
+}
 }
 
 // RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since
@@ -286,11 +284,10 @@ func MarshalAnswerData(answer Answer) (map[string]interface{}, error) {
 func XPRewardByDifficulty(difficulty Difficulty) (xp int32, coins int32) {
 	switch difficulty {
 	case DifficultyHard:
-		return 50, 250
+		return 50, 25
 	case DifficultyMedium:
-		return 25, 120
+		return 25, 12
 	default: // easy
-		return 10, 50
+		return 10, 5
 	}
-}
 }
