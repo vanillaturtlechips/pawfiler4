@@ -184,7 +184,6 @@ func (gus *GormUserStats) CorrectRate() float64 {
 	return float64(gus.CorrectCount) / float64(gus.TotalAnswered)
 }
 
-}
 
 // 커스텀 타입 정의 - PostgreSQL 배열 및 JSONB 지원
 
@@ -299,4 +298,13 @@ func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 		MaxEnergy:      gup.MaxEnergy,
 		LastEnergyRefill: gup.LastEnergyRefill,
 	}
+}
+// FromUserProfile 기존 UserProfile 모델을 GORM 모델로 변환
+func (gup *GormUserProfile) FromUserProfile(p *UserProfile) {
+	gup.UserID = p.UserID
+	gup.TotalExp = p.TotalExp
+	gup.TotalCoins = p.TotalCoins
+	gup.Energy = p.Energy
+	gup.MaxEnergy = p.MaxEnergy
+	gup.LastEnergyRefill = p.LastEnergyRefill
 }
