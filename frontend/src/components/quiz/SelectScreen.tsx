@@ -20,8 +20,8 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const COUNT_OPTIONS = [
-  { value: 5, label: "5문제", energyCost: 10 },
-  { value: 10, label: "10문제", energyCost: 20 },
+  { value: 5, label: "5문제" },
+  { value: 10, label: "10문제" },
 ];
 
 const SelectScreen = ({
@@ -34,7 +34,7 @@ const SelectScreen = ({
 }: SelectScreenProps) => {
   const energy = profile?.energy ?? 100;
   const maxEnergy = profile?.maxEnergy ?? 100;
-  const energyCost = COUNT_OPTIONS.find((o) => o.value === selectedCount)?.energyCost ?? 10;
+  const energyCost = selectedCount * 5; // 문제당 5 에너지
   const canStart = energy >= energyCost;
   const sessionAccuracy = null; // 세션 시작 전이므로 없음
 
@@ -137,7 +137,6 @@ const SelectScreen = ({
                   whileTap={{ scale: 0.97 }}
                 >
                   <div className="text-xl">{opt.label}</div>
-                  <div className="text-sm opacity-70">⚡ -{opt.energyCost}</div>
                 </motion.button>
               ))}
             </div>
@@ -150,7 +149,7 @@ const SelectScreen = ({
               className="w-full text-xl"
               onClick={() => onStart(selectedDifficulty, selectedCount)}
             >
-              🚀 게임 시작! (⚡-{energyCost})
+              🚀 게임 시작!
             </GameButton>
           ) : (
             <div className="w-full">
