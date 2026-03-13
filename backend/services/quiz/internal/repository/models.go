@@ -200,6 +200,29 @@ type UserProfile struct {
 //   - Lv3: 400–799 XP
 //   - Lv4: 800–1499 XP
 //   - Lv5: 1500+ XP
+
+func (p *UserProfile) Level() int32 {
+	exp := p.TotalExp
+	switch {
+	case exp >= 500: return 25
+	case exp >= 400: return 24
+	case exp >= 300: return 23
+	case exp >= 200: return 22
+	case exp >= 100: return 21
+	case exp >= 90: return 20
+	case exp >= 70: return 19
+	case exp >= 50: return 18
+	case exp >= 30: return 17
+	case exp >= 15: return 16
+	case exp >= 12: return 15
+	case exp >= 9: return 14
+	case exp >= 6: return 13
+	case exp >= 3: return 12
+	case exp >= 1: return 11
+	default: return 1
+	}
+}
+
 }
 
 // TierName returns the Korean display name for the user's current tier.
