@@ -31,14 +31,18 @@ type QuizService interface {
 	// Returns default values for new users (Requirement 12.3)
 	// Requirements: 12.1, 12.2, 12.3, 12.4
 	GetUserStats(ctx context.Context, userID string) (*repository.UserStats, error)
+
+	// GetUserProfile retrieves user profile (XP, coins, energy)
+	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
 }
 
 // SubmitResult represents the result of a submitted answer
 type SubmitResult struct {
-	IsCorrect   bool
-	XPEarned    int32
-	CoinsEarned int32
-	Explanation string
+	IsCorrect      bool
+	XPEarned       int32
+	CoinsEarned    int32
+	Explanation    string
+	UpdatedProfile *repository.UserProfile // 업데이트된 프로필 (nil이면 업데이트 실패)
 }
 
 // quizServiceImpl implements the QuizService interface
@@ -75,6 +79,17 @@ func (s *quizServiceImpl) GetRandomQuestion(ctx context.Context, userID string, 
 		return nil, fmt.Errorf("failed to get random question: %w", err)
 	}
 
+	// 에너지 차감 (2 에너지) + XP 차감 (5 XP)
+	if userID != "" {
+		if _, energyErr := s.repo.DeductEnergy(ctx, userID, 2); energyErr != nil {
+			return nil, fmt.Errorf("insufficient_energy: %w", energyErr)
+		}
+		// XP 5 차감 (0 미만 방지는 repository에서 처리)
+		if _, xpErr := s.repo.AddProfileRewards(ctx, userID, -5, 0); xpErr != nil {
+			fmt.Printf("Warning: failed to deduct XP: %v\n", xpErr)
+		}
+	}
+
 	// Requirements 3.5, 3.6, 3.7, 3.8: Answer information is excluded when converting to protobuf
 	// The repository returns the full question, but the handler layer will exclude answer fields
 	// Requirement 3.4: Return as QuizQuestion message (handled by handler layer)
@@ -109,6 +124,11 @@ func (s *quizServiceImpl) GetUserStats(ctx context.Context, userID string) (*rep
 	// Requirement 12.2: Return as QuizStats message (handled by handler layer)
 	// Requirement 12.4: correct_rate is returned as 0-1 decimal (calculated by CorrectRate() method)
 	return stats, nil
+}
+
+// GetUserProfile retrieves user profile (XP, coins, energy)
+func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
+	return s.repo.GetUserProfile(ctx, userID)
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType
@@ -259,12 +279,20 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		fmt.Printf("Warning: failed to update user stats: %v\n", err)
 	}
 
-	// Step 6: Return result
+	// Step 6: 프로필 보상 업데이트 (XP, 코인)
+	updatedProfile, profileErr := s.repo.AddProfileRewards(context.Background(), userID, xpEarned, coinsEarned)
+	if profileErr != nil {
+		fmt.Printf("Warning: failed to update profile rewards: %v\n", profileErr)
+	}
+	_ = updatedProfile
+
+	// Step 7: Return result
 	// Requirement 10.4: Include xp_earned and coins_earned in response
 	return &SubmitResult{
-		IsCorrect:   isCorrect,
-		XPEarned:    xpEarned,
-		CoinsEarned: coinsEarned,
-		Explanation: question.Explanation,
+		IsCorrect:      isCorrect,
+		XPEarned:       xpEarned,
+		CoinsEarned:    coinsEarned,
+		Explanation:    question.Explanation,
+		UpdatedProfile: updatedProfile,
 	}, nil
 }

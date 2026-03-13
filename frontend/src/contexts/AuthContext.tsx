@@ -47,6 +47,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // localStorage에 저장
     localStorage.setItem(config.storageKeys.authToken, token);
     localStorage.setItem(config.storageKeys.authUser, JSON.stringify(user));
+    // UUID 형식인 경우에만 quizUserId 덮어씀 (목 ID 방지)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id);
+    if (isUUID) {
+      localStorage.setItem(config.storageKeys.quizUserId, user.id);
+    }
     setState({ token, user, isLoggedIn: true });
   }, []);
 
@@ -54,6 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // localStorage에서 제거
     localStorage.removeItem(config.storageKeys.authToken);
     localStorage.removeItem(config.storageKeys.authUser);
+    localStorage.removeItem(config.storageKeys.quizUserId);
     setState({ token: null, user: null, isLoggedIn: false });
   }, []);
 

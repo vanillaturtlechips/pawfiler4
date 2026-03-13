@@ -37,4 +37,20 @@ type QuizRepository interface {
 	// CreateUserStats creates initial statistics for a new user
 	// Requirement: 12.3
 	CreateUserStats(ctx context.Context, userID string) (*UserStats, error)
+
+	// GetUserProfile retrieves user profile (XP, coins, energy)
+	// Creates a default profile if none exists
+	GetUserProfile(ctx context.Context, userID string) (*UserProfile, error)
+
+	// UpdateUserProfile updates user profile fields
+	UpdateUserProfile(ctx context.Context, profile *UserProfile) error
+
+	// AddProfileRewards adds XP and coins to a user's profile (upsert)
+	// Returns updated profile
+	AddProfileRewards(ctx context.Context, userID string, xpDelta, coinsDelta int32) (*UserProfile, error)
+
+	// DeductEnergy deducts energy from a user's profile.
+	// Returns error if insufficient energy.
+	// Also auto-refills energy based on time elapsed.
+	DeductEnergy(ctx context.Context, userID string, amount int32) (*UserProfile, error)
 }

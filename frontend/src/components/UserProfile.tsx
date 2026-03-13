@@ -55,7 +55,7 @@ const UserProfile = () => {
 
       {/* 코인 */}
       <div className="font-jua text-[clamp(0.875rem,1.2vw,1.125rem)] text-center rounded-lg bg-black/30 px-3 py-2" style={{ color: "#FFD54F" }}>
-        💰 {user.coins.toLocaleString()} 닢
+        💰 {user.coins.toLocaleString()} 코인
       </div>
     </motion.div>
   );

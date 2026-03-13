@@ -148,6 +148,12 @@ func (h *QuizHandler) GetUserStats(ctx context.Context, req *pb.GetUserStatsRequ
 	}, nil
 }
 
+// GetUserProfile returns the user's profile (XP, coins, energy)
+// Called by the REST handler to augment responses
+func (h *QuizHandler) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
+	return h.service.GetUserProfile(ctx, userID)
+}
+
 // convertQuestionToProto converts a repository Question to protobuf QuizQuestion
 // includeAnswers parameter controls whether to include answer information (Requirements 3.5, 3.6, 3.7, 3.8)
 func convertQuestionToProto(q *repository.Question, includeAnswers bool) *pb.QuizQuestion {

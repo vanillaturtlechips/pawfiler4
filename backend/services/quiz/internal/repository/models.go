@@ -113,6 +113,61 @@ func (s *UserStats) CorrectRate() float64 {
 	return float64(s.CorrectCount) / float64(s.TotalAnswered)
 }
 
+// UserProfile represents user profile with level/tier/energy
+type UserProfile struct {
+	UserID         string    `db:"user_id"`
+	TotalExp       int32     `db:"total_exp"`
+	TotalCoins     int32     `db:"total_coins"`
+	Energy         int32     `db:"energy"`
+	MaxEnergy      int32     `db:"max_energy"`
+	LastEnergyTime time.Time `db:"last_energy_time"`
+	CreatedAt      time.Time `db:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at"`
+}
+
+func (p *UserProfile) Level() int32 {
+	level := p.TotalExp/100 + 1
+	if level > 25 {
+		level = 25
+	}
+	return level
+}
+
+func (p *UserProfile) TierName() string {
+	tier := (p.Level()-1)/5 + 1
+	switch tier {
+	case 5:
+		return "불사조"
+	case 4:
+		return "맹금닭"
+	case 3:
+		return "삐약이"
+	case 2:
+		return "알병아리"
+	default: // tier 1
+		return "계란"
+	}
+}
+
+func (p *UserProfile) RefillEnergy() {
+	now := time.Now()
+	hours := int32(now.Sub(p.LastEnergyTime).Hours())
+	if hours > 0 {
+		p.Energy += hours * 10
+		if p.Energy > p.MaxEnergy { p.Energy = p.MaxEnergy }
+		p.LastEnergyTime = now
+	}
+}
+
+func XPRewardByDifficulty(d Difficulty) (int32, int32) {
+	switch d {
+	case DifficultyEasy: return 10, 5
+	case DifficultyMedium: return 25, 12
+	case DifficultyHard: return 50, 25
+	default: return 10, 5
+	}
+}
+
 // Answer is an interface for all answer types
 // Each question type has its own answer implementation
 type Answer interface {

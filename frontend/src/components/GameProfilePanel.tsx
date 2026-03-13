@@ -20,7 +20,7 @@ const quests: Quest[] = [
     description: "퀴즈 게임에서 가짜 영상 찾기",
     progress: 1,
     total: 3,
-    reward: "🪙 50닢",
+    reward: "💰 50코인",
     icon: "🎮",
     route: "/game"
   },
@@ -40,7 +40,7 @@ const quests: Quest[] = [
     description: "게시글에 댓글 달기",
     progress: 0,
     total: 2,
-    reward: "🪙 30닢",
+    reward: "💰 30코인",
     icon: "📜",
     route: "/community"
   }
@@ -194,7 +194,7 @@ const GameProfilePanel = ({ isOpen, onClose }: GameProfilePanelProps) => {
                     <div className="mt-3 flex items-center justify-center gap-2 p-2 rounded-lg bg-amber-900/30 border border-amber-700/50">
                       <span className="text-xl">💰</span>
                       <span className="font-jua text-lg font-bold text-amber-300">
-                        {user.coins.toLocaleString()} 닢
+                        {user.coins.toLocaleString()} 코인
                       </span>
                     </div>
                   </motion.div>

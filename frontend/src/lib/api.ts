@@ -137,7 +137,7 @@ export const signup = async (req: SignupRequest) => {
   }
 };
 
-export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
+export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuestion> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockFetchQuizQuestion(token || "");
@@ -146,16 +146,22 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
   try {
     const userId = getUserId();
     
-    // Envoy gRPC-JSON transcoding을 통한 요청
+    const body: any = { user_id: userId };
+    if (difficulty && difficulty !== "all") body.difficulty = difficulty;
+    
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRandomQuestion`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: userId,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
+
+    if (response.status === 429) {
+      const errData = await response.json().catch(() => ({}));
+      const err: any = new Error("에너지가 부족합니다");
+      err.code = "INSUFFICIENT_ENERGY";
+      err.energy = errData.energy ?? 0;
+      throw err;
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to fetch question: ${response.statusText}`);
@@ -286,6 +292,12 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
       explanation: explanation,
       streakCount: data.streak_count ?? 0,
       correctIndex: correctIndex,
+      level: data.level,
+      tierName: data.tier_name,
+      totalExp: data.total_exp,
+      totalCoins: data.total_coins,
+      energy: data.energy,
+      maxEnergy: data.max_energy,
     };
   } catch (error) {
     return handleApiError(error, '답안 제출');
@@ -317,15 +329,51 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
 
     const data = await response.json();
     
+    const profile = (data.level !== undefined) ? {
+      level: data.level,
+      tierName: data.tier_name ?? '알병아리',
+      totalExp: data.total_exp ?? 0,
+      totalCoins: data.total_coins ?? 0,
+      energy: data.energy ?? 100,
+      maxEnergy: data.max_energy ?? 100,
+    } : undefined;
+
     return {
       totalAnswered: data.total_answered ?? 0,
       correctRate: data.correct_rate ?? 0,
       currentStreak: data.current_streak ?? 0,
       bestStreak: data.best_streak ?? 0,
       lives: data.lives ?? 3,
+      profile,
     };
   } catch (error) {
     return handleApiError(error, '통계 로드');
+  }
+};
+
+export const fetchUserProfile = async (): Promise<import("./types").QuizGameProfile | null> => {
+  if (config.useMockApi) {
+    return { level: 1, tierName: "알병아리", totalExp: 0, totalCoins: 1200, energy: 80, maxEnergy: 100 };
+  }
+  try {
+    const userId = getUserId();
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetUserProfile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return {
+      level: data.level ?? 1,
+      tierName: data.tier_name ?? '알병아리',
+      totalExp: data.total_exp ?? 0,
+      totalCoins: data.total_coins ?? 0,
+      energy: data.energy ?? 100,
+      maxEnergy: data.max_energy ?? 100,
+    };
+  } catch {
+    return null;
   }
 };
 

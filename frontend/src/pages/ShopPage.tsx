@@ -56,7 +56,7 @@ const ShopPage = () => {
       name: "소량 코인",
       description: "기본 코인 팩",
       price: 1000,
-      icon: "🪙",
+      icon: "💰",
       type: "coins",
       quantity: 100,
     },
@@ -272,7 +272,7 @@ const ShopPage = () => {
                     <span className="font-jua text-2xl font-bold text-amber-900 drop-shadow-sm">
                       {user?.coins.toLocaleString() || 0}
                     </span>
-                    <span className="font-jua text-sm text-amber-800 ml-1">닢</span>
+                    <span className="font-jua text-sm text-amber-800 ml-1">코인</span>
                   </div>
                 </div>
 
@@ -437,7 +437,7 @@ const ShopPage = () => {
                         {item.description}
                         {item.quantity && (
                           <span className="block font-bold text-amber-700 text-xs mt-0.5">
-                            {item.quantity}닢 {item.bonus && `+${item.bonus}`}
+                            {item.quantity}코인 {item.bonus && `+${item.bonus}`}
                           </span>
                         )}
                       </p>

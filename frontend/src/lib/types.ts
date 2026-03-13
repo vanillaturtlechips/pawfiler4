@@ -98,13 +98,28 @@ export interface QuizSubmitRequest {
   selectedSide?: "left" | "right"; // comparison용
 }
 
+export interface QuizGameProfile {
+  level: number;
+  tierName: string;
+  totalExp: number;
+  totalCoins: number;
+  energy: number;
+  maxEnergy: number;
+}
+
 export interface QuizSubmitResponse {
   correct: boolean;
   xpEarned: number;
   coinsEarned: number;
   explanation: string;
   streakCount: number;
-  correctIndex?: number; // 객관식 문제의 정답 인덱스
+  correctIndex?: number;
+  level?: number;
+  tierName?: string;
+  totalExp?: number;
+  totalCoins?: number;
+  energy?: number;
+  maxEnergy?: number;
 }
 
 export interface QuizStats {
@@ -113,6 +128,7 @@ export interface QuizStats {
   currentStreak: number;
   bestStreak: number;
   lives: number;
+  profile?: QuizGameProfile;
 }
 
 // --- Community Service ---

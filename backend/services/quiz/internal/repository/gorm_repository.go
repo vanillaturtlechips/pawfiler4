@@ -32,7 +32,7 @@ func NewGormQuizRepository(db *gorm.DB, redisClient *redis.Client) QuizRepositor
 	}
 
 	// 테이블 자동 마이그레이션
-	err := db.AutoMigrate(&GormQuestion{}, &GormUserAnswer{}, &GormUserStats{})
+	err := db.AutoMigrate(&GormQuestion{}, &GormUserAnswer{}, &GormUserStats{}, &GormUserProfile{})
 	if err != nil {
 		log.Printf("Failed to migrate tables: %v", err)
 	}
@@ -327,4 +327,76 @@ func (r *GormQuizRepository) CreateUserStats(ctx context.Context, userID string)
 	}
 
 	return gormStats.ToUserStats(), nil
+}
+
+// GetUserProfile user profile 조회 (없으면 기본값 생성)
+func (r *GormQuizRepository) GetUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
+	var gormProfile GormUserProfile
+	err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&gormProfile).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 새 사용자 - 기본 프로필 생성
+			gormProfile = GormUserProfile{
+				UserID:         userID,
+				TotalExp:       0,
+				TotalCoins:     0,
+				Energy:         100,
+				MaxEnergy:      100,
+				LastEnergyTime: time.Now(),
+			}
+			if createErr := r.db.WithContext(ctx).Create(&gormProfile).Error; createErr != nil {
+				return nil, fmt.Errorf("failed to create user profile: %w", createErr)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to get user profile: %w", err)
+		}
+	}
+	return gormProfile.ToUserProfile(), nil
+}
+
+// UpdateUserProfile user profile 업데이트
+func (r *GormQuizRepository) UpdateUserProfile(ctx context.Context, profile *UserProfile) error {
+	err := r.db.WithContext(ctx).
+		Model(&GormUserProfile{}).
+		Where("user_id = ?", profile.UserID).
+		Updates(map[string]interface{}{
+			"total_exp":        profile.TotalExp,
+			"total_coins":      profile.TotalCoins,
+			"energy":           profile.Energy,
+			"max_energy":       profile.MaxEnergy,
+			"last_energy_time": profile.LastEnergyTime,
+		}).Error
+	return err
+}
+
+// AddProfileRewards XP와 코인을 프로필에 추가 (upsert)
+func (r *GormQuizRepository) AddProfileRewards(ctx context.Context, userID string, xpDelta, coinsDelta int32) (*UserProfile, error) {
+	profile, err := r.GetUserProfile(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	profile.TotalExp += xpDelta
+	profile.TotalCoins += coinsDelta
+	if err := r.UpdateUserProfile(ctx, profile); err != nil {
+		return nil, fmt.Errorf("failed to update profile rewards: %w", err)
+	}
+	return profile, nil
+}
+
+// DeductEnergy 에너지 차감 (시간 기반 자동 충전 적용)
+func (r *GormQuizRepository) DeductEnergy(ctx context.Context, userID string, amount int32) (*UserProfile, error) {
+	profile, err := r.GetUserProfile(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	// 시간 기반 에너지 충전 (RefillEnergy 메서드 활용)
+	profile.RefillEnergy()
+	if profile.Energy < amount {
+		return profile, fmt.Errorf("insufficient energy: have %d, need %d", profile.Energy, amount)
+	}
+	profile.Energy -= amount
+	if err := r.UpdateUserProfile(ctx, profile); err != nil {
+		return nil, fmt.Errorf("failed to update energy: %w", err)
+	}
+	return profile, nil
 }
