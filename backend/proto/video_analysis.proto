@@ -10,6 +10,7 @@ service VideoAnalysisService {
   rpc UploadVideo(stream UploadVideoRequest) returns (UploadVideoResponse);
   rpc GetAnalysisStatus(GetAnalysisStatusRequest) returns (AnalysisStatus);
   rpc GetAnalysisResult(GetAnalysisResultRequest) returns (DeepfakeReport);
+  rpc GetUnifiedResult(GetAnalysisResultRequest) returns (UnifiedReport);
 }
 
 message GetUploadUrlRequest {
@@ -85,4 +86,67 @@ message DeepfakeReport {
 message ManipulatedRegion {
   string label = 1;
   double confidence = 2;
+}
+
+// Unified Report (멀티모달 통합)
+message UnifiedReport {
+  string task_id = 1;
+  string final_verdict = 2;  // REAL / FAKE / UNCERTAIN
+  double confidence = 3;
+  
+  VisualAnalysis visual = 4;
+  AudioAnalysis audio = 5;
+  SyncAnalysis lipsync = 6;
+  
+  repeated string warnings = 7;
+  int32 total_processing_time_ms = 8;
+}
+
+message VisualAnalysis {
+  string verdict = 1;
+  double confidence = 2;
+  AIModelPrediction ai_model = 3;
+  repeated FrameScore frames = 4;
+  int32 frames_analyzed = 5;
+}
+
+message AIModelPrediction {
+  string model_name = 1;
+  double confidence = 2;
+  repeated ModelScore candidates = 3;
+}
+
+message ModelScore {
+  string name = 1;
+  double score = 2;
+}
+
+message FrameScore {
+  int32 frame_number = 1;
+  double deepfake_score = 2;
+  int32 timestamp_ms = 3;
+}
+
+message AudioAnalysis {
+  bool is_synthetic = 1;
+  double confidence = 2;
+  string method = 3;  // "Real Voice" / "TTS" / "Voice Clone"
+  repeated AudioSegment segments = 4;
+}
+
+message AudioSegment {
+  int32 start_ms = 1;
+  int32 end_ms = 2;
+  double synthetic_score = 3;
+}
+
+message SyncAnalysis {
+  bool is_synced = 1;
+  double confidence = 2;
+  repeated TimeRange mismatched_segments = 3;
+}
+
+message TimeRange {
+  int32 start_ms = 1;
+  int32 end_ms = 2;
 }

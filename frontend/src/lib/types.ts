@@ -193,6 +193,67 @@ export interface DeepfakeReport {
   processingTimeMs: number;
 }
 
+// Unified Report (멀티모달)
+export interface UnifiedReport {
+  taskId: string;
+  finalVerdict: "REAL" | "FAKE" | "UNCERTAIN";
+  confidence: number;
+  visual?: VisualAnalysis;
+  audio?: AudioAnalysis;
+  lipsync?: SyncAnalysis;
+  warnings: string[];
+  totalProcessingTimeMs: number;
+}
+
+export interface VisualAnalysis {
+  verdict: string;
+  confidence: number;
+  aiModel?: AIModelPrediction;
+  frames?: FrameScore[];
+  framesAnalyzed: number;
+}
+
+export interface AIModelPrediction {
+  modelName: string;
+  confidence: number;
+  candidates: ModelScore[];
+}
+
+export interface ModelScore {
+  name: string;
+  score: number;
+}
+
+export interface FrameScore {
+  frameNumber: number;
+  deepfakeScore: number;
+  timestampMs: number;
+}
+
+export interface AudioAnalysis {
+  isSynthetic: boolean;
+  confidence: number;
+  method: string;
+  segments?: AudioSegment[];
+}
+
+export interface AudioSegment {
+  startMs: number;
+  endMs: number;
+  syntheticScore: number;
+}
+
+export interface SyncAnalysis {
+  isSynced: boolean;
+  confidence: number;
+  mismatchedSegments: TimeRange[];
+}
+
+export interface TimeRange {
+  startMs: number;
+  endMs: number;
+}
+
 // --- Dashboard Service (BFF) ---
 export interface DashboardAggregated {
   user: UserProfile;

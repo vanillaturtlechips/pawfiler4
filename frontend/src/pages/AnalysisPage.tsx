@@ -3,9 +3,12 @@ import { useState, useRef } from "react";
 import WoodPanel from "@/components/WoodPanel";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
+import AIModelCard from "@/components/AIModelCard";
+import AudioPanel from "@/components/AudioPanel";
+import FrameTimeline from "@/components/FrameTimeline";
 import { useAuth } from "@/contexts/AuthContext";
-import { runVideoAnalysis } from "@/lib/api";
-import type { AnalysisStage, AnalysisLogEntry, DeepfakeReport } from "@/lib/types";
+import { runVideoAnalysis, getUnifiedResult } from "@/lib/api";
+import type { AnalysisStage, AnalysisLogEntry, UnifiedReport } from "@/lib/types";
 
 const stageLabels: Record<AnalysisStage, string> = {
   IDLE: "대기 중",
@@ -20,7 +23,7 @@ const AnalysisPage = () => {
   const { token } = useAuth();
   const [stage, setStage] = useState<AnalysisStage>("IDLE");
   const [logs, setLogs] = useState<AnalysisLogEntry[]>([]);
-  const [report, setReport] = useState<DeepfakeReport | null>(null);
+  const [report, setReport] = useState<UnifiedReport | null>(null);
   const [url, setUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,9 +54,12 @@ const AnalysisPage = () => {
     setReport(null);
     setStage("UPLOADING");
     try {
-      const result = await runVideoAnalysis(selectedFile || url);
-      setReport(result);
+      const basicResult = await runVideoAnalysis(selectedFile || url);
       setStage("COMPLETED");
+      
+      // UnifiedReport 가져오기
+      const unified = await getUnifiedResult(basicResult.taskId);
+      setReport(unified);
     } catch (error) {
       console.error("분석 실패:", error);
       setStage("ERROR");
@@ -81,11 +87,6 @@ const AnalysisPage = () => {
     FAKE: { emoji: "🚨", label: "가짜 (Deepfake)", color: "hsl(var(--destructive))" },
     REAL: { emoji: "✅", label: "진짜 (Authentic)", color: "hsl(var(--magic-green))" },
     UNCERTAIN: { emoji: "🤔", label: "불확실 (Uncertain)", color: "hsl(var(--magic-orange))" },
-    PROCESSING: { emoji: "⏳", label: "분석 중...", color: "hsl(var(--magic-blue))" },
-    NOT_FOUND: { emoji: "❌", label: "분석 실패", color: "hsl(var(--destructive))" },
-    fake: { emoji: "🚨", label: "가짜 (Deepfake)", color: "hsl(var(--destructive))" },
-    real: { emoji: "✅", label: "진짜 (Authentic)", color: "hsl(var(--magic-green))" },
-    uncertain: { emoji: "🤔", label: "불확실 (Uncertain)", color: "hsl(var(--magic-orange))" },
   };
 
   return (
@@ -169,33 +170,56 @@ const AnalysisPage = () => {
               key="report"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col gap-4 flex-1"
+              className="flex flex-col gap-4 flex-1 overflow-y-auto"
             >
               <h2 className="font-jua text-2xl text-shadow-deep">📋 분석 보고서</h2>
+              
+              {/* 최종 판정 */}
               <div className="text-center py-4">
-                <span className="text-6xl">{verdictConfig[report.verdict]?.emoji || "❓"}</span>
+                <span className="text-6xl">{verdictConfig[report.finalVerdict]?.emoji || "❓"}</span>
                 <div
                   className="font-jua text-3xl mt-2"
-                  style={{ color: verdictConfig[report.verdict]?.color || "hsl(var(--destructive))" }}
+                  style={{ color: verdictConfig[report.finalVerdict]?.color || "hsl(var(--destructive))" }}
                 >
-                  {verdictConfig[report.verdict]?.label || report.verdict}
+                  {verdictConfig[report.finalVerdict]?.label || report.finalVerdict}
                 </div>
-                <div className="font-jua text-5xl mt-1" style={{ color: verdictConfig[report.verdict].color }}>
-                  {report.confidenceScore}%
-                </div>
-              </div>
-              <div className="flex-1 rounded-xl p-3" style={{ background: "hsl(var(--wood-dark))" }}>
-                <div className="font-jua text-sm mb-2 opacity-70">조작 탐지 영역</div>
-                {(report.manipulatedRegions || []).map((r, i) => (
-                  <div key={i} className="flex justify-between text-sm py-1 border-b border-wood-darkest/30">
-                    <span>{r.label}</span>
-                    <span className="font-bold">{r.confidence}%</span>
-                  </div>
-                ))}
-                <div className="text-xs mt-3 opacity-50">
-                  모델: {report.modelVersion} · 프레임: {report.frameSamplesAnalyzed}개 · {report.processingTimeMs}ms
+                <div className="font-jua text-5xl mt-1" style={{ color: verdictConfig[report.finalVerdict].color }}>
+                  {(report.confidence * 100).toFixed(0)}%
                 </div>
               </div>
+
+              {/* 경고 메시지 */}
+              {report.warnings.length > 0 && (
+                <div className="rounded-xl p-3 bg-yellow-100 border-2 border-yellow-400">
+                  {report.warnings.map((w, i) => (
+                    <div key={i} className="text-sm font-jua" style={{ color: "hsl(var(--wood-darkest))" }}>
+                      ⚠️ {w}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* AI 모델 식별 */}
+              {report.visual?.aiModel && (
+                <AIModelCard prediction={report.visual.aiModel} />
+              )}
+
+              {/* 음성 분석 */}
+              {report.audio && (
+                <AudioPanel audio={report.audio} />
+              )}
+
+              {/* 프레임 타임라인 */}
+              {report.visual?.frames && report.visual.frames.length > 0 && (
+                <FrameTimeline frames={report.visual.frames} />
+              )}
+
+              {/* 상세 정보 */}
+              <div className="rounded-xl p-3 text-xs opacity-70" style={{ background: "hsl(var(--wood-dark))" }}>
+                <div>프레임 분석: {report.visual?.framesAnalyzed || 0}개</div>
+                <div>처리 시간: {(report.totalProcessingTimeMs / 1000).toFixed(1)}초</div>
+              </div>
+
               <GameButton variant="green" onClick={() => { setReport(null); setStage("IDLE"); setLogs([]); setSelectedFile(null); setUrl(""); }}>
                 🔄 새 분석 시작
               </GameButton>
