@@ -200,45 +200,6 @@ type UserProfile struct {
 //   - Lv3: 400–799 XP
 //   - Lv4: 800–1499 XP
 //   - Lv5: 1500+ XP
-func (p *UserProfile) Level() int32 {
-	exp := p.TotalExp
-	// 티어별로 점점 어렵게 (0 XP = Lv.1)
-	switch {
-	// 티어 5: 불사조 (21-25) - 각 500 XP씩 증가
-	case exp >= 4000: return 25
-	case exp >= 3500: return 24
-	case exp >= 3000: return 23
-	case exp >= 2500: return 22
-	case exp >= 2000: return 21
-	
-	// 티어 4: 맹금닭 (16-20) - 각 300 XP씩 증가
-	case exp >= 1700: return 20
-	case exp >= 1400: return 19
-	case exp >= 1100: return 18
-	case exp >= 800: return 17
-	case exp >= 500: return 16
-	
-	// 티어 3: 삐약이 (11-15) - 각 100 XP씩 증가
-	case exp >= 400: return 15
-	case exp >= 300: return 14
-	case exp >= 200: return 13
-	case exp >= 100: return 12
-	case exp >= 50: return 11
-	
-	// 티어 2: 알병아리 (6-10) - 각 10 XP씩 증가
-	case exp >= 40: return 10
-	case exp >= 30: return 9
-	case exp >= 20: return 8
-	case exp >= 10: return 7
-	case exp >= 5: return 6
-	
-	// 티어 1: 알 (1-5)
-	case exp >= 4: return 5
-	case exp >= 3: return 4
-	case exp >= 2: return 3
-	case exp >= 1: return 2
-	default: return 1
-	}
 }
 
 // TierName returns the Korean display name for the user's current tier.
@@ -308,5 +269,27 @@ func XPRewardByDifficulty(difficulty Difficulty) (xp int32, coins int32) {
 		return 25, 120
 	default: // easy
 		return 10, 50
+	}
+}
+func (p *UserProfile) Level() int32 {
+	exp := p.TotalExp
+	// 레벨당 필요 XP (레벨업 시 초기화)
+	switch {
+	case exp >= 500: return 25  // 불사조
+	case exp >= 400: return 24
+	case exp >= 300: return 23
+	case exp >= 200: return 22
+	case exp >= 100: return 21
+	case exp >= 90: return 20   // 맹금닭
+	case exp >= 70: return 19
+	case exp >= 50: return 18
+	case exp >= 30: return 17
+	case exp >= 15: return 16
+	case exp >= 12: return 15   // 삐약이
+	case exp >= 9: return 14
+	case exp >= 6: return 13
+	case exp >= 3: return 12
+	case exp >= 1: return 11
+	default: return 1           // 알 (1-10)
 	}
 }
