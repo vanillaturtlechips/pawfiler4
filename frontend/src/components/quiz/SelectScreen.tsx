@@ -34,7 +34,7 @@ const SelectScreen = ({
 }: SelectScreenProps) => {
   const energy = profile?.energy ?? 100;
   const maxEnergy = profile?.maxEnergy ?? 100;
-  const energyCost = selectedCount * 5; // 문제당 5 에너지
+  const energyCost = selectedCount === 10 ? 4 : selectedCount * 5; // 10문제=4, 5문제=25
   const canStart = energy >= energyCost;
   const sessionAccuracy = null; // 세션 시작 전이므로 없음
 

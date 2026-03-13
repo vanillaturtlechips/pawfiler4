@@ -86,6 +86,7 @@ const GamePage = () => {
 
   // 게임 시작
   const handleStart = async (difficulty: string, count: number) => {
+    setSelectedDifficulty(difficulty); // 난이도 저장
     setMaxQuestions(count);
     setLoading(true);
     setPhase("playing");
@@ -423,26 +424,19 @@ const GamePage = () => {
                   <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
                     📈 {questionCount}/{maxQuestions}
                   </div>
+                  {/* 에너지바 */}
+                  {profile && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <span className="font-jua text-sm whitespace-nowrap">⚡ {profile.energy}/{profile.maxEnergy}</span>
+                      <div className="w-20 bg-wood-dark rounded-full h-2 overflow-hidden">
+                        <div className="h-full rounded-full transition-all"
+                          style={{ width: `${(profile.energy / profile.maxEnergy) * 100}%`, background: profile.energy > 30 ? "#facc15" : "#ef4444" }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-              {/* 에너지/프로필 HUD */}
-              {profile && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="font-jua text-sm bg-wood-dark px-2 py-1 rounded-lg whitespace-nowrap">
-                    🐣 {profile.tierName} (Lv.{profile.level})
-                  </span>
-                  <span className="font-jua text-sm text-yellow-400 whitespace-nowrap">✨ {profile.totalExp} XP</span>
-                  <span className="font-jua text-sm text-amber-400 whitespace-nowrap">💰 {profile.totalCoins}</span>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="font-jua text-sm whitespace-nowrap">⚡ {profile.energy}/{profile.maxEnergy}</span>
-                    <div className="w-20 bg-wood-dark rounded-full h-2 overflow-hidden">
-                      <div className="h-full rounded-full transition-all"
-                        style={{ width: `${(profile.energy / profile.maxEnergy) * 100}%`, background: profile.energy > 30 ? "#facc15" : "#ef4444" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {loading ? (
