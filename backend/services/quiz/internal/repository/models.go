@@ -186,6 +186,7 @@ type UserProfile struct {
 	UserID           string    `db:"user_id"`
 	TotalExp         int32     `db:"total_exp"`
 	TotalCoins       int32     `db:"total_coins"`
+	CurrentTier      string    `db:"current_tier"`
 	Energy           int32     `db:"energy"`
 	MaxEnergy        int32     `db:"max_energy"`
 	LastEnergyRefill time.Time `db:"last_energy_refill"`
@@ -193,43 +194,51 @@ type UserProfile struct {
 }
 
 // Level returns the user's tier level (1-5) based on total XP.
-//
-// Tier thresholds:
-//   - Lv1: 0–149 XP
-//   - Lv2: 150–399 XP
-//   - Lv3: 400–799 XP
-//   - Lv4: 800–1499 XP
-//   - Lv5: 1500+ XP
 func (p *UserProfile) Level() int32 {
 	exp := p.TotalExp
-	switch {
-	case exp >= 500: return 5  // 불사조 5
-	case exp >= 400: return 4
-	case exp >= 300: return 3
-	case exp >= 200: return 2
-	case exp >= 100: return 1  // 불사조 1
-	case exp >= 90: return 5   // 맹금닭 5
-	case exp >= 70: return 4
-	case exp >= 50: return 3
-	case exp >= 30: return 2
-	case exp >= 15: return 1   // 맹금닭 1
-	case exp >= 12: return 5   // 삐약이 5
-	case exp >= 9: return 4
-	case exp >= 6: return 3
-	case exp >= 3: return 2
-	case exp >= 1: return 1    // 삐약이 1
-	default: return 1          // 알 1-5
+	tier := p.Tier()
+	
+	switch tier {
+	case "불사조":
+		switch {
+		case exp >= 2000: return 5
+		case exp >= 1500: return 4
+		case exp >= 1000: return 3
+		case exp >= 500: return 2
+		default: return 1
+		}
+	case "맹금닭":
+		switch {
+		case exp >= 800: return 5
+		case exp >= 600: return 4
+		case exp >= 400: return 3
+		case exp >= 200: return 2
+		default: return 1
+		}
+	case "삐약이":
+		switch {
+		case exp >= 80: return 5
+		case exp >= 60: return 4
+		case exp >= 40: return 3
+		case exp >= 20: return 2
+		default: return 1
+		}
+	default: // 알
+		switch {
+		case exp >= 8: return 5
+		case exp >= 6: return 4
+		case exp >= 4: return 3
+		case exp >= 2: return 2
+		default: return 1
+		}
 	}
 }
 
 func (p *UserProfile) Tier() string {
-	exp := p.TotalExp
-	switch {
-	case exp >= 100: return "불사조"
-	case exp >= 15: return "맹금닭"
-	case exp >= 1: return "삐약이"
-	default: return "알"
+	if p.CurrentTier == "" {
+		return "알"
 	}
+	return p.CurrentTier
 }
 
 // TierName returns the Korean display name for the user's current tier.

@@ -302,18 +302,29 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 			}
 		}
 		if profile != nil {
-			oldExp := profile.TotalExp
 			profile.TotalExp += xpEarned
 			profile.TotalCoins += coinsEarned
 			
-			// 티어 경계 넘으면 경계값만 빼기
-			newExp := profile.TotalExp
-			if oldExp < 1 && newExp >= 1 {
-				profile.TotalExp -= 1
-			} else if oldExp < 15 && newExp >= 15 {
-				profile.TotalExp -= 15
-			} else if oldExp < 100 && newExp >= 100 {
-				profile.TotalExp -= 100
+			// 티어 승급 체크 및 XP 리셋
+			tier := profile.Tier()
+			exp := profile.TotalExp
+			
+			switch tier {
+			case "알":
+				if exp >= 10 {
+					profile.CurrentTier = "삐약이"
+					profile.TotalExp = exp - 10
+				}
+			case "삐약이":
+				if exp >= 100 {
+					profile.CurrentTier = "맹금닭"
+					profile.TotalExp = exp - 100
+				}
+			case "맹금닭":
+				if exp >= 1000 {
+					profile.CurrentTier = "불사조"
+					profile.TotalExp = exp - 1000
+				}
 			}
 			
 			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {

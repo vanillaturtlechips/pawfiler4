@@ -279,6 +279,7 @@ type GormUserProfile struct {
 	UserID         string    `gorm:"primaryKey;type:uuid" json:"user_id"`
 	TotalExp       int32     `gorm:"default:0" json:"total_exp"`
 	TotalCoins     int32     `gorm:"default:0" json:"total_coins"`
+	CurrentTier    string    `gorm:"default:알" json:"current_tier"`
 	Energy         int32     `gorm:"default:100" json:"energy"`
 	MaxEnergy      int32     `gorm:"default:100" json:"max_energy"`
 	LastEnergyRefill time.Time `gorm:"default:now()" json:"last_energy_time"`

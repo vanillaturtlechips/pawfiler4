@@ -247,11 +247,34 @@ const ShopPage = () => {
                           className="h-full bg-gradient-to-r from-yellow-400 to-orange-500"
                           initial={{ width: 0 }}
                           animate={{ width: `${(() => {
+                            const tierName = quizProfile?.tierName ?? '알 Lv.1';
                             const exp = quizProfile?.totalExp ?? 0;
-                            let maxXP = 1;
-                            if (exp >= 100) maxXP = 500;
-                            else if (exp >= 15) maxXP = 100;
-                            else if (exp >= 1) maxXP = 15;
+                            let maxXP = 2;
+                            if (tierName.startsWith('불사조')) {
+                              if (exp >= 2000) maxXP = 2000;
+                              else if (exp >= 1500) maxXP = 2000;
+                              else if (exp >= 1000) maxXP = 1500;
+                              else if (exp >= 500) maxXP = 1000;
+                              else maxXP = 500;
+                            } else if (tierName.startsWith('맹금닭')) {
+                              if (exp >= 800) maxXP = 1000;
+                              else if (exp >= 600) maxXP = 800;
+                              else if (exp >= 400) maxXP = 600;
+                              else if (exp >= 200) maxXP = 400;
+                              else maxXP = 200;
+                            } else if (tierName.startsWith('삐약이')) {
+                              if (exp >= 80) maxXP = 100;
+                              else if (exp >= 60) maxXP = 80;
+                              else if (exp >= 40) maxXP = 60;
+                              else if (exp >= 20) maxXP = 40;
+                              else maxXP = 20;
+                            } else {
+                              if (exp >= 8) maxXP = 10;
+                              else if (exp >= 6) maxXP = 8;
+                              else if (exp >= 4) maxXP = 6;
+                              else if (exp >= 2) maxXP = 4;
+                              else maxXP = 2;
+                            }
                             return Math.min(100, (exp / maxXP) * 100);
                           })()}%` }}
                           transition={{ duration: 1, ease: "easeOut" }}

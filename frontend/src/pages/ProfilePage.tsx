@@ -124,12 +124,35 @@ const ProfilePage = () => {
                     경험치
                   </span>
                   <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(() => {
-                    const exp = quizProfile?.totalExp ?? user.xp ?? 0;
-                    // 티어별 다음 레벨 필요 XP
-                    if (exp >= 100) return 500;      // 불사조
-                    if (exp >= 15) return 100;       // 맹금닭
-                    if (exp >= 1) return 15;         // 삐약이
-                    return 1;                        // 알
+                    const tierName = quizProfile?.tierName ?? '알 Lv.1';
+                    const exp = quizProfile?.totalExp ?? 0;
+                    if (tierName.startsWith('불사조')) {
+                      if (exp >= 2000) return 2000;
+                      if (exp >= 1500) return 2000;
+                      if (exp >= 1000) return 1500;
+                      if (exp >= 500) return 1000;
+                      return 500;
+                    }
+                    if (tierName.startsWith('맹금닭')) {
+                      if (exp >= 800) return 1000;
+                      if (exp >= 600) return 800;
+                      if (exp >= 400) return 600;
+                      if (exp >= 200) return 400;
+                      return 200;
+                    }
+                    if (tierName.startsWith('삐약이')) {
+                      if (exp >= 80) return 100;
+                      if (exp >= 60) return 80;
+                      if (exp >= 40) return 60;
+                      if (exp >= 20) return 40;
+                      return 20;
+                    }
+                    // 알
+                    if (exp >= 8) return 10;
+                    if (exp >= 6) return 8;
+                    if (exp >= 4) return 6;
+                    if (exp >= 2) return 4;
+                    return 2;
                   })()} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
@@ -137,11 +160,34 @@ const ProfilePage = () => {
                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
                     initial={{ width: 0 }}
                     animate={{ width: `${(() => {
-                      const exp = quizProfile?.totalExp ?? user.xp ?? 0;
-                      let maxXP = 1;
-                      if (exp >= 100) maxXP = 500;
-                      else if (exp >= 15) maxXP = 100;
-                      else if (exp >= 1) maxXP = 15;
+                      const tierName = quizProfile?.tierName ?? '알 Lv.1';
+                      const exp = quizProfile?.totalExp ?? 0;
+                      let maxXP = 2;
+                      if (tierName.startsWith('불사조')) {
+                        if (exp >= 2000) maxXP = 2000;
+                        else if (exp >= 1500) maxXP = 2000;
+                        else if (exp >= 1000) maxXP = 1500;
+                        else if (exp >= 500) maxXP = 1000;
+                        else maxXP = 500;
+                      } else if (tierName.startsWith('맹금닭')) {
+                        if (exp >= 800) maxXP = 1000;
+                        else if (exp >= 600) maxXP = 800;
+                        else if (exp >= 400) maxXP = 600;
+                        else if (exp >= 200) maxXP = 400;
+                        else maxXP = 200;
+                      } else if (tierName.startsWith('삐약이')) {
+                        if (exp >= 80) maxXP = 100;
+                        else if (exp >= 60) maxXP = 80;
+                        else if (exp >= 40) maxXP = 60;
+                        else if (exp >= 20) maxXP = 40;
+                        else maxXP = 20;
+                      } else {
+                        if (exp >= 8) maxXP = 10;
+                        else if (exp >= 6) maxXP = 8;
+                        else if (exp >= 4) maxXP = 6;
+                        else if (exp >= 2) maxXP = 4;
+                        else maxXP = 2;
+                      }
                       return Math.min(100, (exp / maxXP) * 100);
                     })()}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
