@@ -124,12 +124,12 @@ const ProfilePage = () => {
                     경험치
                   </span>
                   <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(() => {
-                    const level = quizProfile?.level ?? user.level ?? 1;
-                    // 레벨별 필요 XP
-                    if (level >= 21) return 500;
-                    if (level >= 16) return 90;
-                    if (level >= 11) return 12;
-                    return 1;
+                    const exp = quizProfile?.totalExp ?? user.xp ?? 0;
+                    // 티어별 다음 레벨 필요 XP
+                    if (exp >= 100) return 500;      // 불사조
+                    if (exp >= 15) return 100;       // 맹금닭
+                    if (exp >= 1) return 15;         // 삐약이
+                    return 1;                        // 알
                   })()} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
@@ -138,11 +138,10 @@ const ProfilePage = () => {
                     initial={{ width: 0 }}
                     animate={{ width: `${(() => {
                       const exp = quizProfile?.totalExp ?? user.xp ?? 0;
-                      const level = quizProfile?.level ?? user.level ?? 1;
                       let maxXP = 1;
-                      if (level >= 21) maxXP = 500;
-                      else if (level >= 16) maxXP = 90;
-                      else if (level >= 11) maxXP = 12;
+                      if (exp >= 100) maxXP = 500;
+                      else if (exp >= 15) maxXP = 100;
+                      else if (exp >= 1) maxXP = 15;
                       return Math.min(100, (exp / maxXP) * 100);
                     })()}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}

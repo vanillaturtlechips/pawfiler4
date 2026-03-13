@@ -203,37 +203,38 @@ type UserProfile struct {
 func (p *UserProfile) Level() int32 {
 	exp := p.TotalExp
 	switch {
-	case exp >= 500: return 25
-	case exp >= 400: return 24
-	case exp >= 300: return 23
-	case exp >= 200: return 22
-	case exp >= 100: return 21
-	case exp >= 90: return 20
-	case exp >= 70: return 19
-	case exp >= 50: return 18
-	case exp >= 30: return 17
-	case exp >= 15: return 16
-	case exp >= 12: return 15
-	case exp >= 9: return 14
-	case exp >= 6: return 13
-	case exp >= 3: return 12
-	case exp >= 1: return 11
-	default: return 1
+	case exp >= 500: return 5  // 불사조 5
+	case exp >= 400: return 4
+	case exp >= 300: return 3
+	case exp >= 200: return 2
+	case exp >= 100: return 1  // 불사조 1
+	case exp >= 90: return 5   // 맹금닭 5
+	case exp >= 70: return 4
+	case exp >= 50: return 3
+	case exp >= 30: return 2
+	case exp >= 15: return 1   // 맹금닭 1
+	case exp >= 12: return 5   // 삐약이 5
+	case exp >= 9: return 4
+	case exp >= 6: return 3
+	case exp >= 3: return 2
+	case exp >= 1: return 1    // 삐약이 1
+	default: return 1          // 알 1-5
+	}
+}
+
+func (p *UserProfile) Tier() string {
+	exp := p.TotalExp
+	switch {
+	case exp >= 100: return "불사조"
+	case exp >= 15: return "맹금닭"
+	case exp >= 1: return "삐약이"
+	default: return "알"
 	}
 }
 
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
-	level := p.Level()
-	var baseTier string
-	switch {
-	case level >= 21: baseTier = "불사조"
-	case level >= 16: baseTier = "맹금닭"
-	case level >= 11: baseTier = "삐약이"
-	case level >= 6: baseTier = "알병아리"
-	default: baseTier = "알"
-	}
-	return fmt.Sprintf("%s Lv.%d", baseTier, level)
+	return fmt.Sprintf("%s Lv.%d", p.Tier(), p.Level())
 }
 
 // RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since

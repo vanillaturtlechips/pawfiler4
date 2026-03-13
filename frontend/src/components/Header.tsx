@@ -45,16 +45,16 @@ const Header = ({ isVisible = true }: HeaderProps) => {
     }
   };
 
-  const getTierEmoji = (level: number): string => {
-    if (level >= 21) return "🦅"; // 불사조
-    if (level >= 16) return "🐓"; // 맹금닭
-    if (level >= 11) return "🐥"; // 삐약이
-    if (level >= 6) return "🐣";  // 알병아리
-    return "🥚"; // 알
+  const getTierEmoji = (tierName: string): string => {
+    if (tierName.startsWith("불사조")) return "🦅";
+    if (tierName.startsWith("맹금닭")) return "🐓";
+    if (tierName.startsWith("삐약이")) return "🐥";
+    if (tierName.startsWith("알병아리")) return "🐣";
+    return "🥚";
   };
   
-  const displayTierEmoji = getTierEmoji(quizProfile?.level ?? 1);
   const displayTierName = quizProfile?.tierName ?? '알 Lv.1';
+  const displayTierEmoji = getTierEmoji(displayTierName);
   const displayCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   return (

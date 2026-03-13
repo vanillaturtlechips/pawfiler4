@@ -37,6 +37,9 @@ type QuizService interface {
 
 	// GetUserProfile retrieves gamification profile (level, XP, coins, energy)
 	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
+	
+	// UpdateUserProfile updates gamification profile
+	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
 }
 
 // SubmitResult represents the result of a submitted answer
@@ -144,6 +147,10 @@ func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*r
 	}
 	profile.RefillEnergy()
 	return profile, nil
+}
+
+func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
+	return s.repo.UpdateUserProfile(ctx, profile)
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType
@@ -295,8 +302,14 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 			}
 		}
 		if profile != nil {
+			oldLevel := profile.Level()
 			profile.TotalExp += xpEarned
 			profile.TotalCoins += coinsEarned
+			newLevel := profile.Level()
+			// 레벨업 시 XP 초기화
+			if newLevel > oldLevel {
+				profile.TotalExp = 0
+			}
 			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {
 				fmt.Printf("Warning: failed to update user profile: %v\n", err)
 			}

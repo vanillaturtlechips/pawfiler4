@@ -33,6 +33,7 @@ type QuizService interface {
 	GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error)
 	GetQuestionById(ctx context.Context, req *pb.GetQuestionByIdRequest) (*pb.QuizQuestion, error)
 	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
+	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
 }
 
 // NewMux returns an HTTP mux with quiz REST endpoints.
@@ -313,7 +314,11 @@ func handleRefillEnergy(svc QuizService) http.HandlerFunc {
 		}
 		
 		profile.Energy = profile.MaxEnergy
-		// UpdateUserProfile 직접 호출 불가하므로 임시로 에러 반환
+		if err := svc.UpdateUserProfile(r.Context(), profile); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update profile")
+			return
+		}
+		
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
