@@ -98,7 +98,6 @@ func (s *quizServiceImpl) GetRandomQuestion(ctx context.Context, userID string, 
 		return nil, fmt.Errorf("failed to update energy: %w", err)
 	}
 
-	// Requirement 3.1: Retrieve random question from database
 	question, err := s.repo.GetRandomQuestion(ctx, difficulty, repoQuestionType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get random question: %w", err)
