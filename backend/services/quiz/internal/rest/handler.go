@@ -429,7 +429,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 		rows, err := db.QueryContext(r.Context(), `
 			SELECT 
 				up.user_id,
-				COALESCE(au.nickname, LEFT(up.user_id::text, 8)) as nickname,
+				COALESCE(au.nickname, '') as nickname,
 				COALESCE(au.avatar_emoji, '🥚') as avatar_emoji,
 				COALESCE(up.current_tier, '알') as tier,
 				up.total_exp,
@@ -442,6 +442,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 			FROM quiz.user_profiles up
 			LEFT JOIN quiz.user_stats us ON us.user_id = up.user_id
 			LEFT JOIN auth.users au ON au.id = up.user_id
+			WHERE COALESCE(us.total_answered, 0) > 0
 			ORDER BY `+orderBy)
 		if err != nil {
 			http.Error(w, "query failed: "+err.Error(), http.StatusInternalServerError)

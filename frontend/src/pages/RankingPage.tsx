@@ -3,7 +3,9 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchRanking } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft } from "lucide-react";
+import { config } from "@/lib/config";
 
 type RankEntry = {
   rank: number; userId: string; nickname: string; avatarEmoji: string;
@@ -30,6 +32,8 @@ const TIER_EMOJI: Record<string, string> = {
 
 export default function RankingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const myQuizId = localStorage.getItem(config.storageKeys.quizUserId);
   const [sort, setSort] = useState("correct");
   const [search, setSearch] = useState("");
   const [data, setData] = useState<RankEntry[]>([]);
@@ -44,8 +48,20 @@ export default function RankingPage() {
 
   useEffect(() => { load("correct"); }, []);
 
+  const getDisplayName = (e: RankEntry) => {
+    if (e.nickname) return e.nickname;
+    if (e.userId === myQuizId) return user?.nickname || '나';
+    return `탐정#${e.userId.slice(0, 6)}`;
+  };
+
+  const getAvatar = (e: RankEntry) => {
+    if (e.avatarEmoji && e.avatarEmoji !== '🥚') return e.avatarEmoji;
+    if (e.userId === myQuizId && user?.avatarEmoji) return user.avatarEmoji;
+    return TIER_EMOJI[e.tier] || '🥚';
+  };
+
   const filtered = data.filter(e =>
-    !search || e.nickname.toLowerCase().includes(search.toLowerCase())
+    !search || getDisplayName(e).toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -129,9 +145,11 @@ export default function RankingPage() {
 
                     {/* 탐정 */}
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xl shrink-0">{e.avatarEmoji || TIER_EMOJI[e.tier] || '🥚'}</span>
+                      <span className="text-xl shrink-0">{getAvatar(e)}</span>
                       <div className="min-w-0">
-                        <div className="font-jua text-sm truncate">{e.nickname}</div>
+                        <div className={`font-jua text-sm truncate ${e.userId === myQuizId ? 'text-amber-600' : ''}`}>
+                          {getDisplayName(e)}{e.userId === myQuizId ? ' 👈 나' : ''}
+                        </div>
                         <div className="text-xs text-gray-400">{e.totalExp} XP</div>
                       </div>
                     </div>

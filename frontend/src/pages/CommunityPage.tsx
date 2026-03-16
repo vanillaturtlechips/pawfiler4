@@ -345,7 +345,9 @@ const CommunityPage = () => {
                 <div key={entry.userId} className="flex items-center gap-2">
                   <span className="text-lg w-6">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="font-jua text-sm truncate block">{entry.userId.slice(0, 8)}...</span>
+                    <span className="font-jua text-sm truncate block">
+                      {entry.nickname || `탐정#${entry.userId.slice(0, 6)}`}
+                    </span>
                     <span className="text-xs text-wood-dark">{entry.tier || '알'}</span>
                   </div>
                   <span className="text-xs font-bold text-green-600 shrink-0">정답 {entry.correctCount}개</span>
