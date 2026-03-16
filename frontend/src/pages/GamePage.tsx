@@ -224,6 +224,10 @@ const GamePage = () => {
         const prevLevel = profile.level;
         const newLevel = res.level ?? profile.level;
         const newTierName = res.tierName ?? profile.tierName;
+        // tier_name은 "알 Lv.3" 형식 — 티어명만 추출
+        const extractTier = (t: string) => t.split(' ')[0];
+        const prevTier = extractTier(profile.tierName);
+        const currTier = extractTier(newTierName);
         const updatedProfile: QuizGameProfile = {
           level: newLevel,
           tierName: newTierName,
@@ -235,7 +239,7 @@ const GamePage = () => {
         setProfile(updatedProfile);
         
         // 레벨업 감지
-        const tierPromoted = res.tierPromoted === true;
+        const tierPromoted = res.tierPromoted === true || prevTier !== currTier;
         if (tierPromoted) {
           // 티어 승급 모달만
           setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: true });
@@ -705,7 +709,7 @@ const GamePage = () => {
                       transition={{ duration: 0.8, repeat: 2 }}
                       className="text-9xl mb-3"
                     >
-                      {newTier.name === '불사조' ? '🦅' : newTier.name === '맹금닭' ? '🐓' : newTier.name === '삐약이' ? '🐥' : '🥚'}
+                      {newTier.name === '불사조' || newTier.name.startsWith('불사조') ? '🦅' : newTier.name.startsWith('맹금닭') ? '🐓' : newTier.name.startsWith('삐약이') ? '🐥' : '🥚'}
                     </motion.div>
                     <motion.h2
                       animate={{ scale: [1, 1.05, 1] }}
@@ -714,7 +718,7 @@ const GamePage = () => {
                     >
                       🎊 티어 승급! 🎊
                     </motion.h2>
-                    <p className="font-jua text-3xl text-white mb-1">{newTier.name}</p>
+                    <p className="font-jua text-3xl text-white mb-1">{newTier.name.split(' ')[0]}</p>
                     <p className="font-jua text-xl text-yellow-200 mb-6">Lv.{newTier.level}로 시작!</p>
                   </>
                 ) : (

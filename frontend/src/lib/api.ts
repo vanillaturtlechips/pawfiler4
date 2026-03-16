@@ -295,6 +295,8 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
       coinsEarned: data.coins_earned ?? 0,
       explanation: explanation,
       streakCount: data.streak_count ?? 0,
+      streakBonus: data.streak_bonus ?? 0,
+      tierPromoted: data.tier_promoted ?? false,
       correctIndex: correctIndex,
       level: data.level,
       tierName: data.tier_name,
