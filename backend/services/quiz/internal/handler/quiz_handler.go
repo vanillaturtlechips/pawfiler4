@@ -46,9 +46,11 @@ func (h *QuizHandler) GetRandomQuestion(ctx context.Context, req *pb.GetRandomQu
 	// Call service layer
 	question, err := h.service.GetRandomQuestion(ctx, req.UserId, difficulty, questionType)
 	if err != nil {
-		// Log the actual error for debugging
 		log.Printf("GetRandomQuestion error: %v", err)
-		// Requirement 15.3: Map database errors to INTERNAL
+		// 에너지 부족은 그대로 전달
+		if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
+			return nil, err
+		}
 		return nil, status.Error(codes.Internal, "failed to get random question")
 	}
 
