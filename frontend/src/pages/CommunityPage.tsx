@@ -99,7 +99,7 @@ const CommunityPage = () => {
       const [detectiveData, topicData, rankingData, feedData] = await Promise.all([
         fetchTopDetective(),
         fetchHotTopic(),
-        fetchRanking("correct"),
+        fetchRanking("tier"),
         fetchCommunityFeed(1, 5),
       ]);
       setTopDetective(detectiveData);

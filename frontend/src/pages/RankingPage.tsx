@@ -14,9 +14,9 @@ type RankEntry = {
 };
 
 const SORT_TABS = [
+  { key: "tier", label: "⭐ 티어" },
   { key: "correct", label: "🎯 정답 수" },
   { key: "accuracy", label: "📊 정답률" },
-  { key: "tier", label: "⭐ 티어" },
 ];
 
 const TIER_STYLE: Record<string, string> = {
@@ -33,7 +33,7 @@ export default function RankingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const myQuizId = localStorage.getItem(config.storageKeys.quizUserId);
-  const [sort, setSort] = useState("correct");
+  const [sort, setSort] = useState("tier");
   const [search, setSearch] = useState("");
   const [data, setData] = useState<RankEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +45,7 @@ export default function RankingPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load("correct"); }, []);
+  useEffect(() => { load("tier"); }, []);
 
   const getDisplayName = (e: RankEntry) => {
     if (e.nickname) return e.nickname;
