@@ -857,3 +857,17 @@ export const fetchRanking = async () => {
     return [];
   }
 };
+
+export const fetchQuestionStats = async (questionId?: string) => {
+  try {
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetQuestionStats`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(questionId ? { question_id: questionId } : {}),
+    });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+};

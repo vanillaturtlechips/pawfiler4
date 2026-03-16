@@ -2,6 +2,7 @@ package rest
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
@@ -38,6 +39,10 @@ type QuizService interface {
 
 // NewMux returns an HTTP mux with quiz REST endpoints.
 func NewMux(svc QuizService) http.Handler {
+	return NewMuxWithDB(svc, nil)
+}
+
+func NewMuxWithDB(svc QuizService, db *sql.DB) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -49,6 +54,7 @@ func NewMux(svc QuizService) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionById", withCORS(handleGetQuestionById(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserProfile", withCORS(handleGetUserProfile(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/RefillEnergy", withCORS(handleRefillEnergy(svc)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionStats", withCORS(handleGetQuestionStats(db)))
 	}
 	return mux
 }
@@ -325,5 +331,74 @@ func handleRefillEnergy(svc QuizService) http.HandlerFunc {
 			"success": true,
 			"energy": profile.MaxEnergy,
 		})
+	}
+}
+
+func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if db == nil {
+			json.NewEncoder(w).Encode([]map[string]interface{}{})
+			return
+		}
+		var req struct {
+			QuestionID string `json:"question_id"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var query string
+		var args []interface{}
+		if req.QuestionID != "" {
+			query = `
+				SELECT q.id, q.title, q.difficulty,
+					COUNT(ua.id) as total,
+					SUM(CASE WHEN ua.is_correct THEN 1 ELSE 0 END) as correct
+				FROM quiz.questions q
+				LEFT JOIN quiz.user_answers ua ON ua.question_id = q.id
+				WHERE q.id = $1
+				GROUP BY q.id, q.title, q.difficulty`
+			args = []interface{}{req.QuestionID}
+		} else {
+			query = `
+				SELECT q.id, q.title, q.difficulty,
+					COUNT(ua.id) as total,
+					SUM(CASE WHEN ua.is_correct THEN 1 ELSE 0 END) as correct
+				FROM quiz.questions q
+				LEFT JOIN quiz.user_answers ua ON ua.question_id = q.id
+				GROUP BY q.id, q.title, q.difficulty
+				ORDER BY total DESC
+				LIMIT 50`
+		}
+
+		rows, err := db.QueryContext(r.Context(), query, args...)
+		if err != nil {
+			http.Error(w, "query failed", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		type stat struct {
+			ID         string  `json:"id"`
+			Title      string  `json:"title"`
+			Difficulty string  `json:"difficulty"`
+			Total      int     `json:"total"`
+			Correct    int     `json:"correct"`
+			Accuracy   float64 `json:"accuracy"`
+		}
+		var stats []stat
+		for rows.Next() {
+			var s stat
+			if err := rows.Scan(&s.ID, &s.Title, &s.Difficulty, &s.Total, &s.Correct); err != nil {
+				continue
+			}
+			if s.Total > 0 {
+				s.Accuracy = float64(s.Correct) / float64(s.Total) * 100
+			}
+			stats = append(stats, s)
+		}
+		if stats == nil {
+			stats = []stat{}
+		}
+		json.NewEncoder(w).Encode(stats)
 	}
 }
