@@ -5,7 +5,6 @@ export const config = {
   // 클라우드: Envoy/ALB가 라우팅하므로 동일 URL 사용
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
   communityBaseUrl: import.meta.env.VITE_COMMUNITY_BASE_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081',
-  userServiceBaseUrl: import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8083',
   adminServiceBaseUrl: import.meta.env.VITE_ADMIN_SERVICE_BASE_URL || 'http://localhost:8082',
   
   // Feature Flags
