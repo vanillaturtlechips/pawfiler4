@@ -107,6 +107,37 @@ const ProfilePage = () => {
     bestStreak: fullProfile?.best_streak ?? 0,
   };
 
+  const currentExp = quizProfile?.totalExp ?? 0;
+  const currentTier = quizProfile?.tierName ?? '알 Lv.1';
+  const expMaxXP = (() => {
+    if (currentTier.startsWith('불사조')) {
+      if (currentExp >= 4000) return 5000;
+      if (currentExp >= 3000) return 4000;
+      if (currentExp >= 2000) return 3000;
+      if (currentExp >= 1000) return 2000;
+      return 1000;
+    }
+    if (currentTier.startsWith('맹금닭')) {
+      if (currentExp >= 1600) return 2000;
+      if (currentExp >= 1200) return 1600;
+      if (currentExp >= 800) return 1200;
+      if (currentExp >= 400) return 800;
+      return 400;
+    }
+    if (currentTier.startsWith('삐약이')) {
+      if (currentExp >= 800) return 1000;
+      if (currentExp >= 600) return 800;
+      if (currentExp >= 400) return 600;
+      if (currentExp >= 200) return 400;
+      return 200;
+    }
+    if (currentExp >= 400) return 500;
+    if (currentExp >= 300) return 400;
+    if (currentExp >= 200) return 300;
+    if (currentExp >= 100) return 200;
+    return 100;
+  })();
+
   return (
     <div className="h-[calc(100vh-5rem)] w-full overflow-hidden">
       <motion.div
@@ -539,28 +570,28 @@ const ProfilePage = () => {
                     <div className="space-y-2">
                       <div>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-wood-dark">현재 레벨</span>
-                          <span className="font-jua">Lv. {user.level}</span>
+                          <span className="text-wood-dark">현재 티어</span>
+                          <span className="font-jua">{currentTier}</span>
                         </div>
                         <div className="h-2 rounded-full bg-gray-200">
-                          <div 
+                          <div
                             className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
-                            style={{ width: `${(user.xp / ((user.level + 1) * 1000)) * 100}%` }}
+                            style={{ width: `${Math.min(100, (currentExp / expMaxXP) * 100)}%` }}
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
                         <div>
                           <p className="text-wood-dark">현재 XP</p>
-                          <p className="font-jua text-sm">{user.xp}</p>
+                          <p className="font-jua text-sm">{currentExp.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-wood-dark">필요 XP</p>
-                          <p className="font-jua text-sm">{(user.level + 1) * 1000 - user.xp}</p>
+                          <p className="text-wood-dark">다음까지</p>
+                          <p className="font-jua text-sm">{(expMaxXP - currentExp).toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-wood-dark">다음 레벨</p>
-                          <p className="font-jua text-sm">Lv. {user.level + 1}</p>
+                          <p className="text-wood-dark">목표 XP</p>
+                          <p className="font-jua text-sm">{expMaxXP.toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
