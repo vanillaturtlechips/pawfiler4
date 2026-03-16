@@ -18,7 +18,7 @@ data "aws_subnets" "public" {
 
 resource "aws_instance" "preprocessing" {
   ami           = "ami-0c9c942bd7bf113a2"
-  instance_type = "g4dn.xlarge"
+  instance_type = "c5.9xlarge"
   
   subnet_id              = tolist(data.aws_subnets.public.ids)[0]
   vpc_security_group_ids = [aws_security_group.preprocessing.id]
