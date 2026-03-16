@@ -337,15 +337,7 @@ const CommunityPage = () => {
               </div>
               <button
                 className="text-xs font-bold px-3 py-1 rounded-full bg-amber-400 text-white hover:bg-amber-500 transition-colors"
-                onClick={async () => {
-                  setShowRanking(true);
-                  if (ranking.length === 0) {
-                    setRankingLoading(true);
-                    try { setRanking(await fetchRanking(rankingSort)); }
-                    catch { setRanking([]); }
-                    finally { setRankingLoading(false); }
-                  }
-                }}
+                onClick={() => navigate('/ranking')}
               >전체 랭킹 보기</button>
             </div>
             <div className="space-y-2">
