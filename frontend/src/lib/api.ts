@@ -843,3 +843,17 @@ export const refillEnergy = async (): Promise<void> => {
     body: JSON.stringify({ user_id: userId }),
   });
 };
+
+export const fetchRanking = async () => {
+  try {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetRanking`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+};

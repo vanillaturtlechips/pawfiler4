@@ -24,6 +24,7 @@ import {
   fetchNotices,
   fetchTopDetective,
   fetchHotTopic,
+  fetchRanking,
 } from "@/lib/api";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -59,6 +60,11 @@ const CommunityPage = () => {
   const [notices, setNotices] = useState<Array<{ id: string; title: string }>>([]);
   const [topDetective, setTopDetective] = useState<{ authorNickname: string; authorEmoji: string; totalLikes: number }>({ authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 });
   const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({ tag: "없음", count: 0 });
+
+  // Ranking Modal State
+  const [showRanking, setShowRanking] = useState(false);
+  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; nickname: string; emoji: string; tierName: string; totalAnswered: number; correctAnswers: number; totalCoins: number }>>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
 
   // CRUD State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -319,10 +325,19 @@ const CommunityPage = () => {
           </ParchmentPanel>
 
           {/* 이달의 명탐정 */}
-          <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-yellow-50/50 to-orange-50/50">
+          <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-yellow-50/50 to-orange-50/50 cursor-pointer hover:shadow-lg transition-shadow" onClick={async () => {
+            setShowRanking(true);
+            setRankingLoading(true);
+            try {
+              const data = await fetchRanking();
+              setRanking(data);
+            } catch { setRanking([]); }
+            finally { setRankingLoading(false); }
+          }}>
             <div className="flex items-center gap-2 mb-3">
               <div className="text-3xl">🏆</div>
               <h3 className="font-jua text-xl text-wood-darkest">이달의 명탐정</h3>
+              <span className="text-xs text-wood-dark ml-auto">랭킹 보기 →</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-yellow-100 border-2 border-yellow-400 flex items-center justify-center text-3xl shadow-lg">
@@ -336,6 +351,40 @@ const CommunityPage = () => {
               </div>
             </div>
           </ParchmentPanel>
+
+          {/* 랭킹 모달 */}
+          <Dialog open={showRanking} onOpenChange={setShowRanking}>
+            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="font-jua text-2xl flex items-center gap-2">🏆 탐정 랭킹</DialogTitle>
+                <DialogDescription>퀴즈 정답 수 기준 랭킹입니다</DialogDescription>
+              </DialogHeader>
+              {rankingLoading ? (
+                <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+              ) : ranking.length === 0 ? (
+                <p className="text-center text-wood-dark py-8">아직 랭킹 데이터가 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {ranking.map((entry) => (
+                    <div key={entry.userId} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${entry.rank <= 3 ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200'}`}>
+                      <span className="font-jua text-xl w-8 text-center">
+                        {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `${entry.rank}`}
+                      </span>
+                      <span className="text-2xl">{entry.emoji}</span>
+                      <div className="flex-1">
+                        <div className="font-jua text-sm">{entry.nickname}</div>
+                        <div className="text-xs text-wood-dark">{entry.tierName}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-green-600">정답 {entry.correctAnswers}개</div>
+                        <div className="text-xs text-wood-dark">{entry.totalAnswered}문제 풀이</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* 오늘의 핫토픽 */}
           <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-red-50/50 to-pink-50/50">
