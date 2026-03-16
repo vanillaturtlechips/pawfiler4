@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GormQuizRepository GORM + Redis를 사용하는 QuizRepository 구현
@@ -411,7 +412,7 @@ func (r *GormQuizRepository) CreateUserProfile(ctx context.Context, userID strin
 		MaxEnergy:        100,
 		LastEnergyRefill: time.Now(),
 	}
-	if err := r.db.WithContext(ctx).Create(&g).Error; err != nil {
+	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&g).Error; err != nil {
 		return nil, fmt.Errorf("failed to create user profile: %w", err)
 	}
 	return g.ToUserProfile(), nil

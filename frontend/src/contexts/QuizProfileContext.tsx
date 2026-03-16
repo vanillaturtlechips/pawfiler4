@@ -53,7 +53,8 @@ export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
     if (isLoggedIn) {
       refreshQuizProfile();
       if (user?.nickname) {
-        syncProfileToQuiz(user.nickname, user.avatarEmoji || '🥚');
+        // 약간 지연해서 GetUserProfile(내부 INSERT)과 race condition 방지
+        setTimeout(() => syncProfileToQuiz(user.nickname, user.avatarEmoji || '🥚'), 1000);
       }
     } else {
       setQuizProfile(null);
