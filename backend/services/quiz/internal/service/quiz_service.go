@@ -320,44 +320,12 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 						tier = "삐약이"
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 400 {
-						profile.TotalExp = exp - 400
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 300 {
-						profile.TotalExp = exp - 300
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 200 {
-						profile.TotalExp = exp - 200
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 100 {
-						profile.TotalExp = exp - 100
-						exp = profile.TotalExp
-						leveledUp = true
 					}
 				case "삐약이":
 					if exp >= 1000 {
 						profile.CurrentTier = "맹금닭"
 						profile.TotalExp = exp - 1000
 						tier = "맹금닭"
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 800 {
-						profile.TotalExp = exp - 800
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 600 {
-						profile.TotalExp = exp - 600
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 400 {
-						profile.TotalExp = exp - 400
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 200 {
-						profile.TotalExp = exp - 200
 						exp = profile.TotalExp
 						leveledUp = true
 					}
@@ -368,41 +336,9 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 						tier = "불사조"
 						exp = profile.TotalExp
 						leveledUp = true
-					} else if exp >= 1600 {
-						profile.TotalExp = exp - 1600
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 1200 {
-						profile.TotalExp = exp - 1200
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 800 {
-						profile.TotalExp = exp - 800
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 400 {
-						profile.TotalExp = exp - 400
-						exp = profile.TotalExp
-						leveledUp = true
 					}
 				case "불사조":
-					if exp >= 4000 {
-						profile.TotalExp = exp - 4000
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 3000 {
-						profile.TotalExp = exp - 3000
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 2000 {
-						profile.TotalExp = exp - 2000
-						exp = profile.TotalExp
-						leveledUp = true
-					} else if exp >= 1000 {
-						profile.TotalExp = exp - 1000
-						exp = profile.TotalExp
-						leveledUp = true
-					}
+					// 최고 티어, 더 이상 승급 없음
 				}
 				if !leveledUp {
 					break
