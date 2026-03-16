@@ -327,16 +327,17 @@ const CommunityPage = () => {
             </div>
             <div className="space-y-2 mb-4">
               {ranking.slice(0, 3).map((entry, i) => (
-                <div key={entry.userId} className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg bg-parchment-border/30">
-                  <span className="text-base shrink-0">{['🥇','🥈','🥉'][i]}</span>
-                  <span className="text-lg shrink-0">
-                    {entry.avatarEmoji || (entry.tier === '불사조' ? '🦅' : entry.tier === '맹금닭' ? '🐓' : entry.tier === '삐약이' ? '🐥' : '🥚')}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-jua text-xs text-wood-darkest truncate">{entry.nickname || `탐정 ${i + 1}위`}</p>
-                    <p className="text-xs text-wood-light">{entry.tier || '알'} Lv.{entry.level ?? 1}</p>
+                <div key={entry.userId} className="py-1.5 px-2 rounded-lg bg-parchment-border/30">
+                  <p className="text-xs text-wood-light mb-0.5">{['🥇 1등','🥈 2등','🥉 3등'][i]}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-base shrink-0">
+                        {entry.avatarEmoji || (entry.tier === '불사조' ? '🦅' : entry.tier === '맹금닭' ? '🐓' : entry.tier === '삐약이' ? '🐥' : '🥚')}
+                      </span>
+                      <p className="font-jua text-sm text-wood-darkest truncate">{entry.nickname || `탐정 ${i + 1}위`}</p>
+                    </div>
+                    <span className="text-xs font-bold text-amber-700 shrink-0">{entry.tier || '알'} Lv.{entry.level ?? 1}</span>
                   </div>
-                  <span className="text-xs font-bold text-amber-700 shrink-0">{entry.correctCount}개</span>
                 </div>
               ))}
               {ranking.length === 0 && <p className="text-xs text-wood-light text-center py-2">데이터 없음</p>}
