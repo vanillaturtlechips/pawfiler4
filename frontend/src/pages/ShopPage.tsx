@@ -27,7 +27,7 @@ interface ShopItem {
 
 const ShopPage = () => {
   const { user, updateUser } = useAuth();
-  const { quizProfile, refreshQuizProfile } = useQuizProfile();
+  const { quizProfile, updateQuizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ShopTab>("packages");
   const [purchasing, setPurchasing] = useState<string | null>(null);
@@ -40,7 +40,6 @@ const ShopPage = () => {
   const userCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   useEffect(() => {
-    refreshQuizProfile();
     fetchShopItems()
       .then(setCatalog)
       .catch(() => {});
@@ -68,7 +67,9 @@ const ShopPage = () => {
       const result = await purchaseItem(userId, item.id);
       toast.success(`${result.item_name}을(를) 구매했습니다!`);
       updateUser({ coins: result.total_coins });
-      await refreshQuizProfile();
+      if (quizProfile) {
+        updateQuizProfile({ ...quizProfile, totalCoins: result.total_coins });
+      }
     } catch (err: any) {
       const msg = err?.data?.error || err?.message || "구매 실패";
       toast.error(msg);
