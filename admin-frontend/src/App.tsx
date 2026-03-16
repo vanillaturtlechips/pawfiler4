@@ -4,6 +4,7 @@ import QuizManagePage from "./pages/QuizManagePage";
 import AdminHomePage from "./pages/AdminHomePage.tsx";
 import AdminCommunityPage from "./pages/AdminCommunityPage.tsx";
 import AdminCommentsPage from "./pages/AdminCommentsPage.tsx";
+import AdminShopPage from "./pages/AdminShopPage.tsx";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/admin/comments" element={<AdminCommentsPage />} />
         <Route path="/quiz" element={<Navigate to="/admin/quiz" replace />} />
         <Route path="/community" element={<Navigate to="/admin/community" replace />} />
+        <Route path="/admin/shop" element={<AdminShopPage />} />
         <Route path="/comments" element={<Navigate to="/admin/comments" replace />} />
       </Routes>
     </BrowserRouter>
