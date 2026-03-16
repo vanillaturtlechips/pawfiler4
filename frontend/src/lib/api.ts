@@ -844,12 +844,12 @@ export const refillEnergy = async (): Promise<void> => {
   });
 };
 
-export const fetchRanking = async () => {
+export const fetchRanking = async (sortBy: string = "correct") => {
   try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetRanking`, {
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRanking`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ sort_by: sortBy }),
     });
     if (!response.ok) return [];
     return await response.json();

@@ -55,6 +55,7 @@ func NewMuxWithDB(svc QuizService, db *sql.DB) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserProfile", withCORS(handleGetUserProfile(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/RefillEnergy", withCORS(handleRefillEnergy(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionStats", withCORS(handleGetQuestionStats(db)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/GetRanking", withCORS(handleGetRanking(db)))
 	}
 	return mux
 }
@@ -350,22 +351,22 @@ func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
 		var args []interface{}
 		if req.QuestionID != "" {
 			query = `
-				SELECT q.id, q.title, q.difficulty,
+				SELECT q.id, q.difficulty,
 					COUNT(ua.id) as total,
 					SUM(CASE WHEN ua.is_correct THEN 1 ELSE 0 END) as correct
 				FROM quiz.questions q
 				LEFT JOIN quiz.user_answers ua ON ua.question_id = q.id
 				WHERE q.id = $1
-				GROUP BY q.id, q.title, q.difficulty`
+				GROUP BY q.id, q.difficulty`
 			args = []interface{}{req.QuestionID}
 		} else {
 			query = `
-				SELECT q.id, q.title, q.difficulty,
+				SELECT q.id, q.difficulty,
 					COUNT(ua.id) as total,
 					SUM(CASE WHEN ua.is_correct THEN 1 ELSE 0 END) as correct
 				FROM quiz.questions q
 				LEFT JOIN quiz.user_answers ua ON ua.question_id = q.id
-				GROUP BY q.id, q.title, q.difficulty
+				GROUP BY q.id, q.difficulty
 				ORDER BY total DESC
 				LIMIT 50`
 		}
@@ -379,7 +380,6 @@ func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
 
 		type stat struct {
 			ID         string  `json:"id"`
-			Title      string  `json:"title"`
 			Difficulty string  `json:"difficulty"`
 			Total      int     `json:"total"`
 			Correct    int     `json:"correct"`
@@ -388,7 +388,7 @@ func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
 		var stats []stat
 		for rows.Next() {
 			var s stat
-			if err := rows.Scan(&s.ID, &s.Title, &s.Difficulty, &s.Total, &s.Correct); err != nil {
+			if err := rows.Scan(&s.ID, &s.Difficulty, &s.Total, &s.Correct); err != nil {
 				continue
 			}
 			if s.Total > 0 {
@@ -400,5 +400,76 @@ func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
 			stats = []stat{}
 		}
 		json.NewEncoder(w).Encode(stats)
+	}
+}
+
+func handleGetRanking(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if db == nil {
+			json.NewEncoder(w).Encode([]map[string]interface{}{})
+			return
+		}
+		var req struct {
+			SortBy string `json:"sort_by"` // "correct", "accuracy", "tier", "coins"
+		}
+		req.SortBy = "correct"
+		json.NewDecoder(r.Body).Decode(&req)
+
+		orderBy := "us.correct_count DESC"
+		switch req.SortBy {
+		case "accuracy":
+			orderBy = "CASE WHEN COALESCE(us.total_answered,0)>0 THEN us.correct_count::float/us.total_answered ELSE 0 END DESC"
+		case "tier":
+			orderBy = "CASE up.current_tier WHEN '불사조' THEN 4 WHEN '맹금닭' THEN 3 WHEN '삐약이' THEN 2 ELSE 1 END DESC, up.total_exp DESC"
+		case "coins":
+			orderBy = "up.total_coins DESC"
+		}
+
+		rows, err := db.QueryContext(r.Context(), `
+			SELECT 
+				up.user_id,
+				COALESCE(up.current_tier, '알') as tier,
+				up.total_exp,
+				up.total_coins,
+				COALESCE(us.total_answered, 0) as total_answered,
+				COALESCE(us.correct_count, 0) as correct_count,
+				CASE WHEN COALESCE(us.total_answered,0) > 0 
+					THEN ROUND(us.correct_count::numeric / us.total_answered * 100, 1)
+					ELSE 0 END as accuracy
+			FROM quiz.user_profiles up
+			LEFT JOIN quiz.user_stats us ON us.user_id = up.user_id
+			ORDER BY `+orderBy)
+		if err != nil {
+			http.Error(w, "query failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		type entry struct {
+			Rank          int     `json:"rank"`
+			UserID        string  `json:"userId"`
+			Tier          string  `json:"tier"`
+			TotalExp      int     `json:"totalExp"`
+			TotalCoins    int     `json:"totalCoins"`
+			TotalAnswered int     `json:"totalAnswered"`
+			CorrectCount  int     `json:"correctCount"`
+			Accuracy      float64 `json:"accuracy"`
+		}
+		var entries []entry
+		rank := 1
+		for rows.Next() {
+			var e entry
+			if err := rows.Scan(&e.UserID, &e.Tier, &e.TotalExp, &e.TotalCoins, &e.TotalAnswered, &e.CorrectCount, &e.Accuracy); err != nil {
+				continue
+			}
+			e.Rank = rank
+			entries = append(entries, e)
+			rank++
+		}
+		if entries == nil {
+			entries = []entry{}
+		}
+		json.NewEncoder(w).Encode(entries)
 	}
 }

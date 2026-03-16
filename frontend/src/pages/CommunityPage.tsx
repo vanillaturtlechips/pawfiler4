@@ -63,8 +63,10 @@ const CommunityPage = () => {
 
   // Ranking Modal State
   const [showRanking, setShowRanking] = useState(false);
-  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; nickname: string; emoji: string; tierName: string; totalAnswered: number; correctAnswers: number; totalCoins: number }>>([]);
+  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; tier: string; totalExp: number; totalCoins: number; totalAnswered: number; correctCount: number; accuracy: number }>>([]);
   const [rankingLoading, setRankingLoading] = useState(false);
+  const [rankingSort, setRankingSort] = useState("correct");
+  const [rankingSearch, setRankingSearch] = useState("");
 
   // CRUD State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -329,7 +331,7 @@ const CommunityPage = () => {
             setShowRanking(true);
             setRankingLoading(true);
             try {
-              const data = await fetchRanking();
+              const data = await fetchRanking(rankingSort);
               setRanking(data);
             } catch { setRanking([]); }
             finally { setRankingLoading(false); }
@@ -354,35 +356,61 @@ const CommunityPage = () => {
 
           {/* 랭킹 모달 */}
           <Dialog open={showRanking} onOpenChange={setShowRanking}>
-            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle className="font-jua text-2xl flex items-center gap-2">🏆 탐정 랭킹</DialogTitle>
-                <DialogDescription>퀴즈 정답 수 기준 랭킹입니다</DialogDescription>
               </DialogHeader>
-              {rankingLoading ? (
-                <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : ranking.length === 0 ? (
-                <p className="text-center text-wood-dark py-8">아직 랭킹 데이터가 없습니다</p>
-              ) : (
-                <div className="space-y-2">
-                  {ranking.map((entry) => (
+
+              {/* 정렬 탭 */}
+              <div className="flex gap-1 flex-wrap">
+                {[
+                  { key: "correct", label: "정답 수" },
+                  { key: "accuracy", label: "정답률" },
+                  { key: "tier", label: "티어" },
+                  { key: "coins", label: "코인" },
+                ].map(tab => (
+                  <button key={tab.key}
+                    className={`px-3 py-1 rounded-full text-xs font-bold border-2 transition-colors ${rankingSort === tab.key ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600'}`}
+                    onClick={async () => {
+                      setRankingSort(tab.key);
+                      setRankingLoading(true);
+                      try { setRanking(await fetchRanking(tab.key)); }
+                      catch { setRanking([]); }
+                      finally { setRankingLoading(false); }
+                    }}
+                  >{tab.label}</button>
+                ))}
+                <input
+                  className="ml-auto px-2 py-1 text-xs border-2 rounded-full border-gray-200 outline-none w-28"
+                  placeholder="🔍 유저 검색"
+                  value={rankingSearch}
+                  onChange={e => setRankingSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="overflow-y-auto flex-1 space-y-2 mt-2">
+                {rankingLoading ? (
+                  [...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
+                ) : ranking.filter(e => !rankingSearch || e.userId.includes(rankingSearch)).length === 0 ? (
+                  <p className="text-center text-wood-dark py-8">데이터가 없습니다</p>
+                ) : (
+                  ranking.filter(e => !rankingSearch || e.userId.toLowerCase().includes(rankingSearch.toLowerCase())).map((entry) => (
                     <div key={entry.userId} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${entry.rank <= 3 ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200'}`}>
                       <span className="font-jua text-xl w-8 text-center">
                         {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `${entry.rank}`}
                       </span>
-                      <span className="text-2xl">{entry.emoji}</span>
-                      <div className="flex-1">
-                        <div className="font-jua text-sm">{entry.nickname}</div>
-                        <div className="text-xs text-wood-dark">{entry.tierName}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-jua text-sm truncate">{entry.userId.slice(0, 8)}...</div>
+                        <div className="text-xs text-wood-dark">{entry.tier} · {entry.totalExp} XP</div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs font-bold text-green-600">정답 {entry.correctAnswers}개</div>
-                        <div className="text-xs text-wood-dark">{entry.totalAnswered}문제 풀이</div>
+                      <div className="text-right text-xs shrink-0">
+                        <div className="font-bold text-green-600">정답 {entry.correctCount}개</div>
+                        <div className="text-wood-dark">{entry.accuracy}% · {entry.totalCoins}코인</div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </DialogContent>
           </Dialog>
 
