@@ -334,7 +334,7 @@ const CommunityPage = () => {
                       <span className="text-base shrink-0">
                         {entry.avatarEmoji || (entry.tier === '불사조' ? '🦅' : entry.tier === '맹금닭' ? '🐓' : entry.tier === '삐약이' ? '🐥' : '🥚')}
                       </span>
-                      <p className="font-jua text-sm text-wood-darkest truncate">{entry.nickname || `탐정 ${i + 1}위`}</p>
+                      <p className="font-jua text-sm text-wood-darkest truncate">{entry.nickname || `탐정#${entry.userId.slice(0, 4).toUpperCase()}`}</p>
                     </div>
                     <span className="text-xs font-bold text-amber-700 shrink-0">{entry.tier || '알'} Lv.{entry.level ?? 1}</span>
                   </div>
