@@ -111,31 +111,32 @@ const ProfilePage = () => {
   const currentTier = quizProfile?.tierName ?? '알 Lv.1';
   const expMaxXP = (() => {
     if (currentTier.startsWith('불사조')) {
-      if (currentExp >= 4000) return 5000;
-      if (currentExp >= 3000) return 4000;
-      if (currentExp >= 2000) return 3000;
-      if (currentExp >= 1000) return 2000;
-      return 1000;
+      if (currentExp >= 8000) return 10000;
+      if (currentExp >= 6000) return 8000;
+      if (currentExp >= 4000) return 6000;
+      if (currentExp >= 2000) return 4000;
+      return 2000;
     }
     if (currentTier.startsWith('맹금닭')) {
+      if (currentExp >= 3200) return 4000;
+      if (currentExp >= 2400) return 3200;
+      if (currentExp >= 1600) return 2400;
+      if (currentExp >= 800) return 1600;
+      return 800;
+    }
+    if (currentTier.startsWith('삐약이')) {
       if (currentExp >= 1600) return 2000;
       if (currentExp >= 1200) return 1600;
       if (currentExp >= 800) return 1200;
       if (currentExp >= 400) return 800;
       return 400;
     }
-    if (currentTier.startsWith('삐약이')) {
-      if (currentExp >= 800) return 1000;
-      if (currentExp >= 600) return 800;
-      if (currentExp >= 400) return 600;
-      if (currentExp >= 200) return 400;
-      return 200;
-    }
-    if (currentExp >= 400) return 500;
-    if (currentExp >= 300) return 400;
-    if (currentExp >= 200) return 300;
-    if (currentExp >= 100) return 200;
-    return 100;
+    // 알
+    if (currentExp >= 800) return 1000;
+    if (currentExp >= 600) return 800;
+    if (currentExp >= 400) return 600;
+    if (currentExp >= 200) return 400;
+    return 200;
   })();
 
   return (
@@ -207,73 +208,13 @@ const ProfilePage = () => {
                     <Star className="w-3 h-3 text-amber-500" />
                     경험치
                   </span>
-                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(() => {
-                    const tierName = quizProfile?.tierName ?? '알 Lv.1';
-                    const exp = quizProfile?.totalExp ?? 0;
-                    if (tierName.startsWith('불사조')) {
-                      if (exp >= 4000) return 5000;
-                      if (exp >= 3000) return 4000;
-                      if (exp >= 2000) return 3000;
-                      if (exp >= 1000) return 2000;
-                      return 1000;
-                    }
-                    if (tierName.startsWith('맹금닭')) {
-                      if (exp >= 1600) return 2000;
-                      if (exp >= 1200) return 1600;
-                      if (exp >= 800) return 1200;
-                      if (exp >= 400) return 800;
-                      return 400;
-                    }
-                    if (tierName.startsWith('삐약이')) {
-                      if (exp >= 800) return 1000;
-                      if (exp >= 600) return 800;
-                      if (exp >= 400) return 600;
-                      if (exp >= 200) return 400;
-                      return 200;
-                    }
-                    // 알
-                    if (exp >= 400) return 500;
-                    if (exp >= 300) return 400;
-                    if (exp >= 200) return 300;
-                    if (exp >= 100) return 200;
-                    return 100;
-                  })()} XP</span>
+                  <span className="text-xs">{currentExp} / {expMaxXP} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
                   <motion.div
                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
                     initial={{ width: 0 }}
-                    animate={{ width: `${(() => {
-                      const tierName = quizProfile?.tierName ?? '알 Lv.1';
-                      const exp = quizProfile?.totalExp ?? 0;
-                      let maxXP = 100;
-                      if (tierName.startsWith('불사조')) {
-                        if (exp >= 4000) maxXP = 5000;
-                        else if (exp >= 3000) maxXP = 4000;
-                        else if (exp >= 2000) maxXP = 3000;
-                        else if (exp >= 1000) maxXP = 2000;
-                        else maxXP = 1000;
-                      } else if (tierName.startsWith('맹금닭')) {
-                        if (exp >= 1600) maxXP = 2000;
-                        else if (exp >= 1200) maxXP = 1600;
-                        else if (exp >= 800) maxXP = 1200;
-                        else if (exp >= 400) maxXP = 800;
-                        else maxXP = 400;
-                      } else if (tierName.startsWith('삐약이')) {
-                        if (exp >= 800) maxXP = 1000;
-                        else if (exp >= 600) maxXP = 800;
-                        else if (exp >= 400) maxXP = 600;
-                        else if (exp >= 200) maxXP = 400;
-                        else maxXP = 200;
-                      } else {
-                        if (exp >= 400) maxXP = 500;
-                        else if (exp >= 300) maxXP = 400;
-                        else if (exp >= 200) maxXP = 300;
-                        else if (exp >= 100) maxXP = 200;
-                        else maxXP = 100;
-                      }
-                      return Math.min(100, (exp / maxXP) * 100);
-                    })()}%` }}
+                    animate={{ width: `${Math.min(100, (currentExp / expMaxXP) * 100)}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                   />
                 </div>
