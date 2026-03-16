@@ -105,6 +105,21 @@ output "quiz_media_cloudfront_url" {
   value       = module.s3.quiz_media_cloudfront_url
 }
 
+output "community_media_bucket_name" {
+  description = "Name of the community media S3 bucket"
+  value       = module.s3.community_media_bucket_name
+}
+
+output "community_media_cloudfront_domain" {
+  description = "CloudFront domain for community media"
+  value       = module.s3.community_media_cloudfront_domain
+}
+
+output "community_media_cloudfront_url" {
+  description = "Full CloudFront URL for community media"
+  value       = module.s3.community_media_cloudfront_url
+}
+
 # Bastion
 output "bastion_public_ip" {
   description = "Public IP address of the Bastion Host"

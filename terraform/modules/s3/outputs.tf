@@ -37,3 +37,23 @@ output "quiz_media_cloudfront_url" {
   description = "Full CloudFront URL for quiz media"
   value       = "https://${aws_cloudfront_distribution.quiz_media.domain_name}"
 }
+
+output "community_media_bucket_name" {
+  description = "Name of the community media S3 bucket"
+  value       = aws_s3_bucket.community_media.id
+}
+
+output "community_media_bucket_arn" {
+  description = "ARN of the community media S3 bucket"
+  value       = aws_s3_bucket.community_media.arn
+}
+
+output "community_media_cloudfront_domain" {
+  description = "CloudFront domain for community media"
+  value       = aws_cloudfront_distribution.community_media.domain_name
+}
+
+output "community_media_cloudfront_url" {
+  description = "Full CloudFront URL for community media"
+  value       = "https://${aws_cloudfront_distribution.community_media.domain_name}"
+}

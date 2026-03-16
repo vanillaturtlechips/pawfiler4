@@ -13,8 +13,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import HomePage from "@/pages/HomePage";
 import GamePage from "@/pages/GamePage";
 import AnalysisPage from "@/pages/AnalysisPage";
-import CommunityPage from "@/pages/CommunityPage";
+import CommunityPage from "./pages/CommunityPage";
 import CommunityPostPage from "@/pages/CommunityPostPage";
+import RankingPage from "@/pages/RankingPage";
 import ShopPage from "@/pages/ShopPage";
 import ProfilePage from "@/pages/ProfilePage";
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -70,6 +71,7 @@ const AppContent = () => {
                 <Route path="/analysis" element={<AuthGuard><AnalysisPage /></AuthGuard>} />
                 <Route path="/community" element={<AuthGuard><CommunityPage /></AuthGuard>} />
                 <Route path="/community/:postId" element={<AuthGuard><CommunityPostPage /></AuthGuard>} />
+                <Route path="/ranking" element={<AuthGuard><RankingPage /></AuthGuard>} />
                 <Route path="/shop" element={<AuthGuard><ShopPage /></AuthGuard>} />
                 <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
                 <Route path="*" element={<NotFound />} />

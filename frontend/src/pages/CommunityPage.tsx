@@ -1,137 +1,159 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import ParchmentPanel from "@/components/ParchmentPanel";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchRanking } from "@/lib/api";
 import {
-  fetchCommunityFeed,
   createCommunityPost,
   updateCommunityPost,
   deleteCommunityPost,
-  fetchNotices,
   fetchTopDetective,
   fetchHotTopic,
-  fetchRanking,
-} from "@/lib/api";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-
-import type { CommunityPost } from "@/lib/types";
+} from "@/lib/communityApi";
+import { PlusCircle } from "lucide-react";
+import type { CommunityPost, MediaType } from "@/lib/types";
 import { toast } from "sonner";
-import { 
-  Edit2, 
-  Trash2, 
-  PlusCircle, 
-  Search, 
-  X, 
-  Heart, 
-  MessageCircle,
-  Loader2
-} from "lucide-react";
+
+// 분리된 컴포넌트들
+import CommunityDashboard from "@/components/community/CommunityDashboard";
+import CommunitySearch from "@/components/community/CommunitySearch";
+import CommunityPostTable from "@/components/community/CommunityPostTable";
+import CommunityPagination from "@/components/community/CommunityPagination";
+import WriteModal from "@/components/community/WriteModal";
+import { useCommunitySearch } from "@/hooks/useCommunitySearch";
 
 const CommunityPage = () => {
-  const navigate = useNavigate();
   const { token, user } = useAuth();
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [loading, setLoading] = useState(true);
   
-  // Feed & Pagination State
-  const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const pageSize = 15;
-
-  // Search State
-  const [query, setQuery] = useState("");
-  const [searchType, setSearchType] = useState<"title" | "body" | "all">("title");
+  // 검색 및 피드 관련 상태는 커스텀 훅으로 이동
+  const {
+    posts,
+    setPosts,
+    loading,
+    page,
+    totalCount,
+    setTotalCount,
+    pageSize,
+    query,
+    setQuery,
+    searchType,
+    setSearchType,
+    handlePageChange,
+  } = useCommunitySearch(token);
 
   // Dashboard State
-  const [notices, setNotices] = useState<Array<{ id: string; title: string }>>([]);
-  const [topDetective, setTopDetective] = useState<{ authorNickname: string; authorEmoji: string; totalLikes: number }>({ authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 });
-  const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({ tag: "없음", count: 0 });
+  const [topDetective, setTopDetective] = useState<{
+    authorNickname: string;
+    authorEmoji: string;
+    totalLikes: number;
+  }>({
+    authorNickname: "아직 없음",
+    authorEmoji: "🏆",
+    totalLikes: 0,
+  });
+  const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({
+    tag: "없음",
+    count: 0,
+  });
 
   // Ranking Modal State
-  const [showRanking, setShowRanking] = useState(false);
-  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; tier: string; totalExp: number; totalCoins: number; totalAnswered: number; correctCount: number; accuracy: number }>>([]);
-  const [rankingLoading, setRankingLoading] = useState(false);
-  const [rankingSort, setRankingSort] = useState("correct");
-  const [rankingSearch, setRankingSearch] = useState("");
+  const [ranking, setRanking] = useState<
+    Array<{
+      rank: number;
+      userId: string;
+      nickname: string;
+      avatarEmoji: string;
+      tier: string;
+      level: number;
+      totalExp: number;
+      totalCoins: number;
+      totalAnswered: number;
+      correctCount: number;
+      accuracy: number;
+    }>
+  >([]);
+  const [featuredPosts, setFeaturedPosts] = useState<
+    Array<{
+      id: string;
+      title: string;
+      authorNickname: string;
+      likes: number;
+    }>
+  >([]);
 
-  // CRUD State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // WriteModal State (분리된 컴포넌트용)
+  const [writeModalOpen, setWriteModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<CommunityPost | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formBody, setFormBody] = useState("");
   const [formTags, setFormTags] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<MediaType | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const fetchFeed = async (p: number, search?: string) => {
-    try {
-      setLoading(true);
-      const feed = await fetchCommunityFeed(p, pageSize, search, searchType);
-      setTotalCount(feed.totalCount);
-      setPage(p);
-      setPosts(feed.posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    } catch (error) {
-      console.error('Failed to fetch feed:', error);
-      toast.error("게시글을 불러오는데 실패했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!token) return;
-    fetchFeed(1);
     loadDashboardData();
   }, [token]);
 
   const loadDashboardData = async () => {
     try {
-      const [noticesData, detectiveData, topicData, rankingData] = await Promise.all([
-        fetchNotices(),
+      const [detectiveData, topicData, rankingData] = await Promise.all([
         fetchTopDetective(),
         fetchHotTopic(),
         fetchRanking("correct"),
       ]);
-      setNotices(noticesData);
       setTopDetective(detectiveData);
       setHotTopic(topicData);
       setRanking(rankingData);
+      
+      // 추천 글은 현재 posts에서 좋아요 순으로 정렬
+      const sorted = [...posts]
+        .sort((a, b) => b.likes - a.likes)
+        .slice(0, 3);
+      setFeaturedPosts(
+        sorted.map((p) => ({
+          id: p.id,
+          title: p.title,
+          authorNickname: p.authorNickname,
+          likes: p.likes,
+        }))
+      );
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error("Failed to load dashboard data:", error);
     }
   };
 
-  // 초기 로드 및 검색어 변경 시 디바운싱 적용
+  // posts가 변경될 때마다 추천 글 업데이트
   useEffect(() => {
-    if (!token) return;
-    
-    const timer = setTimeout(() => {
-      fetchFeed(1, query || undefined);
-      loadDashboardData();
-    }, 300); // 300ms 디바운싱
-
-    return () => clearTimeout(timer);
-  }, [query, searchType, token]);
-
+    if (posts.length > 0) {
+      const sorted = [...posts]
+        .sort((a, b) => b.likes - a.likes)
+        .slice(0, 3);
+      setFeaturedPosts(
+        sorted.map((p) => ({
+          id: p.id,
+          title: p.title,
+          authorNickname: p.authorNickname,
+          likes: p.likes,
+        }))
+      );
+    }
+  }, [posts]);
+  // WriteModal 관련 함수들
   const handleOpenCreate = () => {
     setEditingPost(null);
     setFormTitle("");
     setFormBody("");
     setFormTags("");
-    setIsModalOpen(true);
+    setMediaFile(null);
+    setMediaPreview(null);
+    setMediaType(null);
+    setIsCorrect(null);
+    setWriteModalOpen(true);
   };
 
   const handleOpenEdit = (e: React.MouseEvent, post: CommunityPost) => {
@@ -140,7 +162,10 @@ const CommunityPage = () => {
     setFormTitle(post.title);
     setFormBody(post.body);
     setFormTags(post.tags.join(", "));
-    setIsModalOpen(true);
+    setMediaPreview(post.mediaUrl || null);
+    setMediaType(post.mediaType || null);
+    setIsCorrect(post.isCorrect);
+    setWriteModalOpen(true);
   };
 
   const handleDelete = async (e: React.MouseEvent, postId: string) => {
@@ -154,14 +179,89 @@ const CommunityPage = () => {
       setTotalCount((prev) => Math.max(0, prev - 1));
       toast.success("게시글이 삭제되었습니다.");
     } catch (error) {
-      console.error('Failed to delete post:', error);
+      console.error("Failed to delete post:", error);
       toast.error("게시글 삭제에 실패했습니다.");
     }
+  };
+
+  // 미디어 파일 처리
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("파일 크기는 100MB 이하여야 합니다.");
+      return;
+    }
+
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+
+    if (!isVideo && !isImage) {
+      toast.error("이미지 또는 비디오 파일만 업로드 가능합니다.");
+      return;
+    }
+
+    setMediaFile(file);
+    setMediaType(isVideo ? "video" : "image");
+
+    const reader = new FileReader();
+    reader.onload = (e) => setMediaPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+  // 드래그 앤 드롭
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error("파일 크기는 100MB 이하여야 합니다.");
+        return;
+      }
+
+      const isVideo = file.type.startsWith("video/");
+      const isImage = file.type.startsWith("image/");
+
+      if (!isVideo && !isImage) {
+        toast.error("이미지 또는 비디오 파일만 업로드 가능합니다.");
+        return;
+      }
+
+      setMediaFile(file);
+      setMediaType(isVideo ? "video" : "image");
+
+      const reader = new FileReader();
+      reader.onload = (e) => setMediaPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearMedia = () => {
+    setMediaFile(null);
+    setMediaPreview(null);
+    setMediaType(null);
   };
 
   const handleSubmit = async () => {
     if (!formTitle.trim() || !formBody.trim()) {
       toast.error("제목과 내용을 입력해주세요.");
+      return;
+    }
+
+    if (!editingPost && isCorrect === null) {
+      toast.error("정답 또는 오답을 선택해주세요.");
       return;
     }
 
@@ -181,7 +281,9 @@ const CommunityPage = () => {
           body: formBody,
           tags,
         });
-        setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+        setPosts((prev) =>
+          prev.map((p) => (p.id === updated.id ? updated : p))
+        );
         toast.success("게시글이 수정되었습니다.");
       } else {
         if (!user) return;
@@ -192,6 +294,8 @@ const CommunityPage = () => {
           title: formTitle,
           body: formBody,
           tags,
+          ...(mediaFile && { mediaFile }),
+          isCorrect: isCorrect!,
         });
         // 검색 중이 아닐 때만 목록에 추가
         if (!query) {
@@ -200,23 +304,27 @@ const CommunityPage = () => {
         setTotalCount((prev) => prev + 1);
         toast.success("새 게시글이 등록되었습니다.");
       }
-      setIsModalOpen(false);
+      setWriteModalOpen(false);
       setFormTitle("");
       setFormBody("");
       setFormTags("");
+      clearMedia();
     } catch (error) {
-      console.error('Failed to submit post:', error);
+      console.error("Failed to submit post:", error);
       toast.error("게시글 처리에 실패했습니다.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 클라이언트 사이드 필터링 제거 - 서버에서 처리
-  const visiblePosts = posts;
-
+  const handleTagClick = (tag: string) => {
+    setQuery(tag);
+  };
   return (
-    <div className="h-[calc(100vh-5rem)] w-full overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
+    <div
+      className="h-[calc(100vh-5rem)] w-full overflow-y-auto"
+      style={{ scrollbarGutter: "stable" }}
+    >
       <motion.div
         className="flex flex-col gap-6 p-6 max-w-[1400px] mx-auto"
         initial={{ opacity: 0 }}
@@ -228,8 +336,12 @@ const CommunityPage = () => {
             <div className="flex items-center gap-4">
               <div className="text-6xl">📜</div>
               <div className="flex flex-col">
-                <h1 className="font-jua text-5xl text-foreground text-shadow-glow tracking-tight">동물들의 광장</h1>
-                <p className="text-muted-foreground font-jua text-lg opacity-80">탐정들의 비밀 정보 교환소</p>
+                <h1 className="font-jua text-5xl text-foreground text-shadow-glow tracking-tight">
+                  동물들의 광장
+                </h1>
+                <p className="text-muted-foreground font-jua text-lg opacity-80">
+                  탐정들의 비밀 정보 교환소
+                </p>
               </div>
             </div>
             <Button
@@ -241,569 +353,66 @@ const CommunityPage = () => {
               글쓰기
             </Button>
           </div>
-
-          <div className="flex gap-4">
-            <div className="relative group flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-orange-500 transition-colors" size={22} />
-              <Input
-                placeholder={
-                  searchType === "title" ? "제목으로 검색..." :
-                  searchType === "body" ? "내용으로 검색..." :
-                  "제목 + 내용으로 검색..."
-                }
-                className="pl-12 py-6 text-lg rounded-2xl border-4 border-parchment-border bg-white text-gray-900 placeholder:text-gray-400 backdrop-blur-sm focus-visible:ring-orange-500/50 font-jua"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-black/5 rounded-full transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              )}
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setSearchType("title")}
-                variant={searchType === "title" ? "default" : "outline"}
-                className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
-                  searchType === "title" 
-                    ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                    : "bg-white hover:bg-orange-50 text-wood-darkest"
-                }`}
-              >
-                제목
-              </Button>
-              <Button
-                onClick={() => setSearchType("body")}
-                variant={searchType === "body" ? "default" : "outline"}
-                className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
-                  searchType === "body" 
-                    ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                    : "bg-white hover:bg-orange-50 text-wood-darkest"
-                }`}
-              >
-                내용
-              </Button>
-              <Button
-                onClick={() => setSearchType("all")}
-                variant={searchType === "all" ? "default" : "outline"}
-                className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
-                  searchType === "all" 
-                    ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                    : "bg-white hover:bg-orange-50 text-wood-darkest"
-                }`}
-              >
-                전체
-              </Button>
-            </div>
-          </div>
+          <CommunitySearch
+            query={query}
+            setQuery={setQuery}
+            searchType={searchType}
+            setSearchType={setSearchType}
+          />
         </header>
+        {/* Dashboard Panels */}
+        <CommunityDashboard
+          featuredPosts={featuredPosts}
+          ranking={ranking}
+          hotTopic={hotTopic}
+          topDetective={topDetective}
+          onTagClick={handleTagClick}
+        />
 
-        {/* Notice & Info Panels */}
-        <div className="grid grid-cols-3 gap-4">
-          {/* 공지사항 */}
-          <ParchmentPanel className="p-5 rounded-2xl border-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="text-3xl">📌</div>
-              <h3 className="font-jua text-xl text-wood-darkest">공지사항</h3>
-            </div>
-            <div className="space-y-2">
-              {notices.length > 0 ? (
-                notices.map((notice) => (
-                  <div
-                    key={notice.id}
-                    onClick={() => navigate(`/community/${notice.id}`)}
-                    className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors truncate"
-                  >
-                    • {notice.title}
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-wood-dark/50">공지사항이 없습니다</div>
-              )}
-            </div>
-          </ParchmentPanel>
-
-          {/* 이달의 명탐정 */}
-          <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-yellow-50/50 to-orange-50/50">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl">🏆</div>
-                <h3 className="font-jua text-lg text-wood-darkest">명탐정 랭킹</h3>
-              </div>
-              <button
-                className="text-xs font-bold px-3 py-1 rounded-full bg-amber-400 text-white hover:bg-amber-500 transition-colors"
-                onClick={async () => {
-                  setShowRanking(true);
-                  if (ranking.length === 0) {
-                    setRankingLoading(true);
-                    try { setRanking(await fetchRanking(rankingSort)); }
-                    catch { setRanking([]); }
-                    finally { setRankingLoading(false); }
-                  }
-                }}
-              >전체 랭킹 보기</button>
-            </div>
-            <div className="space-y-2">
-              {ranking.slice(0, 3).map((entry, i) => (
-                <div key={entry.userId} className="flex items-center gap-2">
-                  <span className="text-lg w-6">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="font-jua text-sm truncate block">{entry.userId.slice(0, 8)}...</span>
-                    <span className="text-xs text-wood-dark">{entry.tier || '알'}</span>
-                  </div>
-                  <span className="text-xs font-bold text-green-600 shrink-0">정답 {entry.correctCount}개</span>
-                </div>
-              ))}
-              {ranking.length === 0 && <p className="text-xs text-wood-dark text-center py-2">데이터 없음</p>}
-            </div>
-          </ParchmentPanel>
-
-          {/* 랭킹 모달 - 전체화면 */}
-          <Dialog open={showRanking} onOpenChange={setShowRanking}>
-            <DialogContent className="max-w-2xl w-full h-[90vh] flex flex-col p-0 overflow-hidden">
-              {/* 헤더 */}
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white shrink-0">
-                <DialogTitle className="font-jua text-3xl mb-1">🏆 탐정 명예의 전당</DialogTitle>
-                <DialogDescription className="text-amber-100 text-sm">퀴즈 실력으로 순위를 겨뤄보세요</DialogDescription>
-              </div>
-
-              {/* 정렬 탭 + 검색 */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b bg-amber-50 shrink-0 flex-wrap">
-                {[
-                  { key: "correct", label: "🎯 정답 수" },
-                  { key: "accuracy", label: "📊 정답률" },
-                  { key: "tier", label: "⭐ 티어" },
-                  { key: "coins", label: "💰 코인" },
-                ].map(tab => (
-                  <button key={tab.key}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${rankingSort === tab.key ? 'bg-amber-500 text-white shadow-md scale-105' : 'bg-white text-gray-600 border border-gray-200 hover:border-amber-300'}`}
-                    onClick={async () => {
-                      setRankingSort(tab.key);
-                      setRankingLoading(true);
-                      try { setRanking(await fetchRanking(tab.key)); }
-                      catch { setRanking([]); }
-                      finally { setRankingLoading(false); }
-                    }}
-                  >{tab.label}</button>
-                ))}
-                <input
-                  className="ml-auto px-3 py-1.5 text-xs border-2 rounded-full border-amber-200 outline-none focus:border-amber-400 w-32 bg-white"
-                  placeholder="🔍 유저 검색"
-                  value={rankingSearch}
-                  onChange={e => setRankingSearch(e.target.value)}
-                />
-              </div>
-
-              {/* 랭킹 리스트 */}
-              <div className="overflow-y-auto flex-1 p-4 space-y-2">
-                {rankingLoading ? (
-                  [...Array(8)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)
-                ) : (() => {
-                  const filtered = ranking.filter(e => !rankingSearch || e.userId.toLowerCase().includes(rankingSearch.toLowerCase()));
-                  if (filtered.length === 0) return <p className="text-center text-gray-400 py-16 text-lg">😢 데이터가 없습니다</p>;
-                  return filtered.map((entry) => {
-                    const tierEmoji = entry.tier === '불사조' ? '🦅' : entry.tier === '맹금닭' ? '🐓' : entry.tier === '삐약이' ? '🐥' : '🥚';
-                    const isTop3 = entry.rank <= 3;
-                    return (
-                      <div key={entry.userId} className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all hover:shadow-md ${
-                        entry.rank === 1 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-400' :
-                        entry.rank === 2 ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-300' :
-                        entry.rank === 3 ? 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-300' :
-                        'bg-white border-gray-100'
-                      }`}>
-                        {/* 순위 */}
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-jua text-lg shrink-0 ${
-                          entry.rank === 1 ? 'bg-yellow-400 text-white' :
-                          entry.rank === 2 ? 'bg-gray-300 text-white' :
-                          entry.rank === 3 ? 'bg-orange-400 text-white' :
-                          'bg-gray-100 text-gray-500 text-sm'
-                        }`}>
-                          {isTop3 ? ['🥇','🥈','🥉'][entry.rank-1] : entry.rank}
-                        </div>
-                        {/* 티어 이모지 */}
-                        <div className="text-2xl shrink-0">{tierEmoji}</div>
-                        {/* 유저 정보 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-jua text-sm truncate">{entry.userId.slice(0, 12)}...</div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                              entry.tier === '불사조' ? 'bg-red-100 text-red-600' :
-                              entry.tier === '맹금닭' ? 'bg-orange-100 text-orange-600' :
-                              entry.tier === '삐약이' ? 'bg-yellow-100 text-yellow-600' :
-                              'bg-gray-100 text-gray-500'
-                            }`}>{entry.tier || '알'}</span>
-                            <span className="text-xs text-gray-400">{entry.totalExp} XP</span>
-                          </div>
-                        </div>
-                        {/* 스탯 */}
-                        <div className="text-right shrink-0 space-y-0.5">
-                          <div className="font-bold text-green-600 text-sm">✅ {entry.correctCount}개</div>
-                          <div className="text-xs text-gray-400">{entry.accuracy}% · 💰{entry.totalCoins}</div>
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* 오늘의 핫토픽 */}
-          <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-red-50/50 to-pink-50/50">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="text-3xl">🔥</div>
-              <h3 className="font-jua text-xl text-wood-darkest">오늘의 핫토픽</h3>
-            </div>
-            <div className="space-y-1">
-              <div 
-                className="text-sm font-bold text-red-600 cursor-pointer hover:text-red-700 transition-colors"
-                onClick={() => {
-                  if (hotTopic.tag !== "없음") {
-                    setQuery(hotTopic.tag);
-                  }
-                }}
-              >
-                #{hotTopic.tag}
-              </div>
-              <div className="text-xs text-wood-dark">
-                {hotTopic.count > 0 ? `${hotTopic.count}개 게시글에서 언급` : '데이터 없음'}
-              </div>
-              {hotTopic.count > 0 && (
-                <div className="flex gap-2 mt-2">
-                  <Badge className="bg-red-100 text-red-600 text-xs">+{hotTopic.count}</Badge>
-                  <Badge className="bg-orange-100 text-orange-600 text-xs">인기급상승</Badge>
-                </div>
-              )}
-            </div>
-          </ParchmentPanel>
-        </div>
-
-        {/* Board Table */}
-        <ParchmentPanel className="rounded-3xl border-[6px] overflow-hidden">
-          {loading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-4 p-4">
-                  <Skeleton className="h-6 w-16 bg-parchment-border/50" />
-                  <Skeleton className="h-6 flex-1 bg-parchment-border/50" />
-                  <Skeleton className="h-6 w-24 bg-parchment-border/50" />
-                  <Skeleton className="h-6 w-20 bg-parchment-border/50" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* Table Header */}
-              <div className="bg-wood-dark/30 border-b-4 border-wood-darkest">
-                <div className="grid grid-cols-[80px_1fr_150px_120px_100px_80px] gap-4 p-4 font-jua text-lg text-wood-darkest">
-                  <div className="text-center">번호</div>
-                  <div>제목</div>
-                  <div className="text-center">작성자</div>
-                  <div className="text-center">작성일</div>
-                  <div className="text-center">반응</div>
-                  <div className="text-center">관리</div>
-                </div>
-              </div>
-
-              {/* Table Body */}
-              <div className="divide-y-2 divide-parchment-border/50">
-                {visiblePosts.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="py-20 text-center"
-                  >
-                    <div className="text-8xl mb-6">🔍</div>
-                    <div className="opacity-50 font-jua text-3xl text-wood-dark">
-                      게시글이 없습니다
-                    </div>
-                    <p className="text-muted-foreground font-jua mt-2">첫 번째 글을 작성해보세요!</p>
-                  </motion.div>
-                ) : (
-                  <AnimatePresence mode="popLayout">
-                    {visiblePosts.map((post, index) => (
-                      <motion.div
-                        key={post.id}
-                        layout
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="grid grid-cols-[80px_1fr_150px_120px_100px_80px] gap-4 p-4 hover:bg-orange-50/30 transition-colors cursor-pointer group relative"
-                        onClick={() => navigate(`/community/${post.id}`)}
-                      >
-                        {/* 번호 */}
-                        <div className="text-center font-jua text-lg text-wood-dark flex items-center justify-center">
-                          {totalCount - ((page - 1) * pageSize) - index}
-                        </div>
-
-                        {/* 제목 */}
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-jua text-xl text-wood-darkest group-hover:text-orange-600 transition-colors truncate flex-1">
-                              {post.title}
-                            </h3>
-                            {post.comments > 0 && (
-                              <span className="text-blue-600 font-jua text-sm flex-shrink-0">
-                                [{post.comments}]
-                              </span>
-                            )}
-                            {post.likes > 50 && (
-                              <Badge className="bg-red-100 text-red-600 border-none px-2 py-0 text-xs font-jua flex-shrink-0">
-                                HOT
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex gap-2 flex-wrap">
-                            {post.tags.slice(0, 3).map((tag) => (
-                              <span key={tag} className="text-xs text-orange-600 font-jua">
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 작성자 */}
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="text-2xl">{post.authorEmoji}</span>
-                          <span className="font-jua text-base text-wood-dark truncate">
-                            {post.authorNickname}
-                          </span>
-                        </div>
-
-                        {/* 작성일 */}
-                        <div className="text-center font-medium text-sm text-wood-dark/70 flex items-center justify-center">
-                          {new Date(post.createdAt).toLocaleDateString("ko-KR", {
-                            month: "2-digit",
-                            day: "2-digit",
-                          })}
-                        </div>
-
-                        {/* 반응 */}
-                        <div className="flex items-center justify-center gap-3 text-sm">
-                          <span className="flex items-center gap-1 text-red-500">
-                            <Heart size={14} />
-                            {post.likes}
-                          </span>
-                          <span className="flex items-center gap-1 text-blue-500">
-                            <MessageCircle size={14} />
-                            {post.comments}
-                          </span>
-                        </div>
-
-                        {/* 액션 버튼 */}
-                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          {user && (post.userId === user.id || post.authorNickname === user.nickname) ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
-                                onClick={(e) => handleOpenEdit(e, post)}
-                              >
-                                <Edit2 size={14} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
-                                onClick={(e) => handleDelete(e, post.id)}
-                              >
-                                <Trash2 size={14} />
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                )}
-              </div>
-            </>
-          )}
-        </ParchmentPanel>
+        {/* Post Table */}
+        <CommunityPostTable
+          posts={posts}
+          loading={loading}
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onEdit={handleOpenEdit}
+          onDelete={handleDelete}
+        />
 
         {/* Pagination */}
-        {totalCount > pageSize && (
-          <div className="flex items-center justify-center gap-4 py-8">
-            <Button
-              onClick={() => fetchFeed(Math.max(1, page - 1), query || undefined)}
-              disabled={page === 1 || loading}
-              variant="outline"
-              size="lg"
-              className="font-jua text-lg gap-2 rounded-2xl px-6 py-6 border-4 border-wood-darkest"
-            >
-              <ChevronLeft size={24} />
-              이전
-            </Button>
+        <CommunityPagination
+          page={page}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading}
+          onPageChange={handlePageChange}
+        />
 
-            <div className="flex items-center gap-2">
-              {(() => {
-                const totalPages = Math.ceil(totalCount / pageSize);
-                const maxVisiblePages = 10;
-                let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
-                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-                
-                // Adjust start if we're near the end
-                if (endPage - startPage < maxVisiblePages - 1) {
-                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                }
-
-                const pages = [];
-                
-                // First page
-                if (startPage > 1) {
-                  pages.push(
-                    <Button
-                      key={1}
-                      onClick={() => fetchFeed(1, query || undefined)}
-                      disabled={loading}
-                      className="font-jua text-lg w-12 h-12 rounded-xl transition-all bg-white hover:bg-orange-50 text-wood-darkest border-2 border-wood-darkest"
-                    >
-                      1
-                    </Button>
-                  );
-                  if (startPage > 2) {
-                    pages.push(<span key="ellipsis1" className="px-2">...</span>);
-                  }
-                }
-
-                // Visible pages
-                for (let i = startPage; i <= endPage; i++) {
-                  const isCurrentPage = i === page;
-                  pages.push(
-                    <Button
-                      key={i}
-                      onClick={() => fetchFeed(i, query || undefined)}
-                      disabled={loading}
-                      className={`font-jua text-lg w-12 h-12 rounded-xl transition-all ${
-                        isCurrentPage
-                          ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg'
-                          : 'bg-white hover:bg-orange-50 text-wood-darkest border-2 border-wood-darkest'
-                      }`}
-                    >
-                      {i}
-                    </Button>
-                  );
-                }
-
-                // Last page
-                if (endPage < totalPages) {
-                  if (endPage < totalPages - 1) {
-                    pages.push(<span key="ellipsis2" className="px-2">...</span>);
-                  }
-                  pages.push(
-                    <Button
-                      key={totalPages}
-                      onClick={() => fetchFeed(totalPages, query || undefined)}
-                      disabled={loading}
-                      className="font-jua text-lg w-12 h-12 rounded-xl transition-all bg-white hover:bg-orange-50 text-wood-darkest border-2 border-wood-darkest"
-                    >
-                      {totalPages}
-                    </Button>
-                  );
-                }
-
-                return pages;
-              })()}
-            </div>
-
-            <Button
-              onClick={() => fetchFeed(Math.min(Math.ceil(totalCount / pageSize), page + 1), query || undefined)}
-              disabled={page === Math.ceil(totalCount / pageSize) || loading}
-              variant="outline"
-              size="lg"
-              className="font-jua text-lg gap-2 rounded-2xl px-6 py-6 border-4 border-wood-darkest"
-            >
-              다음
-              <ChevronRight size={24} />
-            </Button>
-          </div>
-        )}
-
-        {/* Write/Edit Modal */}
-        <Dialog open={isModalOpen} onOpenChange={(open) => {
-          setIsModalOpen(open);
-          if (!open) {
-            setFormTitle("");
-            setFormBody("");
-            setFormTags("");
-            setEditingPost(null);
-          }
-        }}>
-          <DialogContent className="bg-parchment border-parchment-border sm:max-w-[700px] rounded-[2.5rem] p-0 overflow-hidden border-[8px] max-h-[90vh] flex flex-col">
-            <div className="p-10 flex flex-col max-h-[90vh]">
-              <DialogHeader className="mb-6">
-                <DialogTitle className="font-jua text-4xl text-wood-darkest text-shadow-glow">
-                  {editingPost ? "📝 게시글 수정" : "✍️ 새 글 작성"}
-                </DialogTitle>
-                <DialogDescription className="text-muted-foreground font-jua text-lg mt-1">
-                  다른 탐정들과 정보를 공유해보세요
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-6 py-4 overflow-y-auto flex-1">
-                <div className="flex flex-col gap-3">
-                  <label className="font-jua text-2xl text-wood-dark tracking-tight">제목</label>
-                  <Input
-                    placeholder="제목을 입력하세요"
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
-                    className="py-6 text-xl rounded-2xl border-4 border-parchment-border focus-visible:ring-orange-500 font-jua bg-white text-gray-900 placeholder:text-gray-400"
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="flex flex-col gap-3">
-                  <label className="font-jua text-2xl text-wood-dark tracking-tight">내용</label>
-                  <Textarea
-                    placeholder="내용을 입력하세요"
-                    value={formBody}
-                    onChange={(e) => setFormBody(e.target.value)}
-                    className="min-h-[300px] text-lg py-4 rounded-2xl border-4 border-parchment-border focus-visible:ring-orange-500 font-jua bg-white text-gray-900 placeholder:text-gray-400 leading-relaxed resize-none"
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="flex flex-col gap-3">
-                  <label className="font-jua text-2xl text-wood-dark tracking-tight">태그 (쉼표로 구분)</label>
-                  <Input
-                    placeholder="예: 팁, 분석, 주의사항"
-                    value={formTags}
-                    onChange={(e) => setFormTags(e.target.value)}
-                    className="py-6 text-xl rounded-2xl border-4 border-parchment-border focus-visible:ring-orange-500 font-jua bg-white text-gray-900 placeholder:text-gray-400"
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-              <DialogFooter className="mt-8 gap-4 flex-shrink-0">
-                <Button
-                  variant="ghost"
-                  onClick={() => setIsModalOpen(false)}
-                  className="font-jua text-xl h-14 px-8 rounded-2xl border-4 border-wood-darkest bg-white hover:bg-wood-dark/10 text-wood-darkest"
-                  disabled={isSubmitting}
-                >
-                  취소
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="font-jua text-xl h-14 px-12 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl shadow-lg hover:shadow-orange-500/30 transform hover:-translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                  disabled={isSubmitting || !formTitle.trim() || !formBody.trim()}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      처리 중...
-                    </>
-                  ) : (
-                    editingPost ? "수정 완료" : "등록하기"
-                  )}
-                </Button>
-              </DialogFooter>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* WriteModal */}
+        <WriteModal
+          open={writeModalOpen}
+          onOpenChange={setWriteModalOpen}
+          editingPost={editingPost}
+          formTitle={formTitle}
+          setFormTitle={setFormTitle}
+          formBody={formBody}
+          setFormBody={setFormBody}
+          formTags={formTags}
+          setFormTags={setFormTags}
+          mediaPreview={mediaPreview}
+          mediaType={mediaType}
+          isCorrect={isCorrect}
+          setIsCorrect={setIsCorrect}
+          isSubmitting={isSubmitting}
+          isDragging={isDragging}
+          onMediaSelect={handleMediaSelect}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClearMedia={clearMedia}
+          onSubmit={handleSubmit}
+        />
       </motion.div>
     </div>
   );

@@ -22,6 +22,14 @@ service CommunityService {
   rpc UnlikePost(UnlikePostRequest) returns (UnlikePostResponse);
   rpc CheckLike(CheckLikeRequest) returns (CheckLikeResponse);
   
+  // 투표 관리
+  rpc VotePost(VotePostRequest) returns (VotePostResponse);
+  rpc GetVoteResult(GetVoteResultRequest) returns (VoteResult);
+  rpc GetUserVote(GetUserVoteRequest) returns (GetUserVoteResponse);
+
+  // 미디어 업로드 (영상, 이미지)
+  rpc UploadMedia(UploadMediaRequest) returns (UploadMediaResponse);
+
   // 대시보드 API
   rpc GetNotices(GetNoticesRequest) returns (NoticesResponse);
   rpc GetTopDetective(GetTopDetectiveRequest) returns (TopDetectiveResponse);
@@ -35,6 +43,10 @@ message CreatePostRequest {
   string title = 4;
   string body = 5;
   repeated string tags = 6;
+  string media_url = 7;
+  string media_type = 8;
+  bool is_admin_post = 9;
+  optional bool is_correct = 10;
 }
 
 message Post {
@@ -48,6 +60,12 @@ message Post {
   int32 comments = 8;
   string created_at = 9;
   repeated string tags = 10;
+  string media_url = 11;
+  string media_type = 12;
+  bool is_admin_post = 13;
+  int32 true_votes = 14;
+  int32 false_votes = 15;
+  optional bool is_correct = 16;
 }
 
 message GetFeedRequest {
@@ -180,4 +198,46 @@ message GetHotTopicRequest {}
 message HotTopicResponse {
   string tag = 1;
   int32 count = 2;
+}
+
+// VotePost
+message VotePostRequest {
+  string post_id = 1;
+  string user_id = 2;
+  bool vote = 3;
+}
+
+message VotePostResponse {
+  bool success = 1;
+  bool already_voted = 2;
+  int32 xp_earned = 3;
+}
+
+message GetVoteResultRequest {
+  string post_id = 1;
+}
+
+message VoteResult {
+  string post_id = 1;
+  int32 true_votes = 2;
+  int32 false_votes = 3;
+}
+
+message GetUserVoteRequest {
+  string post_id = 1;
+  string user_id = 2;
+}
+
+message GetUserVoteResponse {
+  bool voted = 1;
+  bool vote = 2;
+}
+
+// UploadMedia
+message UploadMediaRequest {
+  string file_name = 1;
+}
+
+message UploadMediaResponse {
+  string media_url = 1;
 }

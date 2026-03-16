@@ -150,6 +150,12 @@ export interface CommunityPost {
   createdAt: string;
   tags: string[];
   userId?: string;
+  mediaUrl?: string;
+  mediaType?: "image" | "video";
+  isAdminPost?: boolean;
+  trueVotes?: number;
+  falseVotes?: number;
+  isCorrect?: boolean | null;
 }
 
 export interface CommunityComment {
