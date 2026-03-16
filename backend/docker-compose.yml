@@ -62,6 +62,11 @@ services:
     environment:
       DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
       HTTP_PORT: "8081"
+      AWS_REGION: ap-northeast-2
+      S3_COMMUNITY_BUCKET: pawfiler-community-media
+      CLOUDFRONT_COMMUNITY_DOMAIN: ${CLOUDFRONT_COMMUNITY_DOMAIN}
+    volumes:
+      - ~/.aws:/root/.aws:ro
     ports:
       - "50053:50053"
       - "8081:8081"
