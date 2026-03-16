@@ -743,7 +743,19 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
       throw new Error(`Failed to fetch post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      id: data.id,
+      authorNickname: data.author_nickname || data.authorNickname || '익명',
+      authorEmoji: data.author_emoji || data.authorEmoji || '🐾',
+      title: data.title,
+      body: data.body,
+      likes: data.likes || 0,
+      comments: data.comments || 0,
+      createdAt: data.created_at || data.createdAt || new Date().toISOString(),
+      tags: data.tags || [],
+      userId: data.author_id || data.userId,
+    };
   } catch (error) {
     return handleApiError(error, '게시글 로드');
   }
