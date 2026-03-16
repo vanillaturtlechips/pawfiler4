@@ -203,34 +203,34 @@ func (p *UserProfile) Level() int32 {
 	switch tier {
 	case "불사조":
 		switch {
-		case exp >= 4000: return 5  // 8일
-		case exp >= 3000: return 4  // 6일
-		case exp >= 2000: return 3  // 4일
-		case exp >= 1000: return 2  // 2일
+		case exp >= 8000: return 5
+		case exp >= 6000: return 4
+		case exp >= 4000: return 3
+		case exp >= 2000: return 2
 		default: return 1
 		}
 	case "맹금닭":
 		switch {
-		case exp >= 1600: return 5  // 3.2일
-		case exp >= 1200: return 4  // 2.4일
-		case exp >= 800: return 3   // 1.6일
-		case exp >= 400: return 2   // 0.8일
+		case exp >= 3200: return 5
+		case exp >= 2400: return 4
+		case exp >= 1600: return 3
+		case exp >= 800: return 2
 		default: return 1
 		}
 	case "삐약이":
 		switch {
-		case exp >= 800: return 5   // 1.6일
-		case exp >= 600: return 4   // 1.2일
-		case exp >= 400: return 3   // 0.8일
-		case exp >= 200: return 2   // 0.4일
+		case exp >= 1600: return 5
+		case exp >= 1200: return 4
+		case exp >= 800: return 3
+		case exp >= 400: return 2
 		default: return 1
 		}
 	default: // 알
 		switch {
-		case exp >= 400: return 5   // 0.8일
-		case exp >= 300: return 4   // 0.6일
-		case exp >= 200: return 3   // 0.4일
-		case exp >= 100: return 2   // 0.2일
+		case exp >= 800: return 5
+		case exp >= 600: return 4
+		case exp >= 400: return 3
+		case exp >= 200: return 2
 		default: return 1
 		}
 	}

@@ -407,7 +407,7 @@ func (r *GormQuizRepository) CreateUserProfile(ctx context.Context, userID strin
 	g := GormUserProfile{
 		UserID:           userID,
 		TotalExp:         0,
-		TotalCoins:       0,
+		TotalCoins:       500, // 신규 계정 웰컴 보너스
 		Energy:           100,
 		MaxEnergy:        100,
 		LastEnergyRefill: time.Now(),

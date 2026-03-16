@@ -139,6 +139,12 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 				result["tier_promoted"] = prevTierName != "" && prevTierName != profile.TierName()
 			}
 		}
+		// streak_bonus는 handler에서 직접 계산 (streakCount % 5 == 0)
+		if sc, ok := result["streakCount"].(float64); ok && sc > 0 && int(sc)%5 == 0 {
+			result["streak_bonus"] = 20
+		} else {
+			result["streak_bonus"] = 0
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

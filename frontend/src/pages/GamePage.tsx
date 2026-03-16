@@ -5,7 +5,8 @@ import confetti from "canvas-confetti";
 import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy, fetchQuestionStats } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy, fetchQuestionStats, syncProfileToQuiz } from "@/lib/api";
+import { toast } from "sonner";
 import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
@@ -124,6 +125,18 @@ const GamePage = () => {
     if (questionCount >= maxQuestions) {
       setGameFinished(true);
       setPhase("finished");
+      // 10문제 완주 보너스
+      if (maxQuestions >= 10 && profile) {
+        const bonusXP = 50;
+        const bonusCoins = 100;
+        const updated = {
+          ...profile,
+          totalExp: profile.totalExp + bonusXP,
+          totalCoins: profile.totalCoins + bonusCoins,
+        };
+        setProfile(updated);
+        toast.success(`🎁 10문제 완주 보너스! +${bonusXP} XP +${bonusCoins} 코인!`);
+      }
       await fetchUserStats().then(setStats).catch(console.error);
       return;
     }
@@ -224,6 +237,10 @@ const GamePage = () => {
         if (tierPromoted || res.level > prevLevel) {
           setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName, promoted: tierPromoted });
           setShowTierUpModal(true);
+        }
+        // 5연속 정답 보너스 토스트
+        if (res.streakBonus && res.streakBonus > 0) {
+          toast.success(`🔥 ${res.streakCount}연속 정답! +${res.streakBonus} XP 보너스!`);
         }
       } else if (profile) {
         // 에너지 2 차감 (백엔드 연동 전 로컬 처리)
