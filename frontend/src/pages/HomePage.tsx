@@ -307,14 +307,6 @@ const HomePage = () => {
           <p className="text-[10px] sm:text-xs mt-0.5" style={{ color: "#BDBDBD" }}>
             각 모험에서는 코인과 경험치를 얻을 수 있습니다
           </p>
-          <motion.button
-            onClick={() => navigate('/ranking')}
-            className="mt-3 px-4 py-1.5 rounded-full text-xs font-bold bg-amber-500/80 hover:bg-amber-500 text-white backdrop-blur transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 mx-auto"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            🏆 명탐정 랭킹 보기
-          </motion.button>
         </motion.div>
       </div>
     </div>

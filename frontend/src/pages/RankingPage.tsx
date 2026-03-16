@@ -17,7 +17,6 @@ const SORT_TABS = [
   { key: "correct", label: "🎯 정답 수" },
   { key: "accuracy", label: "📊 정답률" },
   { key: "tier", label: "⭐ 티어" },
-  { key: "coins", label: "💰 코인" },
 ];
 
 const TIER_STYLE: Record<string, string> = {
@@ -106,14 +105,13 @@ export default function RankingPage() {
         ) : (
           <div className="max-w-4xl mx-auto">
             {/* 테이블 헤더 */}
-            <div className="grid grid-cols-[48px_1fr_100px_80px_80px_80px_80px] gap-2 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wide">
+            <div className="grid grid-cols-[48px_1fr_100px_80px_80px_80px] gap-2 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wide">
               <div className="text-center">#</div>
               <div>탐정</div>
               <div className="text-center">티어</div>
               <div className="text-center">정답 수</div>
               <div className="text-center">정답률</div>
               <div className="text-center">풀이 수</div>
-              <div className="text-center">코인</div>
             </div>
 
             {filtered.length === 0 ? (
@@ -126,7 +124,7 @@ export default function RankingPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.02 }}
-                    className={`grid grid-cols-[48px_1fr_100px_80px_80px_80px_80px] gap-2 items-center px-4 py-3 rounded-2xl border-2 transition-all hover:shadow-md ${
+                    className={`grid grid-cols-[48px_1fr_100px_80px_80px_80px] gap-2 items-center px-4 py-3 rounded-2xl border-2 transition-all hover:shadow-md ${
                       e.rank === 1 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-400' :
                       e.rank === 2 ? 'bg-gradient-to-r from-slate-50 to-gray-50 border-gray-300' :
                       e.rank === 3 ? 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-300' :
@@ -173,9 +171,6 @@ export default function RankingPage() {
 
                     {/* 풀이 수 */}
                     <div className="text-center text-gray-500 text-sm">{e.totalAnswered}</div>
-
-                    {/* 코인 */}
-                    <div className="text-center text-amber-600 font-bold text-sm">💰{e.totalCoins}</div>
                   </motion.div>
                 ))}
               </div>

@@ -63,6 +63,7 @@ const CommunityPage = () => {
 
   // Ranking Modal State
   const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; nickname: string; avatarEmoji: string; tier: string; totalExp: number; totalCoins: number; totalAnswered: number; correctCount: number; accuracy: number }>>([]);
+  const [featuredPosts, setFeaturedPosts] = useState<Array<{ id: string; title: string; authorNickname: string; likes: number }>>([]);
 
   // CRUD State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,16 +96,17 @@ const CommunityPage = () => {
 
   const loadDashboardData = async () => {
     try {
-      const [noticesData, detectiveData, topicData, rankingData] = await Promise.all([
-        fetchNotices(),
+      const [detectiveData, topicData, rankingData, feedData] = await Promise.all([
         fetchTopDetective(),
         fetchHotTopic(),
         fetchRanking("correct"),
+        fetchCommunityFeed(1, 5),
       ]);
-      setNotices(noticesData);
       setTopDetective(detectiveData);
       setHotTopic(topicData);
       setRanking(rankingData);
+      const sorted = [...feedData.posts].sort((a, b) => b.likes - a.likes).slice(0, 3);
+      setFeaturedPosts(sorted.map(p => ({ id: p.id, title: p.title, authorNickname: p.authorNickname, likes: p.likes })));
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     }
@@ -304,19 +306,20 @@ const CommunityPage = () => {
           {/* 공지사항 + 명탐정 랭킹 (2칸) */}
           <ParchmentPanel className="col-span-2 p-5 rounded-2xl border-4">
             <div className="grid grid-cols-2 gap-5 h-full">
-              {/* 공지사항 */}
+              {/* 오늘의 추천 글 */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-2xl">📌</span>
-                  <h3 className="font-jua text-lg text-wood-darkest">공지사항</h3>
+                  <span className="text-2xl">⭐</span>
+                  <h3 className="font-jua text-lg text-wood-darkest">오늘의 추천 글</h3>
                 </div>
                 <div className="space-y-2">
-                  {notices.length > 0 ? notices.map((notice) => (
-                    <div key={notice.id} onClick={() => navigate(`/community/${notice.id}`)}
-                      className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors truncate">
-                      • {notice.title}
+                  {featuredPosts.length > 0 ? featuredPosts.map((post) => (
+                    <div key={post.id} onClick={() => navigate(`/community/${post.id}`)}
+                      className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors">
+                      <span className="truncate block">• {post.title}</span>
+                      <span className="text-xs text-gray-400">❤️ {post.likes} · {post.authorNickname}</span>
                     </div>
-                  )) : <div className="text-sm text-wood-dark/50">공지사항이 없습니다</div>}
+                  )) : <div className="text-sm text-wood-dark/50">게시글이 없습니다</div>}
                 </div>
               </div>
 
@@ -334,7 +337,7 @@ const CommunityPage = () => {
                       <span className="text-base">{['🥇','🥈','🥉'][i]}</span>
                       <div className="flex-1 min-w-0">
                         <div className="font-jua text-xs truncate">
-                          {entry.nickname || `탐정#${i + 1}`}
+                          {entry.nickname || `탐정 ${i + 1}위`}
                         </div>
                         <div className="text-xs text-gray-400">{entry.tier || '알'}</div>
                       </div>
