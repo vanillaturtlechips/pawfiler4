@@ -184,6 +184,8 @@ func (a ComparisonAnswer) ToJSON() (map[string]interface{}, error) {
 // Energy is consumed when requesting questions and recovers automatically over time.
 type UserProfile struct {
 	UserID           string    `db:"user_id"`
+	Nickname         string    `db:"nickname"`
+	AvatarEmoji      string    `db:"avatar_emoji"`
 	TotalExp         int32     `db:"total_exp"`
 	TotalCoins       int32     `db:"total_coins"`
 	CurrentTier      string    `db:"current_tier"`

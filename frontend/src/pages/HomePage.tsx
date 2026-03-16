@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
 import MagicDoor from "@/components/MagicDoor";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { config } from "@/lib/config";
 
 const HomePage = () => {
+  const navigate = useNavigate();
   const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {

@@ -56,6 +56,7 @@ func NewMuxWithDB(svc QuizService, db *sql.DB) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/RefillEnergy", withCORS(handleRefillEnergy(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionStats", withCORS(handleGetQuestionStats(db)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetRanking", withCORS(handleGetRanking(db)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/UpdateUserProfile", withCORS(handleUpdateUserProfile(svc)))
 	}
 	return mux
 }
@@ -103,6 +104,15 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
+
+		// 승급 감지를 위해 제출 전 티어 저장
+		prevTierName := ""
+		if req.UserId != "" {
+			if prevProfile, err := svc.GetUserProfile(r.Context(), req.UserId); err == nil {
+				prevTierName = prevProfile.TierName()
+			}
+		}
+
 		resp, err := svc.SubmitAnswer(r.Context(), &req)
 		if err != nil {
 			writeGRPCError(w, err)
@@ -126,6 +136,7 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 				result["total_coins"] = profile.TotalCoins
 				result["energy"] = profile.Energy
 				result["max_energy"] = profile.MaxEnergy
+				result["tier_promoted"] = prevTierName != "" && prevTierName != profile.TierName()
 			}
 		}
 
@@ -335,6 +346,41 @@ func handleRefillEnergy(svc QuizService) http.HandlerFunc {
 	}
 }
 
+func handleUpdateUserProfile(svc QuizService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			UserID      string `json:"user_id"`
+			Nickname    string `json:"nickname"`
+			AvatarEmoji string `json:"avatar_emoji"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
+			writeError(w, http.StatusBadRequest, "invalid request")
+			return
+		}
+		profile, err := svc.GetUserProfile(r.Context(), req.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to get profile")
+			return
+		}
+		if req.Nickname != "" {
+			profile.Nickname = req.Nickname
+		}
+		if req.AvatarEmoji != "" {
+			profile.AvatarEmoji = req.AvatarEmoji
+		}
+		if err := svc.UpdateUserProfile(r.Context(), profile); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update profile")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	}
+}
+
 func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -429,9 +475,9 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 		rows, err := db.QueryContext(r.Context(), `
 			SELECT 
 				up.user_id,
-				COALESCE(au.nickname, LEFT(up.user_id::text, 8)) as nickname,
-				COALESCE(au.avatar_emoji, '🥚') as avatar_emoji,
-				COALESCE(up.current_tier, '알') as tier,
+				COALESCE(NULLIF(au.nickname,''), NULLIF(up.nickname,''), '') as nickname,
+				COALESCE(NULLIF(au.avatar_emoji,''), NULLIF(up.avatar_emoji,''), '🥚') as avatar_emoji,
+				COALESCE(NULLIF(up.current_tier,''), '알') as tier,
 				up.total_exp,
 				up.total_coins,
 				COALESCE(us.total_answered, 0) as total_answered,
@@ -442,6 +488,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 			FROM quiz.user_profiles up
 			LEFT JOIN quiz.user_stats us ON us.user_id = up.user_id
 			LEFT JOIN auth.users au ON au.id = up.user_id
+			WHERE COALESCE(us.total_answered, 0) > 0
 			ORDER BY `+orderBy)
 		if err != nil {
 			http.Error(w, "query failed: "+err.Error(), http.StatusInternalServerError)
@@ -455,6 +502,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 			Nickname      string  `json:"nickname"`
 			AvatarEmoji   string  `json:"avatarEmoji"`
 			Tier          string  `json:"tier"`
+			Level         int     `json:"level"`
 			TotalExp      int     `json:"totalExp"`
 			TotalCoins    int     `json:"totalCoins"`
 			TotalAnswered int     `json:"totalAnswered"`
@@ -469,6 +517,9 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 				continue
 			}
 			e.Rank = rank
+			// Level 계산
+			p := &repository.UserProfile{TotalExp: int32(e.TotalExp), CurrentTier: e.Tier}
+			e.Level = int(p.Level())
 			entries = append(entries, e)
 			rank++
 		}
