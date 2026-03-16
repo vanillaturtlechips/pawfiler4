@@ -24,6 +24,7 @@ import {
   fetchNotices,
   fetchTopDetective,
   fetchHotTopic,
+  fetchRanking,
 } from "@/lib/api";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -60,6 +61,13 @@ const CommunityPage = () => {
   const [topDetective, setTopDetective] = useState<{ authorNickname: string; authorEmoji: string; totalLikes: number }>({ authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 });
   const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({ tag: "없음", count: 0 });
 
+  // Ranking Modal State
+  const [showRanking, setShowRanking] = useState(false);
+  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; tier: string; totalExp: number; totalCoins: number; totalAnswered: number; correctCount: number; accuracy: number }>>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+  const [rankingSort, setRankingSort] = useState("correct");
+  const [rankingSearch, setRankingSearch] = useState("");
+
   // CRUD State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<CommunityPost | null>(null);
@@ -91,14 +99,16 @@ const CommunityPage = () => {
 
   const loadDashboardData = async () => {
     try {
-      const [noticesData, detectiveData, topicData] = await Promise.all([
+      const [noticesData, detectiveData, topicData, rankingData] = await Promise.all([
         fetchNotices(),
         fetchTopDetective(),
         fetchHotTopic(),
+        fetchRanking("correct"),
       ]);
       setNotices(noticesData);
       setTopDetective(detectiveData);
       setHotTopic(topicData);
+      setRanking(rankingData);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     }
@@ -320,22 +330,128 @@ const CommunityPage = () => {
 
           {/* 이달의 명탐정 */}
           <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-yellow-50/50 to-orange-50/50">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="text-3xl">🏆</div>
-              <h3 className="font-jua text-xl text-wood-darkest">이달의 명탐정</h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="text-2xl">🏆</div>
+                <h3 className="font-jua text-lg text-wood-darkest">명탐정 랭킹</h3>
+              </div>
+              <button
+                className="text-xs font-bold px-3 py-1 rounded-full bg-amber-400 text-white hover:bg-amber-500 transition-colors"
+                onClick={async () => {
+                  setShowRanking(true);
+                  if (ranking.length === 0) {
+                    setRankingLoading(true);
+                    try { setRanking(await fetchRanking(rankingSort)); }
+                    catch { setRanking([]); }
+                    finally { setRankingLoading(false); }
+                  }
+                }}
+              >전체 랭킹 보기</button>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-yellow-100 border-2 border-yellow-400 flex items-center justify-center text-3xl shadow-lg">
-                {topDetective.authorEmoji}
-              </div>
-              <div>
-                <div className="font-jua text-lg text-wood-darkest">{topDetective.authorNickname}</div>
-                <div className="text-xs text-orange-600 font-bold">
-                  {topDetective.totalLikes > 0 ? `좋아요 ${topDetective.totalLikes}개 획득` : '데이터 없음'}
+            <div className="space-y-2">
+              {ranking.slice(0, 3).map((entry, i) => (
+                <div key={entry.userId} className="flex items-center gap-2">
+                  <span className="text-lg w-6">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-jua text-sm truncate block">{entry.userId.slice(0, 8)}...</span>
+                    <span className="text-xs text-wood-dark">{entry.tier || '알'}</span>
+                  </div>
+                  <span className="text-xs font-bold text-green-600 shrink-0">정답 {entry.correctCount}개</span>
                 </div>
-              </div>
+              ))}
+              {ranking.length === 0 && <p className="text-xs text-wood-dark text-center py-2">데이터 없음</p>}
             </div>
           </ParchmentPanel>
+
+          {/* 랭킹 모달 - 전체화면 */}
+          <Dialog open={showRanking} onOpenChange={setShowRanking}>
+            <DialogContent className="max-w-2xl w-full h-[90vh] flex flex-col p-0 overflow-hidden">
+              {/* 헤더 */}
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white shrink-0">
+                <DialogTitle className="font-jua text-3xl mb-1">🏆 탐정 명예의 전당</DialogTitle>
+                <DialogDescription className="text-amber-100 text-sm">퀴즈 실력으로 순위를 겨뤄보세요</DialogDescription>
+              </div>
+
+              {/* 정렬 탭 + 검색 */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b bg-amber-50 shrink-0 flex-wrap">
+                {[
+                  { key: "correct", label: "🎯 정답 수" },
+                  { key: "accuracy", label: "📊 정답률" },
+                  { key: "tier", label: "⭐ 티어" },
+                  { key: "coins", label: "💰 코인" },
+                ].map(tab => (
+                  <button key={tab.key}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${rankingSort === tab.key ? 'bg-amber-500 text-white shadow-md scale-105' : 'bg-white text-gray-600 border border-gray-200 hover:border-amber-300'}`}
+                    onClick={async () => {
+                      setRankingSort(tab.key);
+                      setRankingLoading(true);
+                      try { setRanking(await fetchRanking(tab.key)); }
+                      catch { setRanking([]); }
+                      finally { setRankingLoading(false); }
+                    }}
+                  >{tab.label}</button>
+                ))}
+                <input
+                  className="ml-auto px-3 py-1.5 text-xs border-2 rounded-full border-amber-200 outline-none focus:border-amber-400 w-32 bg-white"
+                  placeholder="🔍 유저 검색"
+                  value={rankingSearch}
+                  onChange={e => setRankingSearch(e.target.value)}
+                />
+              </div>
+
+              {/* 랭킹 리스트 */}
+              <div className="overflow-y-auto flex-1 p-4 space-y-2">
+                {rankingLoading ? (
+                  [...Array(8)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)
+                ) : (() => {
+                  const filtered = ranking.filter(e => !rankingSearch || e.userId.toLowerCase().includes(rankingSearch.toLowerCase()));
+                  if (filtered.length === 0) return <p className="text-center text-gray-400 py-16 text-lg">😢 데이터가 없습니다</p>;
+                  return filtered.map((entry) => {
+                    const tierEmoji = entry.tier === '불사조' ? '🦅' : entry.tier === '맹금닭' ? '🐓' : entry.tier === '삐약이' ? '🐥' : '🥚';
+                    const isTop3 = entry.rank <= 3;
+                    return (
+                      <div key={entry.userId} className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all hover:shadow-md ${
+                        entry.rank === 1 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-400' :
+                        entry.rank === 2 ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-300' :
+                        entry.rank === 3 ? 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-300' :
+                        'bg-white border-gray-100'
+                      }`}>
+                        {/* 순위 */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-jua text-lg shrink-0 ${
+                          entry.rank === 1 ? 'bg-yellow-400 text-white' :
+                          entry.rank === 2 ? 'bg-gray-300 text-white' :
+                          entry.rank === 3 ? 'bg-orange-400 text-white' :
+                          'bg-gray-100 text-gray-500 text-sm'
+                        }`}>
+                          {isTop3 ? ['🥇','🥈','🥉'][entry.rank-1] : entry.rank}
+                        </div>
+                        {/* 티어 이모지 */}
+                        <div className="text-2xl shrink-0">{tierEmoji}</div>
+                        {/* 유저 정보 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-jua text-sm truncate">{entry.userId.slice(0, 12)}...</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                              entry.tier === '불사조' ? 'bg-red-100 text-red-600' :
+                              entry.tier === '맹금닭' ? 'bg-orange-100 text-orange-600' :
+                              entry.tier === '삐약이' ? 'bg-yellow-100 text-yellow-600' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>{entry.tier || '알'}</span>
+                            <span className="text-xs text-gray-400">{entry.totalExp} XP</span>
+                          </div>
+                        </div>
+                        {/* 스탯 */}
+                        <div className="text-right shrink-0 space-y-0.5">
+                          <div className="font-bold text-green-600 text-sm">✅ {entry.correctCount}개</div>
+                          <div className="text-xs text-gray-400">{entry.accuracy}% · 💰{entry.totalCoins}</div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* 오늘의 핫토픽 */}
           <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-red-50/50 to-pink-50/50">

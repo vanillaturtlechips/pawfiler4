@@ -292,11 +292,12 @@ func (GormUserProfile) TableName() string { return "quiz.user_profiles" }
 // ToUserProfile GORM 모델을 기존 UserProfile 모델로 변환
 func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 	return &UserProfile{
-		UserID:         gup.UserID,
-		TotalExp:       gup.TotalExp,
-		TotalCoins:     gup.TotalCoins,
-		Energy:         gup.Energy,
-		MaxEnergy:      gup.MaxEnergy,
+		UserID:           gup.UserID,
+		TotalExp:         gup.TotalExp,
+		TotalCoins:       gup.TotalCoins,
+		CurrentTier:      gup.CurrentTier,
+		Energy:           gup.Energy,
+		MaxEnergy:        gup.MaxEnergy,
 		LastEnergyRefill: gup.LastEnergyRefill,
 	}
 }
@@ -305,6 +306,7 @@ func (gup *GormUserProfile) FromUserProfile(p *UserProfile) {
 	gup.UserID = p.UserID
 	gup.TotalExp = p.TotalExp
 	gup.TotalCoins = p.TotalCoins
+	gup.CurrentTier = p.CurrentTier
 	gup.Energy = p.Energy
 	gup.MaxEnergy = p.MaxEnergy
 	gup.LastEnergyRefill = p.LastEnergyRefill

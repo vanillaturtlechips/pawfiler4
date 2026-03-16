@@ -5,7 +5,7 @@ import confetti from "canvas-confetti";
 import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy, fetchQuestionStats } from "@/lib/api";
 import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
@@ -50,6 +50,7 @@ const GamePage = () => {
   const [result, setResult] = useState<QuizSubmitResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [videoOrientation, setVideoOrientation] = useState<"landscape" | "portrait">("landscape");
+  const [questionAccuracy, setQuestionAccuracy] = useState<number | null>(null);
 
   // 로컬 profile (context에서 초기화, 업데이트 시 context도 동기화)
   const [profile, setProfileLocal] = useState<QuizGameProfile | null>(ctxProfile);
@@ -133,6 +134,7 @@ const GamePage = () => {
     setSelectedRegion(null);
     setSelectedSide(null);
     setResult(null);
+    setQuestionAccuracy(null);
 
     try {
       const q = await fetchQuizQuestion(selectedDifficulty);
@@ -197,6 +199,12 @@ const GamePage = () => {
         selectedSide: actualSelectedSide ?? undefined,
       });
       setResult(res);
+
+      // 정답률 fetch
+      fetchQuestionStats(question.id).then(stats => {
+        const found = stats.find((s: {id: string; accuracy: number}) => s.id === question.id);
+        if (found) setQuestionAccuracy(found.accuracy);
+      }).catch(() => {});
 
       // 프로필 업데이트 (에너지/XP/코인)
       if (res.level !== undefined && profile) {
@@ -519,6 +527,7 @@ const GamePage = () => {
                               onNext={loadQuestion}
                               resultExplanation={result?.explanation}
                               coinsEarned={result?.coinsEarned}
+                              accuracy={questionAccuracy}
                             />
                           </div>
                         );
@@ -539,6 +548,7 @@ const GamePage = () => {
                               resultExplanation={result?.explanation}
                               coinsEarned={result?.coinsEarned}
                               onSwapChange={setIsComparisonSwapped}
+                              accuracy={questionAccuracy}
                             />
                           </div>
                         );
@@ -554,7 +564,23 @@ const GamePage = () => {
                     {result ? (
                       <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 flex-shrink-0">
                         {question.type === "true_false" ? (
-                          <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
+                          <>
+                            {result && (
+                              <WoodPanel className="p-3 bg-wood-base">
+                                <p className="font-jua text-xl" style={{ color: result.correct ? "hsl(var(--magic-green))" : "hsl(var(--destructive))" }}>
+                                  {result.correct ? `🎉 정답! +${result.coinsEarned} 코인` : "😢 아쉬워요..."}
+                                </p>
+                                <div className="mt-2 pt-2 border-t border-wood-dark/30">
+                                  <p className="font-jua text-sm opacity-70">
+                                    📊 이 문제 정답률: <span className="text-yellow-400">
+                                      {questionAccuracy !== null ? `${questionAccuracy.toFixed(1)}%` : '계산 중...'}
+                                    </span>
+                                  </p>
+                                </div>
+                              </WoodPanel>
+                            )}
+                            <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
+                          </>
                         ) : (
                           <>
                             <WoodPanel className="p-4 bg-wood-base">
@@ -564,7 +590,9 @@ const GamePage = () => {
                               <p className="text-base mt-2 text-foreground">{result.explanation}</p>
                               <div className="mt-3 pt-3 border-t border-wood-dark/30">
                                 <p className="font-jua text-sm opacity-70">
-                                  📊 이 문제 정답률: <span className="text-yellow-400">준비 중</span>
+                                  📊 이 문제 정답률: <span className="text-yellow-400">
+                                    {questionAccuracy !== null ? `${questionAccuracy.toFixed(1)}%` : '계산 중...'}
+                                  </span>
                                 </p>
                               </div>
                             </WoodPanel>
