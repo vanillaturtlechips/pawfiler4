@@ -416,7 +416,7 @@ export const fetchCommunityFeed = async (
       body: post.body,
       likes: post.likes || 0,
       comments: post.comments || 0,
-      createdAt: post.created_at || new Date().toISOString(),
+      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
       tags: post.tags || [],
       userId: post.author_id,
     })) || [];
@@ -452,7 +452,19 @@ export const createCommunityPost = async (req: {
       throw new Error(`Failed to create post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const post = await response.json();
+    return {
+      id: post.id,
+      userId: post.author_id,
+      authorNickname: post.author_nickname || req.authorNickname,
+      authorEmoji: post.author_emoji || req.authorEmoji,
+      title: post.title,
+      body: post.body,
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
+      tags: post.tags || [],
+    };
   } catch (error) {
     return handleApiError(error, '게시글 작성');
   }
@@ -632,7 +644,7 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
       authorNickname: comment.author_nickname || "익명",
       authorEmoji: comment.author_emoji || "👤",
       body: comment.body,
-      createdAt: comment.created_at || new Date().toISOString(),
+      createdAt: (comment.created_at || new Date().toISOString()).replace(' ', 'T'),
       userId: comment.author_id,
     })) || [];
     
