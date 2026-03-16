@@ -8,7 +8,7 @@ import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { ArrowLeft, Coins, Sparkles, Gift, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { purchaseItem, fetchShopItems, type ShopCatalog } from "@/lib/api";
+import { purchaseItem, fetchShopItems, fetchUserProfile, type ShopCatalog } from "@/lib/api";
 import { config } from "@/lib/config";
 
 type ShopTab = "subscription" | "coins" | "packages";
@@ -40,6 +40,11 @@ const ShopPage = () => {
   const userCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   useEffect(() => {
+    fetchUserProfile().then((profile) => {
+      if (profile && quizProfile) {
+        updateQuizProfile({ ...quizProfile, totalCoins: profile.totalCoins });
+      }
+    }).catch(() => {});
     fetchShopItems()
       .then(setCatalog)
       .catch(() => {});
