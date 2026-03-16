@@ -68,6 +68,7 @@ const ShopPage = () => {
       const result = await purchaseItem(userId, item.id);
       toast.success(`${result.item_name}을(를) 구매했습니다!`);
       updateUser({ coins: result.total_coins });
+      await refreshQuizProfile();
     } catch (err: any) {
       const msg = err?.data?.error || err?.message || "구매 실패";
       toast.error(msg);
@@ -279,13 +280,13 @@ const ShopPage = () => {
                     나의 혜택
                   </h3>
                   <div className="space-y-0.5">
-                    <div className="flex justify-between items-center p-1 rounded-lg bg-green-50 border border-green-300">
-                      <span className="text-xs text-green-800">보유 쿠폰</span>
-                      <span className="font-jua text-xs text-green-900 font-bold">2장</span>
+                    <div className="flex justify-between items-center p-1 rounded-lg bg-amber-50 border border-amber-300">
+                      <span className="text-xs text-amber-800">총 경험치</span>
+                      <span className="font-jua text-xs text-amber-900 font-bold">{(quizProfile?.totalExp ?? 0).toLocaleString()} XP</span>
                     </div>
-                    <div className="flex justify-between items-center p-1 rounded-lg bg-yellow-50 border border-yellow-300">
-                      <span className="text-xs text-yellow-800">적립 포인트</span>
-                      <span className="font-jua text-xs text-yellow-900 font-bold">1,250P</span>
+                    <div className="flex justify-between items-center p-1 rounded-lg bg-blue-50 border border-blue-300">
+                      <span className="text-xs text-blue-800">등급</span>
+                      <span className="font-jua text-xs text-blue-900 font-bold">{quizProfile?.tierName ?? '알 Lv.1'}</span>
                     </div>
                   </div>
                 </div>

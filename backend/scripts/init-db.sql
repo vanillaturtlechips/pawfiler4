@@ -81,7 +81,7 @@ CREATE TABLE quiz.user_profiles (
     nickname VARCHAR(100) NOT NULL DEFAULT '탐정',
     avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🥚',
     total_exp INTEGER DEFAULT 0,
-    total_coins INTEGER DEFAULT 1500,
+    total_coins INTEGER DEFAULT 3000,
     current_tier VARCHAR(50) DEFAULT '알',
     energy INTEGER DEFAULT 100,
     max_energy INTEGER DEFAULT 100,
