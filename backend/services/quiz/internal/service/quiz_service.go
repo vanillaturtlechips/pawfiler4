@@ -37,6 +37,9 @@ type QuizService interface {
 
 	// GetUserProfile retrieves gamification profile (level, XP, coins, energy)
 	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
+	
+	// UpdateUserProfile updates gamification profile
+	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
 }
 
 // SubmitResult represents the result of a submitted answer
@@ -144,6 +147,10 @@ func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*r
 	}
 	profile.RefillEnergy()
 	return profile, nil
+}
+
+func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
+	return s.repo.UpdateUserProfile(ctx, profile)
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType
@@ -297,6 +304,111 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		if profile != nil {
 			profile.TotalExp += xpEarned
 			profile.TotalCoins += coinsEarned
+			
+			// 레벨업 및 티어 승급 체크
+			tier := profile.Tier()
+			exp := profile.TotalExp
+			
+			// 레벨업 XP 이월 처리
+			for {
+				leveledUp := false
+				switch tier {
+				case "알":
+					if exp >= 500 {
+						profile.CurrentTier = "삐약이"
+						profile.TotalExp = exp - 500
+						tier = "삐약이"
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 400 {
+						profile.TotalExp = exp - 400
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 300 {
+						profile.TotalExp = exp - 300
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 200 {
+						profile.TotalExp = exp - 200
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 100 {
+						profile.TotalExp = exp - 100
+						exp = profile.TotalExp
+						leveledUp = true
+					}
+				case "삐약이":
+					if exp >= 1000 {
+						profile.CurrentTier = "맹금닭"
+						profile.TotalExp = exp - 1000
+						tier = "맹금닭"
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 800 {
+						profile.TotalExp = exp - 800
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 600 {
+						profile.TotalExp = exp - 600
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 400 {
+						profile.TotalExp = exp - 400
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 200 {
+						profile.TotalExp = exp - 200
+						exp = profile.TotalExp
+						leveledUp = true
+					}
+				case "맹금닭":
+					if exp >= 2000 {
+						profile.CurrentTier = "불사조"
+						profile.TotalExp = exp - 2000
+						tier = "불사조"
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 1600 {
+						profile.TotalExp = exp - 1600
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 1200 {
+						profile.TotalExp = exp - 1200
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 800 {
+						profile.TotalExp = exp - 800
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 400 {
+						profile.TotalExp = exp - 400
+						exp = profile.TotalExp
+						leveledUp = true
+					}
+				case "불사조":
+					if exp >= 4000 {
+						profile.TotalExp = exp - 4000
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 3000 {
+						profile.TotalExp = exp - 3000
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 2000 {
+						profile.TotalExp = exp - 2000
+						exp = profile.TotalExp
+						leveledUp = true
+					} else if exp >= 1000 {
+						profile.TotalExp = exp - 1000
+						exp = profile.TotalExp
+						leveledUp = true
+					}
+				}
+				if !leveledUp {
+					break
+				}
+			}
+			
 			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {
 				fmt.Printf("Warning: failed to update user profile: %v\n", err)
 			}

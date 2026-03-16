@@ -19,6 +19,7 @@ type MockQuizService struct {
 	GetQuestionByIdFunc   func(ctx context.Context, questionID string) (*repository.Question, error)
 	SubmitAnswerFunc      func(ctx context.Context, userID string, questionID string, answer repository.Answer) (*service.SubmitResult, error)
 	GetUserStatsFunc      func(ctx context.Context, userID string) (*repository.UserStats, error)
+	GetUserProfileFunc    func(ctx context.Context, userID string) (*repository.UserProfile, error)
 }
 
 func (m *MockQuizService) GetRandomQuestion(ctx context.Context, userID string, difficulty *string, questionType *pb.QuestionType) (*repository.Question, error) {
@@ -47,6 +48,13 @@ func (m *MockQuizService) GetUserStats(ctx context.Context, userID string) (*rep
 		return m.GetUserStatsFunc(ctx, userID)
 	}
 	return nil, errors.New("not implemented")
+}
+
+func (m *MockQuizService) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
+	if m.GetUserProfileFunc != nil {
+		return m.GetUserProfileFunc(ctx, userID)
+	}
+	return &repository.UserProfile{UserID: userID, Energy: 100, MaxEnergy: 100}, nil
 }
 
 // TestGetRandomQuestion_Success tests successful random question retrieval

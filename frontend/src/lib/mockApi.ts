@@ -51,15 +51,15 @@ const withAuth = (token: string | null) => {
 // --------------- Mock data ---------------
 
 const MOCK_USER: UserProfile = {
-  id: "usr_fox_001",
+  id: "00000000-0000-4000-8000-000000000001",
   email: "detective@deepfind.io",
   nickname: "날쌘 여우 탐정",
   avatarEmoji: "🦊",
   subscriptionType: "free",
   coins: 1200,
-  level: 5,
-  levelTitle: "전문가",
-  xp: 3400,
+  level: 1,
+  levelTitle: "알병아리",
+  xp: 0,
   createdAt: "2025-09-15T00:00:00Z",
 };
 
@@ -328,7 +328,14 @@ export async function submitQuizAnswer(token: string, req: QuizSubmitRequest): P
 export async function fetchQuizStats(token: string): Promise<QuizStats> {
   withAuth(token);
   await delay(300, 500);
-  return { totalAnswered: 47, correctRate: 0.78, currentStreak: 3, bestStreak: 12, lives: 2 };
+  return {
+    totalAnswered: 47,
+    correctRate: 0.78,
+    currentStreak: 3,
+    bestStreak: 12,
+    lives: 2,
+    profile: { level: 1, tierName: "알병아리", totalExp: 0, totalCoins: 1200, energy: 80, maxEnergy: 100 },
+  };
 }
 
 // --------------- Community Service ---------------

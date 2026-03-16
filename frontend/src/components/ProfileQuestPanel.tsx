@@ -20,7 +20,7 @@ const quests: Quest[] = [
     description: "퀴즈 게임에서 가짜 영상 찾기",
     progress: 1,
     total: 3,
-    reward: "🪙 50닢",
+    reward: "💰 50코인",
     icon: "🎮",
     route: "/game"
   },
@@ -40,7 +40,7 @@ const quests: Quest[] = [
     description: "게시글에 댓글 달기",
     progress: 0,
     total: 2,
-    reward: "🪙 30닢",
+    reward: "💰 30코인",
     icon: "📜",
     route: "/community"
   }
@@ -134,7 +134,7 @@ const ProfileQuestPanel = ({ isOpen, onClose, position = "right" }: ProfileQuest
 
               {/* 코인 */}
               <div className="font-jua text-lg text-center rounded-lg bg-black/30 px-3 py-2" style={{ color: "#FFD54F" }}>
-                💰 {user.coins.toLocaleString()} 닢
+                💰 {user.coins.toLocaleString()} 코인
               </div>
             </div>
 

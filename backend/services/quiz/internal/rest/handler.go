@@ -33,6 +33,7 @@ type QuizService interface {
 	GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error)
 	GetQuestionById(ctx context.Context, req *pb.GetQuestionByIdRequest) (*pb.QuizQuestion, error)
 	GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error)
+	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
 }
 
 // NewMux returns an HTTP mux with quiz REST endpoints.
@@ -47,6 +48,7 @@ func NewMux(svc QuizService) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserStats", withCORS(handleGetUserStats(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionById", withCORS(handleGetQuestionById(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetUserProfile", withCORS(handleGetUserProfile(svc)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/RefillEnergy", withCORS(handleRefillEnergy(svc)))
 	}
 	return mux
 }
@@ -58,7 +60,7 @@ func handleGetRandomQuestion(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.GetRandomQuestionRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -90,7 +92,7 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.SubmitAnswerRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -133,7 +135,7 @@ func handleGetUserStats(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.GetUserStatsRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -172,7 +174,7 @@ func handleGetQuestionById(svc QuizService) http.HandlerFunc {
 			return
 		}
 		var req pb.GetQuestionByIdRequest
-		if err := readBody(r, &req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -288,5 +290,40 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
+	}
+}
+
+func handleRefillEnergy(svc QuizService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			UserID string `json:"user_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		
+		profile, err := svc.GetUserProfile(r.Context(), req.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to get profile")
+			return
+		}
+		
+		profile.Energy = profile.MaxEnergy
+		if err := svc.UpdateUserProfile(r.Context(), profile); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update profile")
+			return
+		}
+		
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"energy": profile.MaxEnergy,
+		})
 	}
 }

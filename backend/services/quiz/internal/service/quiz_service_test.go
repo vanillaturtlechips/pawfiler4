@@ -86,6 +86,7 @@ func TestGetRandomQuestion_Success(t *testing.T) {
 	}
 
 	mockRepo.On("GetRandomQuestion", ctx, (*string)(nil), (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
+	mockRepo.On("DeductEnergy", ctx, userID, int32(2)).Return(&repository.UserProfile{UserID: userID, Energy: 98}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetRandomQuestion(ctx, userID, nil, nil)
@@ -115,6 +116,7 @@ func TestGetRandomQuestion_WithDifficulty(t *testing.T) {
 	}
 
 	mockRepo.On("GetRandomQuestion", ctx, &difficulty, (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
+	mockRepo.On("DeductEnergy", ctx, userID, int32(2)).Return(&repository.UserProfile{UserID: userID, Energy: 98}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetRandomQuestion(ctx, userID, &difficulty, nil)
@@ -143,6 +145,7 @@ func TestGetRandomQuestion_WithType(t *testing.T) {
 	}
 
 	mockRepo.On("GetRandomQuestion", ctx, (*string)(nil), &repoQuestionType).Return(expectedQuestion, nil)
+	mockRepo.On("DeductEnergy", ctx, userID, int32(2)).Return(&repository.UserProfile{UserID: userID, Energy: 98}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	question, err := service.GetRandomQuestion(ctx, userID, nil, &questionType)
@@ -346,6 +349,7 @@ func TestSubmitAnswer_MultipleChoice_Correct(t *testing.T) {
 			ua.CoinsEarned == 5
 	})).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
+	mockRepo.On("AddProfileRewards", mock.Anything, userID, int32(10), int32(5)).Return(&repository.UserProfile{UserID: userID}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
@@ -395,13 +399,9 @@ func TestSubmitAnswer_MultipleChoice_Incorrect(t *testing.T) {
 			ua.CoinsEarned == 0
 	})).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, false).Return(&repository.UserStats{}, nil)
-		return e.UserID == userID &&
-			e.QuestionID == questionID &&
-			e.Correct == false &&
-			e.XPEarned == 0 &&
-			e.CoinsEarned == 0
-	})).Return(nil)
+	mockRepo.On("AddProfileRewards", mock.Anything, userID, int32(0), int32(0)).Return(&repository.UserProfile{UserID: userID}, nil)
 
+	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
 	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
 
@@ -441,9 +441,11 @@ func TestSubmitAnswer_TrueFalse(t *testing.T) {
 	mockValidator.On("ValidateTrueFalse", true, true).Return(true)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
+	mockRepo.On("AddProfileRewards", mock.Anything, userID, int32(10), int32(5)).Return(&repository.UserProfile{UserID: userID}, nil)
 
+	svc := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
-	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
+	result, err := svc.SubmitAnswer(ctx, userID, questionID, answer)
 
 	// Assert
 	assert.NoError(t, err)
@@ -486,9 +488,11 @@ func TestSubmitAnswer_RegionSelect(t *testing.T) {
 		int32(10)).Return(true)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
+	mockRepo.On("AddProfileRewards", mock.Anything, userID, int32(10), int32(5)).Return(&repository.UserProfile{UserID: userID}, nil)
 
+	svcRS := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
-	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
+	result, err := svcRS.SubmitAnswer(ctx, userID, questionID, answer)
 
 	// Assert
 	assert.NoError(t, err)
@@ -523,9 +527,11 @@ func TestSubmitAnswer_Comparison(t *testing.T) {
 	mockValidator.On("ValidateComparison", "left", "left").Return(true, nil)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
+	mockRepo.On("AddProfileRewards", mock.Anything, userID, int32(10), int32(5)).Return(&repository.UserProfile{UserID: userID}, nil)
 
+	svcComp := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
-	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
+	result, err := svcComp.SubmitAnswer(ctx, userID, questionID, answer)
 
 	// Assert
 	assert.NoError(t, err)
@@ -551,8 +557,9 @@ func TestSubmitAnswer_QuestionNotFound(t *testing.T) {
 	// Mock expectations
 	mockRepo.On("GetQuestionById", ctx, questionID).Return(nil, errors.New("question not found"))
 
+	svcQNF := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
-	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
+	result, err := svcQNF.SubmitAnswer(ctx, userID, questionID, answer)
 
 	// Assert
 	assert.Error(t, err)
@@ -585,8 +592,9 @@ func TestSubmitAnswer_InvalidIndex(t *testing.T) {
 	mockRepo.On("GetQuestionById", ctx, questionID).Return(question, nil)
 	mockValidator.On("ValidateMultipleChoice", int32(10), int32(1), 3).Return(false, errors.New("selected_index 10 is out of range"))
 
+	svcInv := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
-	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
+	result, err := svcInv.SubmitAnswer(ctx, userID, questionID, answer)
 
 	// Assert
 	assert.Error(t, err)
@@ -622,9 +630,11 @@ func TestSubmitAnswer_EventPublishFailure(t *testing.T) {
 	mockValidator.On("ValidateMultipleChoice", int32(0), int32(0), 2).Return(true, nil)
 	mockRepo.On("SaveAnswer", ctx, mock.AnythingOfType("*repository.UserAnswer")).Return(nil)
 	mockStatsTracker.On("UpdateStats", ctx, userID, true).Return(&repository.UserStats{}, nil)
+	mockRepo.On("AddProfileRewards", mock.Anything, userID, int32(10), int32(5)).Return(&repository.UserProfile{UserID: userID}, nil)
 
+	svcEPF := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
 	// Execute
-	result, err := service.SubmitAnswer(ctx, userID, questionID, answer)
+	result, err := svcEPF.SubmitAnswer(ctx, userID, questionID, answer)
 
 	// Assert - should succeed despite event publishing failure
 	assert.NoError(t, err)

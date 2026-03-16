@@ -12,6 +12,7 @@ import type {
   CheckoutResponse,
   SubscriptionPlan,
   QuizStats,
+  QuizGameProfile,
   CommunityPost,
   MediaType,
   MultipleChoiceQuestion,
@@ -137,7 +138,7 @@ export const signup = async (req: SignupRequest) => {
   }
 };
 
-export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
+export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuestion> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockFetchQuizQuestion(token || "");
@@ -146,17 +147,25 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
   try {
     const userId = getUserId();
     
-    // Envoy gRPC-JSON transcoding을 통한 요청
+    const body: any = { user_id: userId };
+    // 난이도 파라미터 추가 (all이 아닐 때만)
+    if (difficulty && difficulty !== "all") {
+      body.difficulty = difficulty;
+    }
+    
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRandomQuestion`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        user_id: userId,
-      }),
+      body: JSON.stringify(body),
     });
 
+    if (response.status === 429) {
+      const errData = await response.json().catch(() => ({}));
+      const energy = errData.energy ?? 0;
+      throw Object.assign(new Error('insufficient_energy'), { code: 'INSUFFICIENT_ENERGY', energy });
+    }
     if (!response.ok) {
       throw new Error(`Failed to fetch question: ${response.statusText}`);
     }
@@ -286,6 +295,12 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
       explanation: explanation,
       streakCount: data.streak_count ?? 0,
       correctIndex: correctIndex,
+      level: data.level,
+      tierName: data.tier_name,
+      totalExp: data.total_exp,
+      totalCoins: data.total_coins,
+      energy: data.energy,
+      maxEnergy: data.max_energy,
     };
   } catch (error) {
     return handleApiError(error, '답안 제출');
@@ -323,9 +338,38 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
       currentStreak: data.current_streak ?? 0,
       bestStreak: data.best_streak ?? 0,
       lives: data.lives ?? 3,
+      level: data.level,
+      tierName: data.tier_name,
+      totalExp: data.total_exp,
+      totalCoins: data.total_coins,
+      energy: data.energy,
+      maxEnergy: data.max_energy,
     };
   } catch (error) {
     return handleApiError(error, '통계 로드');
+  }
+};
+
+export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
+  try {
+    const userId = getUserId();
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetUserProfile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    if (!response.ok) throw new Error(`Failed to fetch profile: ${response.statusText}`);
+    const data = await response.json();
+    return {
+      level: data.level ?? 1,
+      tierName: data.tier_name ?? '알 껍데기 병아리',
+      totalExp: data.total_exp ?? 0,
+      totalCoins: data.total_coins ?? 0,
+      energy: data.energy ?? 100,
+      maxEnergy: data.max_energy ?? 100,
+    };
+  } catch (error) {
+    return handleApiError(error, '프로필 로드');
   }
 };
 
@@ -497,7 +541,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       formData.append('video', videoFile);
       formData.append('user_id', userId);
       
-      const response = await fetch(`${config.apiBaseUrl}/upload-video`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/upload-video`, {
         method: 'POST',
         body: formData,
       });
@@ -789,4 +833,13 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
     console.error('Failed to fetch hot topic:', error);
     return { tag: "없음", count: 0 };
   }
+};
+
+export const refillEnergy = async (): Promise<void> => {
+  const userId = getUserId();
+  await fetch(`${config.apiBaseUrl}/quiz.QuizService/RefillEnergy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
 };

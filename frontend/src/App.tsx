@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { QuizProfileProvider } from "@/contexts/QuizProfileContext";
 import AuthGuard from "@/components/AuthGuard";
 import ParallaxBackground from "@/components/ParallaxBackground";
 import Header from "@/components/Header";
@@ -90,7 +91,9 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
-              <AppContent />
+              <QuizProfileProvider>
+                <AppContent />
+              </QuizProfileProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

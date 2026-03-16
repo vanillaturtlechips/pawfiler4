@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"database/sql"
 	"encoding/json"
 	"time"
@@ -185,6 +186,7 @@ type UserProfile struct {
 	UserID           string    `db:"user_id"`
 	TotalExp         int32     `db:"total_exp"`
 	TotalCoins       int32     `db:"total_coins"`
+	CurrentTier      string    `db:"current_tier"`
 	Energy           int32     `db:"energy"`
 	MaxEnergy        int32     `db:"max_energy"`
 	LastEnergyRefill time.Time `db:"last_energy_refill"`
@@ -192,42 +194,56 @@ type UserProfile struct {
 }
 
 // Level returns the user's tier level (1-5) based on total XP.
-//
-// Tier thresholds:
-//   - Lv1: 0–149 XP
-//   - Lv2: 150–399 XP
-//   - Lv3: 400–799 XP
-//   - Lv4: 800–1499 XP
-//   - Lv5: 1500+ XP
 func (p *UserProfile) Level() int32 {
-	switch {
-	case p.TotalExp >= 1500:
-		return 5
-	case p.TotalExp >= 800:
-		return 4
-	case p.TotalExp >= 400:
-		return 3
-	case p.TotalExp >= 150:
-		return 2
-	default:
-		return 1
+	exp := p.TotalExp
+	tier := p.Tier()
+	
+	switch tier {
+	case "불사조":
+		switch {
+		case exp >= 4000: return 5  // 8일
+		case exp >= 3000: return 4  // 6일
+		case exp >= 2000: return 3  // 4일
+		case exp >= 1000: return 2  // 2일
+		default: return 1
+		}
+	case "맹금닭":
+		switch {
+		case exp >= 1600: return 5  // 3.2일
+		case exp >= 1200: return 4  // 2.4일
+		case exp >= 800: return 3   // 1.6일
+		case exp >= 400: return 2   // 0.8일
+		default: return 1
+		}
+	case "삐약이":
+		switch {
+		case exp >= 800: return 5   // 1.6일
+		case exp >= 600: return 4   // 1.2일
+		case exp >= 400: return 3   // 0.8일
+		case exp >= 200: return 2   // 0.4일
+		default: return 1
+		}
+	default: // 알
+		switch {
+		case exp >= 400: return 5   // 0.8일
+		case exp >= 300: return 4   // 0.6일
+		case exp >= 200: return 3   // 0.4일
+		case exp >= 100: return 2   // 0.2일
+		default: return 1
+		}
 	}
+}
+
+func (p *UserProfile) Tier() string {
+	if p.CurrentTier == "" {
+		return "알"
+	}
+	return p.CurrentTier
 }
 
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
-	switch p.Level() {
-	case 5:
-		return "불사조 탐정"
-	case 4:
-		return "망토 입은 닭"
-	case 3:
-		return "안경 쓴 병아리"
-	case 2:
-		return "삐약이 정보원"
-	default:
-		return "알 껍데기 병아리"
-	}
+	return fmt.Sprintf("%s Lv.%d", p.Tier(), p.Level())
 }
 
 // RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since
