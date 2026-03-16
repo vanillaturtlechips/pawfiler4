@@ -4,10 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -37,6 +46,9 @@ type CommunityService interface {
 	LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.LikePostResponse, error)
 	UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*pb.UnlikePostResponse, error)
 	CheckLike(ctx context.Context, req *pb.CheckLikeRequest) (*pb.CheckLikeResponse, error)
+	VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.VotePostResponse, error)
+	GetVoteResult(ctx context.Context, req *pb.GetVoteResultRequest) (*pb.VoteResult, error)
+	GetUserVote(ctx context.Context, req *pb.GetUserVoteRequest) (*pb.GetUserVoteResponse, error)
 	GetNotices(ctx context.Context, req *pb.GetNoticesRequest) (*pb.NoticesResponse, error)
 	GetTopDetective(ctx context.Context, req *pb.GetTopDetectiveRequest) (*pb.TopDetectiveResponse, error)
 	GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (*pb.HotTopicResponse, error)
@@ -54,7 +66,7 @@ func NewMuxWithDB(svc CommunityService, db *sql.DB) http.Handler {
 	for _, prefix := range []string{"", "/api"} {
 		mux.HandleFunc(prefix+"/community.CommunityService/GetFeed", withCORS(handle(svc.GetFeed, &pb.GetFeedRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetPost", withCORS(handle(svc.GetPost, &pb.GetPostRequest{})))
-		mux.HandleFunc(prefix+"/community.CommunityService/CreatePost", withCORS(handle(svc.CreatePost, &pb.CreatePostRequest{})))
+		mux.HandleFunc(prefix+"/community.CommunityService/CreatePost", withCORS(handleCreatePostWithMedia(svc)))
 		mux.HandleFunc(prefix+"/community.CommunityService/UpdatePost", withCORS(handle(svc.UpdatePost, &pb.UpdatePostRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/DeletePost", withCORS(handle(svc.DeletePost, &pb.DeletePostRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetComments", withCORS(handle(svc.GetComments, &pb.GetCommentsRequest{})))
@@ -63,12 +75,19 @@ func NewMuxWithDB(svc CommunityService, db *sql.DB) http.Handler {
 		mux.HandleFunc(prefix+"/community.CommunityService/LikePost", withCORS(handle(svc.LikePost, &pb.LikePostRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/UnlikePost", withCORS(handle(svc.UnlikePost, &pb.UnlikePostRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/CheckLike", withCORS(handle(svc.CheckLike, &pb.CheckLikeRequest{})))
+		// 투표 관련 핸들러 (protobuf 무한 재귀 문제 해결됨)
+		mux.HandleFunc(prefix+"/community.CommunityService/VotePost", withCORS(handle(svc.VotePost, &pb.VotePostRequest{})))
+		mux.HandleFunc(prefix+"/community.CommunityService/GetVoteResult", withCORS(handle(svc.GetVoteResult, &pb.GetVoteResultRequest{})))
+		mux.HandleFunc(prefix+"/community.CommunityService/GetUserVote", withCORS(handle(svc.GetUserVote, &pb.GetUserVoteRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetNotices", withCORS(handle(svc.GetNotices, &pb.GetNoticesRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetTopDetective", withCORS(handle(svc.GetTopDetective, &pb.GetTopDetectiveRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetHotTopic", withCORS(handle(svc.GetHotTopic, &pb.GetHotTopicRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetRanking", withCORS(handleGetRanking(db)))
 		mux.HandleFunc(prefix+"/community.CommunityService/SyncAuthorNickname", handleSyncAuthorNickname(db))
 	}
+	// 파일 업로드 (multipart) - 이미지/영상
+	mux.HandleFunc("/community/upload-media", withCORS(handleUploadMedia()))
+	mux.HandleFunc("/api/community/upload-media", withCORS(handleUploadMedia()))
 	return mux
 }
 
@@ -270,5 +289,268 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 			entries = []RankingEntry{}
 		}
 		json.NewEncoder(w).Encode(entries)
+	}
+}
+
+func handleCreatePostWithMedia(svc CommunityService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Content-Type 확인
+		contentType := r.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "multipart/form-data") {
+			// multipart/form-data 처리
+			handleCreatePostMultipart(svc, w, r)
+		} else {
+			// 기존 JSON 처리
+			handleCreatePostJSON(svc, w, r)
+		}
+	}
+}
+
+func handleCreatePostJSON(svc CommunityService, w http.ResponseWriter, r *http.Request) {
+	req := &pb.CreatePostRequest{}
+	if err := readBody(r, req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	resp, err := svc.CreatePost(r.Context(), req)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+	writeProto(w, resp)
+}
+
+func handleCreatePostMultipart(svc CommunityService, w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+	if err := r.ParseMultipartForm(100 << 20); err != nil {
+		writeError(w, http.StatusBadRequest, "file too large (max 100MB)")
+		return
+	}
+
+	// 폼 데이터 파싱
+	req := &pb.CreatePostRequest{
+		UserId:         r.FormValue("user_id"),
+		AuthorNickname: r.FormValue("author_nickname"),
+		AuthorEmoji:    r.FormValue("author_emoji"),
+		Title:          r.FormValue("title"),
+		Body:           r.FormValue("body"),
+		IsAdminPost:    r.FormValue("is_admin_post") == "true",
+	}
+
+	// tags 파싱
+	if tagsStr := r.FormValue("tags"); tagsStr != "" {
+		var tags []string
+		if err := json.Unmarshal([]byte(tagsStr), &tags); err == nil {
+			req.Tags = tags
+		}
+	}
+
+	// is_correct 파싱
+	if isCorrectStr := r.FormValue("is_correct"); isCorrectStr != "" {
+		if isCorrectStr == "true" {
+			isCorrect := true
+			req.IsCorrect = &isCorrect
+		} else if isCorrectStr == "false" {
+			isCorrect := false
+			req.IsCorrect = &isCorrect
+		}
+	}
+
+	// 파일이 있으면 S3 업로드
+	file, header, err := r.FormFile("file")
+	if err == nil {
+		defer file.Close()
+
+		// 파일 타입 검증
+		contentType := header.Header.Get("Content-Type")
+		ext := strings.ToLower(filepath.Ext(header.Filename))
+		allowedExts := map[string]string{
+			".jpg": "image", ".jpeg": "image", ".png": "image", ".gif": "image", ".webp": "image",
+			".mp4": "video", ".mov": "video", ".avi": "video", ".webm": "video",
+		}
+		mediaType, ok := allowedExts[ext]
+		if !ok {
+			writeError(w, http.StatusBadRequest, "unsupported file type")
+			return
+		}
+
+		// S3 업로드
+		bucket := os.Getenv("S3_COMMUNITY_BUCKET")
+		if bucket == "" {
+			bucket = "pawfiler-community-media"
+		}
+		region := os.Getenv("AWS_REGION")
+		if region == "" {
+			region = "ap-northeast-2"
+		}
+		cloudfrontDomain := os.Getenv("CLOUDFRONT_COMMUNITY_DOMAIN")
+
+		key := fmt.Sprintf("community/%s/%s%s", mediaType, uuid.New().String(), ext)
+
+		cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "storage configuration error")
+			return
+		}
+
+		client := s3.NewFromConfig(cfg)
+		_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket:      aws.String(bucket),
+			Key:         aws.String(key),
+			Body:        file,
+			ContentType: aws.String(contentType),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "media upload failed")
+			return
+		}
+
+		var mediaUrl string
+		if cloudfrontDomain != "" {
+			mediaUrl = fmt.Sprintf("%s/%s", strings.TrimRight(cloudfrontDomain, "/"), key)
+		} else {
+			mediaUrl = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key)
+		}
+
+		req.MediaUrl = mediaUrl
+		req.MediaType = mediaType
+	}
+
+	// 글 생성
+	resp, err := svc.CreatePost(r.Context(), req)
+	if err != nil {
+		// 글 생성 실패 시 업로드된 파일 삭제
+		if req.MediaUrl != "" {
+			deleteMediaFromS3(req.MediaUrl)
+		}
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeProto(w, resp)
+}
+
+func deleteMediaFromS3(mediaURL string) error {
+	// CloudFront URL에서 S3 key 추출
+	// https://diqtpoikktqu2.cloudfront.net/community/image/xxx.png -> community/image/xxx.png
+	parts := strings.Split(mediaURL, "/")
+	if len(parts) < 4 {
+		return fmt.Errorf("invalid media URL format: %s", mediaURL)
+	}
+	key := strings.Join(parts[len(parts)-3:], "/")
+
+	bucket := os.Getenv("S3_COMMUNITY_BUCKET")
+	if bucket == "" {
+		bucket = "pawfiler-community-media"
+	}
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "ap-northeast-2"
+	}
+
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+	if err != nil {
+		return fmt.Errorf("AWS config error: %w", err)
+	}
+
+	client := s3.NewFromConfig(cfg)
+	_, err = client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("S3 delete error: %w", err)
+	}
+	log.Printf("✅ Deleted media from S3: %s", key)
+	return nil
+}
+
+func handleUploadMedia() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// 100MB 제한
+		r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+		if err := r.ParseMultipartForm(100 << 20); err != nil {
+			writeError(w, http.StatusBadRequest, "file too large (max 100MB)")
+			return
+		}
+
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "file is required")
+			return
+		}
+		defer file.Close()
+
+		// 허용 타입 체크
+		contentType := header.Header.Get("Content-Type")
+		ext := strings.ToLower(filepath.Ext(header.Filename))
+		allowedExts := map[string]string{
+			".jpg": "image", ".jpeg": "image", ".png": "image", ".gif": "image", ".webp": "image",
+			".mp4": "video", ".mov": "video", ".avi": "video", ".webm": "video",
+		}
+		mediaType, ok := allowedExts[ext]
+		if !ok {
+			writeError(w, http.StatusBadRequest, "unsupported file type")
+			return
+		}
+
+		// S3 업로드
+		bucket := os.Getenv("S3_COMMUNITY_BUCKET")
+		if bucket == "" {
+			bucket = "pawfiler-community-media"
+		}
+		region := os.Getenv("AWS_REGION")
+		if region == "" {
+			region = "ap-northeast-2"
+		}
+		cloudfrontDomain := os.Getenv("CLOUDFRONT_COMMUNITY_DOMAIN")
+
+		key := fmt.Sprintf("community/%s/%s%s", mediaType, uuid.New().String(), ext)
+
+		cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+		if err != nil {
+			log.Printf("AWS config error: %v", err)
+			writeError(w, http.StatusInternalServerError, "storage configuration error")
+			return
+		}
+
+		client := s3.NewFromConfig(cfg)
+		_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket:      aws.String(bucket),
+			Key:         aws.String(key),
+			Body:        file,
+			ContentType: aws.String(contentType),
+		})
+		if err != nil {
+			log.Printf("S3 upload error: %v", err)
+			writeError(w, http.StatusInternalServerError, "upload failed")
+			return
+		}
+
+		var mediaUrl string
+		if cloudfrontDomain != "" {
+			mediaUrl = fmt.Sprintf("%s/%s", strings.TrimRight(cloudfrontDomain, "/"), key)
+		} else {
+			mediaUrl = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"media_url":  mediaUrl,
+			"media_type": mediaType,
+		})
+
+		_ = time.Now() // suppress unused import
 	}
 }
