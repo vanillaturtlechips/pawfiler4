@@ -428,3 +428,76 @@ func (r *GormQuizRepository) UpdateUserProfile(ctx context.Context, profile *Use
 	r.redis.Del(ctx, fmt.Sprintf("quiz:user_profile:%s", profile.UserID))
 	return nil
 }
+
+// ApplyAnswerRewards stats + profile을 단일 트랜잭션으로 업데이트
+func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID string, isCorrect bool, xpDelta, coinDelta int32) (*UserStats, *UserProfile, error) {
+	var stats *UserStats
+	var profile *UserProfile
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. stats 업데이트
+		var gs GormUserStats
+		if err := tx.Where("user_id = ?", userID).First(&gs).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				gs = GormUserStats{UserID: userID, Lives: 3}
+				tx.Create(&gs)
+			} else {
+				return err
+			}
+		}
+		gs.TotalAnswered++
+		if isCorrect {
+			gs.CorrectCount++
+			gs.CurrentStreak++
+			if gs.CurrentStreak > gs.BestStreak {
+				gs.BestStreak = gs.CurrentStreak
+			}
+		} else {
+			gs.CurrentStreak = 0
+		}
+		gs.UpdatedAt = time.Now()
+		if err := tx.Save(&gs).Error; err != nil {
+			return err
+		}
+		stats = gs.ToUserStats()
+
+		// 2. profile 업데이트
+		if xpDelta > 0 || coinDelta > 0 {
+			var gp GormUserProfile
+			if err := tx.Where("user_id = ?", userID).First(&gp).Error; err != nil {
+				return err
+			}
+			gp.TotalExp += xpDelta
+			gp.TotalCoins += coinDelta
+
+			// 티어 승급 체크 (XP 이월)
+			tierOrder := []string{"알", "삼빡이", "맹금닭", "불사초"}
+			tierThreshold := map[string]int32{"알": 1000, "삼빡이": 2000, "맹금닭": 4000}
+			for {
+				threshold, ok := tierThreshold[gp.CurrentTier]
+				if !ok || gp.TotalExp < threshold {
+					break
+				}
+				gp.TotalExp -= threshold
+				for i, t := range tierOrder {
+					if t == gp.CurrentTier && i+1 < len(tierOrder) {
+						gp.CurrentTier = tierOrder[i+1]
+						break
+					}
+				}
+			}
+
+			if err := tx.Save(&gp).Error; err != nil {
+				return err
+			}
+			profile = gp.ToUserProfile()
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("ApplyAnswerRewards tx failed: %w", err)
+	}
+	r.redis.Del(ctx, fmt.Sprintf("quiz:user_profile:%s", userID))
+	return stats, profile, nil
+}

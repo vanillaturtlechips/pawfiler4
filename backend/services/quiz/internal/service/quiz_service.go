@@ -256,22 +256,11 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		xpEarned, coinsEarned = repository.XPRewardByDifficulty(question.Difficulty)
 	}
 
-	// Step 4: Save answer to database
-	// Requirements 9.1, 9.2, 9.3, 9.4: Save answer with all required fields
+	// Step 4: Save answer (Redis queue → async batch write)
 	answerData, err := answer.ToJSON()
 	if err != nil {
-		// Requirement 15.3: Return INTERNAL for database errors
 		return nil, fmt.Errorf("failed to convert answer to JSON: %w", err)
 	}
-
-	// Get timestamp from context or use current time
-	answeredAt := time.Now()
-	if ts := ctx.Value("timestamp"); ts != nil {
-		if timestamp, ok := ts.(time.Time); ok {
-			answeredAt = timestamp
-		}
-	}
-
 	userAnswer := &repository.UserAnswer{
 		UserID:      userID,
 		QuestionID:  questionID,
@@ -279,85 +268,27 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		IsCorrect:   isCorrect,
 		XPEarned:    xpEarned,
 		CoinsEarned: coinsEarned,
-		AnsweredAt:  answeredAt, // Requirement 9.4
+		AnsweredAt:  time.Now(),
 	}
-
-	err = s.repo.SaveAnswer(context.Background(), userAnswer)
-	if err != nil {
-		// Requirement 15.3: Return INTERNAL for database errors
+	if err := s.repo.SaveAnswer(ctx, userAnswer); err != nil {
 		return nil, fmt.Errorf("failed to save answer: %w", err)
 	}
 
-	// Step 5: Update user statistics
-	updatedStats, err := s.statsTracker.UpdateStats(context.Background(), userID, isCorrect)
-	if err != nil {
-		fmt.Printf("Warning: failed to update user stats: %v\n", err)
-	}
-
-	// Step 5b: Update gamification profile (XP + coins)
+	// Step 5: stats + profile을 단일 트랜잭션으로 업데이트
 	streakBonus := int32(0)
-	if xpEarned > 0 || coinsEarned > 0 {
-		profile, err := s.repo.GetUserProfile(context.Background(), userID)
-		if err != nil {
-			if errors.Is(err, repository.ErrUserProfileNotFound) {
-				profile, _ = s.repo.CreateUserProfile(context.Background(), userID)
-			}
-		}
-		if profile != nil {
-			// 5연속 정답 보너스
-			if isCorrect && updatedStats != nil && updatedStats.CurrentStreak > 0 && updatedStats.CurrentStreak%5 == 0 {
-				streakBonus = 20
-				xpEarned += streakBonus
-			}
-
-			profile.TotalExp += xpEarned
-			profile.TotalCoins += coinsEarned
-			
-			// 레벨업 및 티어 승급 체크
-			tier := profile.Tier()
-			exp := profile.TotalExp
-			
-			// 레벨업 XP 이월 처리
-			for {
-				leveledUp := false
-				switch tier {
-				case "알":
-					if exp >= 1000 {
-						profile.CurrentTier = "삐약이"
-						profile.TotalExp = exp - 1000
-						tier = "삐약이"
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "삐약이":
-					if exp >= 2000 {
-						profile.CurrentTier = "맹금닭"
-						profile.TotalExp = exp - 2000
-						tier = "맹금닭"
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "맹금닭":
-					if exp >= 4000 {
-						profile.CurrentTier = "불사조"
-						profile.TotalExp = exp - 4000
-						tier = "불사조"
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "불사조":
-					// 최고 티어, 더 이상 승급 없음
-				}
-				if !leveledUp {
-					break
-				}
-			}
-			
-			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {
-				fmt.Printf("Warning: failed to update user profile: %v\n", err)
-			}
+	updatedStats, updatedProfile, err := s.repo.ApplyAnswerRewards(ctx, userID, isCorrect, xpEarned, coinsEarned)
+	if err != nil {
+		fmt.Printf("Warning: ApplyAnswerRewards failed: %v\n", err)
+	}
+	// 5연속 정답 보너스 (streak 확정 후 추가 XP)
+	if isCorrect && updatedStats != nil && updatedStats.CurrentStreak > 0 && updatedStats.CurrentStreak%5 == 0 {
+		streakBonus = 20
+		if updatedProfile != nil {
+			updatedProfile.TotalExp += streakBonus
+			_ = s.repo.UpdateUserProfile(ctx, updatedProfile)
 		}
 	}
+	_ = updatedProfile
 
 	// Step 6: Return result
 	return &SubmitResult{
