@@ -61,7 +61,7 @@ const GamePage = () => {
   };
   const [energyError, setEnergyError] = useState<number | null>(null);
   const [showTierUpModal, setShowTierUpModal] = useState(false);
-  const [newTier, setNewTier] = useState<{ level: number; name: string; promoted: boolean } | null>(null);
+  const [newTier, setNewTier] = useState<{ prevLevel: number; level: number; name: string; promoted: boolean } | null>(null);
 
   // 게임 완료 시 폭죽 효과
   useEffect(() => {
@@ -220,11 +220,13 @@ const GamePage = () => {
       }).catch(() => {});
 
       // 프로필 업데이트 (에너지/XP/코인)
-      if (res.level !== undefined && profile) {
+      if (profile) {
         const prevLevel = profile.level;
+        const newLevel = res.level ?? profile.level;
+        const newTierName = res.tierName ?? profile.tierName;
         const updatedProfile: QuizGameProfile = {
-          level: res.level,
-          tierName: res.tierName ?? profile.tierName,
+          level: newLevel,
+          tierName: newTierName,
           totalExp: res.totalExp ?? profile.totalExp,
           totalCoins: res.totalCoins ?? profile.totalCoins,
           energy: res.energy ?? profile.energy,
@@ -234,15 +236,15 @@ const GamePage = () => {
         
         // 레벨업 감지
         const tierPromoted = res.tierPromoted === true;
-        if (tierPromoted || res.level > prevLevel) {
-          setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName, promoted: tierPromoted });
+        if (tierPromoted || newLevel > prevLevel) {
+          setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: tierPromoted });
           setShowTierUpModal(true);
         }
         // 5연속 정답 보너스 토스트
         if (res.streakBonus && res.streakBonus > 0) {
           toast.success(`🔥 ${res.streakCount}연속 정답! +${res.streakBonus} XP 보너스!`);
         }
-      } else if (profile) {
+      } else if (false) {
         // 에너지 2 차감 (백엔드 연동 전 로컬 처리)
         setProfile({ ...profile, energy: Math.max(0, profile.energy - 2) });
       }
@@ -701,14 +703,16 @@ const GamePage = () => {
                   // 레벨업 - 심플하게
                   <>
                     <motion.div
-                      animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.15, 1] }}
+                      animate={{ scale: [1, 1.15, 1] }}
                       transition={{ duration: 0.5, repeat: 1 }}
                       className="text-7xl mb-3"
                     >
-                      ⬆️
+                      {newTier.name === '불사조' ? '🦅' : newTier.name === '맹금닭' ? '🐓' : newTier.name === '삐약이' ? '🐥' : '🥚'}
                     </motion.div>
                     <h2 className="font-jua text-3xl text-yellow-400 mb-2">레벨 업!</h2>
-                    <p className="font-jua text-xl mb-6">{newTier.name} Lv.{newTier.level}</p>
+                    <p className="font-jua text-xl mb-6">
+                      {newTier.name} Lv.{newTier.prevLevel} → Lv.{newTier.level}
+                    </p>
                   </>
                 )}
                 <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>확인</GameButton>
