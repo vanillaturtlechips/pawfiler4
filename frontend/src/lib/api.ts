@@ -139,7 +139,7 @@ export const signup = async (req: SignupRequest) => {
   }
 };
 
-export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
+export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuestion> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockFetchQuizQuestion(token || "");
@@ -148,15 +148,18 @@ export const fetchQuizQuestion = async (): Promise<QuizQuestion> => {
   try {
     const userId = getUserId();
     
-    // Envoy gRPC-JSON transcoding을 통한 요청
+    const body: any = { user_id: userId };
+    // 난이도 파라미터 추가 (all이 아닐 때만)
+    if (difficulty && difficulty !== "all") {
+      body.difficulty = difficulty;
+    }
+    
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRandomQuestion`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        user_id: userId,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (response.status === 429) {
@@ -389,7 +392,7 @@ export const fetchCommunityFeed = async (
     }
     
     const response = await fetch(
-      `${config.apiBaseUrl}/community.CommunityService/GetFeed`,
+      `${config.communityBaseUrl}/community.CommunityService/GetFeed`,
       {
         method: "POST",
         headers: {
@@ -414,7 +417,7 @@ export const fetchCommunityFeed = async (
       body: post.body,
       likes: post.likes || 0,
       comments: post.comments || 0,
-      createdAt: post.created_at || new Date().toISOString(),
+      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
       tags: post.tags || [],
       userId: post.author_id,
     })) || [];
@@ -438,7 +441,7 @@ export const createCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CreatePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreatePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -450,7 +453,19 @@ export const createCommunityPost = async (req: {
       throw new Error(`Failed to create post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const post = await response.json();
+    return {
+      id: post.id,
+      userId: post.author_id,
+      authorNickname: post.author_nickname || req.authorNickname,
+      authorEmoji: post.author_emoji || req.authorEmoji,
+      title: post.title,
+      body: post.body,
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
+      tags: post.tags || [],
+    };
   } catch (error) {
     return handleApiError(error, '게시글 작성');
   }
@@ -463,7 +478,7 @@ export const updateCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/UpdatePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/UpdatePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -483,7 +498,7 @@ export const updateCommunityPost = async (req: {
 
 export const deleteCommunityPost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeletePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeletePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -651,7 +666,7 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
 // Community Comments & Likes
 export const fetchCommunityComments = async (postId: string): Promise<CommunityComment[]> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetComments`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetComments`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -672,7 +687,7 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
       authorNickname: comment.author_nickname || "익명",
       authorEmoji: comment.author_emoji || "👤",
       body: comment.body,
-      createdAt: comment.created_at || new Date().toISOString(),
+      createdAt: (comment.created_at || new Date().toISOString()).replace(' ', 'T'),
       userId: comment.author_id,
     })) || [];
     
@@ -691,7 +706,7 @@ export const createCommunityComment = async (req: {
   body: string;
 }): Promise<CommunityComment> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CreateComment`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreateComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -711,7 +726,7 @@ export const createCommunityComment = async (req: {
 
 export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeleteComment`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeleteComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -731,7 +746,7 @@ export const deleteCommunityComment = async (commentId: string): Promise<{ succe
 
 export const likePost = async (postId: string, userId: string): Promise<{ success: boolean; alreadyLiked?: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/LikePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/LikePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -751,7 +766,7 @@ export const likePost = async (postId: string, userId: string): Promise<{ succes
 
 export const unlikePost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/UnlikePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/UnlikePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -771,7 +786,7 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ succ
 
 export const getPost = async (postId: string): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetPost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetPost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -783,7 +798,19 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
       throw new Error(`Failed to fetch post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const post = await response.json();
+    return {
+      id: post.id,
+      userId: post.author_id,
+      authorNickname: post.author_nickname || "익명",
+      authorEmoji: post.author_emoji || "👤",
+      title: post.title,
+      body: post.body,
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
+      tags: post.tags || [],
+    };
   } catch (error) {
     return handleApiError(error, '게시글 로드');
   }
@@ -791,7 +818,7 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
 
 export const checkLike = async (postId: string, userId: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CheckLike`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CheckLike`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -814,7 +841,7 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
 // Community Dashboard APIs
 export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetNotices`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetNotices`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -835,7 +862,7 @@ export const fetchNotices = async (): Promise<Array<{ id: string; title: string 
 
 export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetTopDetective`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetTopDetective`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -856,7 +883,7 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
 
 export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetHotTopic`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetHotTopic`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -872,5 +899,52 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
   } catch (error) {
     console.error('Failed to fetch hot topic:', error);
     return { tag: "없음", count: 0 };
+  }
+};
+
+export const refillEnergy = async (): Promise<void> => {
+  const userId = getUserId();
+  await fetch(`${config.apiBaseUrl}/quiz.QuizService/RefillEnergy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+};
+
+export const syncProfileToQuiz = async (nickname: string, avatarEmoji: string): Promise<void> => {
+  const userId = getUserId();
+  if (!userId || !nickname) return;
+  await fetch(`${config.apiBaseUrl}/quiz.QuizService/UpdateUserProfile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, nickname, avatar_emoji: avatarEmoji }),
+  }).catch(() => {});
+};
+
+export const fetchRanking = async (sortBy: string = "correct") => {
+  try {
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRanking`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sort_by: sortBy }),
+    });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+};
+
+export const fetchQuestionStats = async (questionId?: string) => {
+  try {
+    const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetQuestionStats`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(questionId ? { question_id: questionId } : {}),
+    });
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
   }
 };

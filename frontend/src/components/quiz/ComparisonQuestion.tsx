@@ -16,6 +16,7 @@ interface Props {
   resultExplanation?: string;
   coinsEarned?: number;
   onSwapChange?: (isSwapped: boolean) => void;
+  accuracy?: number | null;
 }
 
 export default function ComparisonQuestion({
@@ -31,6 +32,7 @@ export default function ComparisonQuestion({
   resultExplanation,
   coinsEarned,
   onSwapChange,
+  accuracy,
 }: Props) {
   // 이미지 순서를 랜덤하게 결정 (문제가 바뀔 때마다 새로 결정)
   const [isSwapped, setIsSwapped] = useState(false);
@@ -160,6 +162,13 @@ export default function ComparisonQuestion({
                 {isCorrect ? `🎉 정답! +${coinsEarned}닢` : "😢 아쉬워요..."}
               </p>
               <p className="text-base mt-2 text-foreground">{resultExplanation}</p>
+              <div className="mt-2 pt-2 border-t border-wood-dark/30">
+                <p className="font-jua text-sm opacity-70">
+                  📊 이 문제 정답률: <span className="text-yellow-400">
+                    {accuracy !== null && accuracy !== undefined ? `${accuracy.toFixed(1)}%` : '계산 중...'}
+                  </span>
+                </p>
+              </div>
             </div>
             <GameButton variant="blue" onClick={onNext}>
               다음 문제 →

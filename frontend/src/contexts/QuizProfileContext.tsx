@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { QuizGameProfile } from "@/lib/types";
-import { fetchUserStats, fetchUserProfile } from "@/lib/api";
+import { fetchUserStats, fetchUserProfile, syncProfileToQuiz } from "@/lib/api";
 import { useAuth } from "./AuthContext";
 
 interface QuizProfileContextValue {
@@ -22,7 +22,7 @@ export const useQuizProfile = () => {
 };
 
 export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const [quizProfile, setQuizProfile] = useState<QuizGameProfile | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingNav, setPendingNav] = useState<string | null>(null);
@@ -52,6 +52,12 @@ export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (isLoggedIn) {
       refreshQuizProfile();
+      if (user?.nickname) {
+        // 프로필 생성 후 닉네임 동기화 (재시도 포함)
+        const sync = () => syncProfileToQuiz(user.nickname, user.avatarEmoji || '🥚');
+        setTimeout(sync, 500);
+        setTimeout(sync, 2000); // 실패 대비 재시도
+      }
     } else {
       setQuizProfile(null);
     }

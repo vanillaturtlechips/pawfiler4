@@ -133,6 +133,10 @@ func (h *QuizHandler) GetUserProfile(ctx context.Context, userID string) (*repos
 	return h.service.GetUserProfile(ctx, userID)
 }
 
+func (h *QuizHandler) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
+	return h.service.UpdateUserProfile(ctx, profile)
+}
+
 // GetUserStats handles the GetUserStats RPC
 // Requirements: 12.1~12.4
 func (h *QuizHandler) GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error) {
@@ -151,12 +155,6 @@ func (h *QuizHandler) GetUserStats(ctx context.Context, req *pb.GetUserStatsRequ
 		BestStreak:    stats.BestStreak,
 		Lives:         stats.Lives,
 	}, nil
-}
-
-// GetUserProfile returns the user's profile (XP, coins, energy)
-// Called by the REST handler to augment responses
-func (h *QuizHandler) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
-	return h.service.GetUserProfile(ctx, userID)
 }
 
 // convertQuestionToProto converts a repository Question to protobuf QuizQuestion

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"database/sql"
 	"encoding/json"
 	"time"
@@ -113,67 +114,6 @@ func (s *UserStats) CorrectRate() float64 {
 	return float64(s.CorrectCount) / float64(s.TotalAnswered)
 }
 
-// UserProfile represents user profile with level/tier/energy
-type UserProfile struct {
-	UserID         string    `db:"user_id"`
-	TotalExp       int32     `db:"total_exp"`
-	TotalCoins     int32     `db:"total_coins"`
-	Energy         int32     `db:"energy"`
-	MaxEnergy      int32     `db:"max_energy"`
-	LastEnergyTime time.Time `db:"last_energy_time"`
-	CreatedAt      time.Time `db:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at"`
-}
-
-func (p *UserProfile) Level() int32 {
-	switch {
-	case p.TotalExp >= 1500:
-		return 5
-	case p.TotalExp >= 800:
-		return 4
-	case p.TotalExp >= 400:
-		return 3
-	case p.TotalExp >= 150:
-		return 2
-	default:
-		return 1
-	}
-}
-
-func (p *UserProfile) TierName() string {
-	switch p.Level() {
-	case 5:
-		return "불사조 탐정"
-	case 4:
-		return "망토 입은 닭"
-	case 3:
-		return "안경 쓴 병아리"
-	case 2:
-		return "삐약이 정보원"
-	default:
-		return "알 껍데기 병아리"
-	}
-}
-
-func (p *UserProfile) RefillEnergy() {
-	now := time.Now()
-	hours := int32(now.Sub(p.LastEnergyTime).Hours())
-	if hours > 0 {
-		p.Energy += hours * 10
-		if p.Energy > p.MaxEnergy { p.Energy = p.MaxEnergy }
-		p.LastEnergyTime = now
-	}
-}
-
-func XPRewardByDifficulty(d Difficulty) (int32, int32) {
-	switch d {
-	case DifficultyEasy: return 10, 5
-	case DifficultyMedium: return 25, 12
-	case DifficultyHard: return 50, 25
-	default: return 10, 5
-	}
-}
-
 // Answer is an interface for all answer types
 // Each question type has its own answer implementation
 type Answer interface {
@@ -244,8 +184,11 @@ func (a ComparisonAnswer) ToJSON() (map[string]interface{}, error) {
 // Energy is consumed when requesting questions and recovers automatically over time.
 type UserProfile struct {
 	UserID           string    `db:"user_id"`
+	Nickname         string    `db:"nickname"`
+	AvatarEmoji      string    `db:"avatar_emoji"`
 	TotalExp         int32     `db:"total_exp"`
 	TotalCoins       int32     `db:"total_coins"`
+	CurrentTier      string    `db:"current_tier"`
 	Energy           int32     `db:"energy"`
 	MaxEnergy        int32     `db:"max_energy"`
 	LastEnergyRefill time.Time `db:"last_energy_refill"`
@@ -253,42 +196,56 @@ type UserProfile struct {
 }
 
 // Level returns the user's tier level (1-5) based on total XP.
-//
-// Tier thresholds:
-//   - Lv1: 0–149 XP
-//   - Lv2: 150–399 XP
-//   - Lv3: 400–799 XP
-//   - Lv4: 800–1499 XP
-//   - Lv5: 1500+ XP
 func (p *UserProfile) Level() int32 {
-	switch {
-	case p.TotalExp >= 1500:
-		return 5
-	case p.TotalExp >= 800:
-		return 4
-	case p.TotalExp >= 400:
-		return 3
-	case p.TotalExp >= 150:
-		return 2
-	default:
-		return 1
+	exp := p.TotalExp
+	tier := p.Tier()
+	
+	switch tier {
+	case "불사조":
+		switch {
+		case exp >= 8000: return 5
+		case exp >= 6000: return 4
+		case exp >= 4000: return 3
+		case exp >= 2000: return 2
+		default: return 1
+		}
+	case "맹금닭":
+		switch {
+		case exp >= 3200: return 5
+		case exp >= 2400: return 4
+		case exp >= 1600: return 3
+		case exp >= 800: return 2
+		default: return 1
+		}
+	case "삐약이":
+		switch {
+		case exp >= 1600: return 5
+		case exp >= 1200: return 4
+		case exp >= 800: return 3
+		case exp >= 400: return 2
+		default: return 1
+		}
+	default: // 알
+		switch {
+		case exp >= 800: return 5
+		case exp >= 600: return 4
+		case exp >= 400: return 3
+		case exp >= 200: return 2
+		default: return 1
+		}
 	}
+}
+
+func (p *UserProfile) Tier() string {
+	if p.CurrentTier == "" {
+		return "알"
+	}
+	return p.CurrentTier
 }
 
 // TierName returns the Korean display name for the user's current tier.
 func (p *UserProfile) TierName() string {
-	switch p.Level() {
-	case 5:
-		return "불사조 탐정"
-	case 4:
-		return "망토 입은 닭"
-	case 3:
-		return "안경 쓴 병아리"
-	case 2:
-		return "삐약이 정보원"
-	default:
-		return "알 껍데기 병아리"
-	}
+	return fmt.Sprintf("%s Lv.%d", p.Tier(), p.Level())
 }
 
 // RefillEnergy applies time-based energy recovery (+10 per 3 hours elapsed since

@@ -15,6 +15,7 @@ interface Props {
   onNext?: () => void;
   resultExplanation?: string;
   coinsEarned?: number;
+  accuracy?: number | null;
 }
 
 export default function RegionSelectQuestion({
@@ -29,6 +30,7 @@ export default function RegionSelectQuestion({
   onNext,
   resultExplanation,
   coinsEarned,
+  accuracy,
 }: Props) {
   const imageRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -151,6 +153,13 @@ export default function RegionSelectQuestion({
                   {isCorrect ? `🎉 정답! +${coinsEarned}닢` : "😢 아쉬워요..."}
                 </p>
                 <p className="text-base mt-2 text-foreground">{resultExplanation}</p>
+                <div className="mt-2 pt-2 border-t border-wood-dark/30">
+                  <p className="font-jua text-sm opacity-70">
+                    📊 이 문제 정답률: <span className="text-yellow-400">
+                      {accuracy !== null && accuracy !== undefined ? `${accuracy.toFixed(1)}%` : '계산 중...'}
+                    </span>
+                  </p>
+                </div>
               </div>
               <GameButton variant="blue" onClick={onNext}>
                 다음 문제 →

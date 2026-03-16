@@ -2,6 +2,8 @@ package rest
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -41,6 +43,10 @@ type CommunityService interface {
 }
 
 func NewMux(svc CommunityService) http.Handler {
+	return NewMuxWithDB(svc, nil)
+}
+
+func NewMuxWithDB(svc CommunityService, db *sql.DB) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -60,6 +66,7 @@ func NewMux(svc CommunityService) http.Handler {
 		mux.HandleFunc(prefix+"/community.CommunityService/GetNotices", withCORS(handle(svc.GetNotices, &pb.GetNoticesRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetTopDetective", withCORS(handle(svc.GetTopDetective, &pb.GetTopDetectiveRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetHotTopic", withCORS(handle(svc.GetHotTopic, &pb.GetHotTopicRequest{})))
+		mux.HandleFunc(prefix+"/community.CommunityService/GetRanking", withCORS(handleGetRanking(db)))
 	}
 	return mux
 }
@@ -154,5 +161,67 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
+	}
+}
+
+type RankingEntry struct {
+	Rank           int    `json:"rank"`
+	UserID         string `json:"userId"`
+	Nickname       string `json:"nickname"`
+	Emoji          string `json:"emoji"`
+	TierName       string `json:"tierName"`
+	TotalAnswered  int    `json:"totalAnswered"`
+	CorrectAnswers int    `json:"correctAnswers"`
+	TotalCoins     int    `json:"totalCoins"`
+}
+
+func handleGetRanking(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if db == nil {
+			json.NewEncoder(w).Encode([]RankingEntry{})
+			return
+		}
+		rows, err := db.QueryContext(r.Context(), `
+			SELECT 
+				p.author_id,
+				p.author_nickname,
+				p.author_emoji,
+				COALESCE(qp.current_tier, '알') as current_tier,
+				COALESCE(qs.total_answered, 0) as total_answered,
+				COALESCE(qs.correct_answers, 0) as correct_answers,
+				COALESCE(qp.total_coins, 0) as total_coins
+			FROM (
+				SELECT DISTINCT author_id, author_nickname, author_emoji
+				FROM community.posts
+			) p
+			LEFT JOIN quiz.user_profiles qp ON qp.user_id::text = p.author_id
+			LEFT JOIN quiz.user_stats qs ON qs.user_id::text = p.author_id
+			ORDER BY COALESCE(qs.correct_answers, 0) DESC
+			LIMIT 20
+		`)
+		if err != nil {
+			http.Error(w, "failed to query ranking", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var entries []RankingEntry
+		rank := 1
+		for rows.Next() {
+			var e RankingEntry
+			var tier string
+			if err := rows.Scan(&e.UserID, &e.Nickname, &e.Emoji, &tier, &e.TotalAnswered, &e.CorrectAnswers, &e.TotalCoins); err != nil {
+				continue
+			}
+			e.Rank = rank
+			e.TierName = tier
+			entries = append(entries, e)
+			rank++
+		}
+		if entries == nil {
+			entries = []RankingEntry{}
+		}
+		json.NewEncoder(w).Encode(entries)
 	}
 }

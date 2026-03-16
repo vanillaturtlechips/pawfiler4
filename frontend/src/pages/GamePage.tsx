@@ -5,7 +5,8 @@ import confetti from "canvas-confetti";
 import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy, fetchQuestionStats, syncProfileToQuiz } from "@/lib/api";
+import { toast } from "sonner";
 import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
@@ -50,6 +51,7 @@ const GamePage = () => {
   const [result, setResult] = useState<QuizSubmitResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [videoOrientation, setVideoOrientation] = useState<"landscape" | "portrait">("landscape");
+  const [questionAccuracy, setQuestionAccuracy] = useState<number | null>(null);
 
   // 로컬 profile (context에서 초기화, 업데이트 시 context도 동기화)
   const [profile, setProfileLocal] = useState<QuizGameProfile | null>(ctxProfile);
@@ -58,6 +60,8 @@ const GamePage = () => {
     if (p) updateQuizProfile(p);
   };
   const [energyError, setEnergyError] = useState<number | null>(null);
+  const [showTierUpModal, setShowTierUpModal] = useState(false);
+  const [newTier, setNewTier] = useState<{ level: number; name: string; promoted: boolean } | null>(null);
 
   // 게임 완료 시 폭죽 효과
   useEffect(() => {
@@ -86,6 +90,7 @@ const GamePage = () => {
 
   // 게임 시작
   const handleStart = async (difficulty: string, count: number) => {
+    setSelectedDifficulty(difficulty); // 난이도 저장
     setMaxQuestions(count);
     setLoading(true);
     setPhase("playing");
@@ -100,8 +105,14 @@ const GamePage = () => {
       setStats(userStats);
     } catch (error: any) {
       if (error?.code === "INSUFFICIENT_ENERGY") {
-        setEnergyError(error.energy ?? 0);
-        setPhase("select");
+        const currentEnergy = error.energy ?? 0;
+        if (currentEnergy === 0) {
+          // 에너지 0이면 상점으로 이동
+          navigate("/shop");
+        } else {
+          setEnergyError(currentEnergy);
+          setPhase("select");
+        }
       } else {
         console.error("게임 초기화 실패:", error);
       }
@@ -114,6 +125,18 @@ const GamePage = () => {
     if (questionCount >= maxQuestions) {
       setGameFinished(true);
       setPhase("finished");
+      // 10문제 완주 보너스
+      if (maxQuestions >= 10 && profile) {
+        const bonusXP = 50;
+        const bonusCoins = 100;
+        const updated = {
+          ...profile,
+          totalExp: profile.totalExp + bonusXP,
+          totalCoins: profile.totalCoins + bonusCoins,
+        };
+        setProfile(updated);
+        toast.success(`🎁 10문제 완주 보너스! +${bonusXP} XP +${bonusCoins} 코인!`);
+      }
       await fetchUserStats().then(setStats).catch(console.error);
       return;
     }
@@ -124,6 +147,7 @@ const GamePage = () => {
     setSelectedRegion(null);
     setSelectedSide(null);
     setResult(null);
+    setQuestionAccuracy(null);
 
     try {
       const q = await fetchQuizQuestion(selectedDifficulty);
@@ -131,7 +155,12 @@ const GamePage = () => {
       setQuestionCount(prev => prev + 1);
     } catch (error: any) {
       if (error?.code === "INSUFFICIENT_ENERGY") {
-        setEnergyError(error.energy ?? 0);
+        const currentEnergy = error.energy ?? 0;
+        if (currentEnergy === 0) {
+          navigate("/shop");
+        } else {
+          setEnergyError(currentEnergy);
+        }
       } else {
         console.error("문제 불러오기 실패:", error);
       }
@@ -184,8 +213,15 @@ const GamePage = () => {
       });
       setResult(res);
 
+      // 정답률 fetch
+      fetchQuestionStats(question.id).then(stats => {
+        const found = stats.find((s: {id: string; accuracy: number}) => s.id === question.id);
+        if (found) setQuestionAccuracy(found.accuracy);
+      }).catch(() => {});
+
       // 프로필 업데이트 (에너지/XP/코인)
       if (res.level !== undefined && profile) {
+        const prevLevel = profile.level;
         const updatedProfile: QuizGameProfile = {
           level: res.level,
           tierName: res.tierName ?? profile.tierName,
@@ -195,6 +231,17 @@ const GamePage = () => {
           maxEnergy: res.maxEnergy ?? profile.maxEnergy,
         };
         setProfile(updatedProfile);
+        
+        // 레벨업 감지
+        const tierPromoted = res.tierPromoted === true;
+        if (tierPromoted || res.level > prevLevel) {
+          setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName, promoted: tierPromoted });
+          setShowTierUpModal(true);
+        }
+        // 5연속 정답 보너스 토스트
+        if (res.streakBonus && res.streakBonus > 0) {
+          toast.success(`🔥 ${res.streakCount}연속 정답! +${res.streakBonus} XP 보너스!`);
+        }
       } else if (profile) {
         // 에너지 2 차감 (백엔드 연동 전 로컬 처리)
         setProfile({ ...profile, energy: Math.max(0, profile.energy - 2) });
@@ -241,6 +288,17 @@ const GamePage = () => {
 
   // ──────────────────────────────
   // 선택 화면
+  const handleEnergyRefill = async () => {
+    if (profile) {
+      // 로컬 업데이트
+      await refillEnergy();
+      const refilled = { ...profile, energy: profile.maxEnergy };
+      setProfile(refilled);
+      // 백엔드에도 반영 (임시: 프로필 새로고침으로 에너지 자동 충전 트리거)
+      await refreshQuizProfile();
+    }
+  };
+
   // ──────────────────────────────
   if (phase === "select") {
     return (
@@ -251,6 +309,7 @@ const GamePage = () => {
         selectedCount={selectedCount}
         onDifficultyChange={setSelectedDifficulty}
         onCountChange={setSelectedCount}
+        onEnergyRefill={handleEnergyRefill}
       />
     );
   }
@@ -423,26 +482,19 @@ const GamePage = () => {
                   <div className="font-jua text-base sm:text-lg text-shadow-deep whitespace-nowrap">
                     📈 {questionCount}/{maxQuestions}
                   </div>
+                  {/* 에너지바 */}
+                  {profile && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <span className="font-jua text-sm whitespace-nowrap">⚡ {profile.energy}/{profile.maxEnergy}</span>
+                      <div className="w-20 bg-wood-dark rounded-full h-2 overflow-hidden">
+                        <div className="h-full rounded-full transition-all"
+                          style={{ width: `${(profile.energy / profile.maxEnergy) * 100}%`, background: profile.energy > 30 ? "#facc15" : "#ef4444" }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-              {/* 에너지/프로필 HUD */}
-              {profile && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="font-jua text-sm bg-wood-dark px-2 py-1 rounded-lg whitespace-nowrap">
-                    🐣 {profile.tierName} (Lv.{profile.level})
-                  </span>
-                  <span className="font-jua text-sm text-yellow-400 whitespace-nowrap">✨ {profile.totalExp} XP</span>
-                  <span className="font-jua text-sm text-amber-400 whitespace-nowrap">💰 {profile.totalCoins}</span>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="font-jua text-sm whitespace-nowrap">⚡ {profile.energy}/{profile.maxEnergy}</span>
-                    <div className="w-20 bg-wood-dark rounded-full h-2 overflow-hidden">
-                      <div className="h-full rounded-full transition-all"
-                        style={{ width: `${(profile.energy / profile.maxEnergy) * 100}%`, background: profile.energy > 30 ? "#facc15" : "#ef4444" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {loading ? (
@@ -493,6 +545,7 @@ const GamePage = () => {
                               onNext={loadQuestion}
                               resultExplanation={result?.explanation}
                               coinsEarned={result?.coinsEarned}
+                              accuracy={questionAccuracy}
                             />
                           </div>
                         );
@@ -513,6 +566,7 @@ const GamePage = () => {
                               resultExplanation={result?.explanation}
                               coinsEarned={result?.coinsEarned}
                               onSwapChange={setIsComparisonSwapped}
+                              accuracy={questionAccuracy}
                             />
                           </div>
                         );
@@ -528,7 +582,23 @@ const GamePage = () => {
                     {result ? (
                       <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 flex-shrink-0">
                         {question.type === "true_false" ? (
-                          <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
+                          <>
+                            {result && (
+                              <WoodPanel className="p-3 bg-wood-base">
+                                <p className="font-jua text-xl" style={{ color: result.correct ? "hsl(var(--magic-green))" : "hsl(var(--destructive))" }}>
+                                  {result.correct ? `🎉 정답! +${result.coinsEarned} 코인` : "😢 아쉬워요..."}
+                                </p>
+                                <div className="mt-2 pt-2 border-t border-wood-dark/30">
+                                  <p className="font-jua text-sm opacity-70">
+                                    📊 이 문제 정답률: <span className="text-yellow-400">
+                                      {questionAccuracy !== null ? `${questionAccuracy.toFixed(1)}%` : '계산 중...'}
+                                    </span>
+                                  </p>
+                                </div>
+                              </WoodPanel>
+                            )}
+                            <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
+                          </>
                         ) : (
                           <>
                             <WoodPanel className="p-4 bg-wood-base">
@@ -536,6 +606,13 @@ const GamePage = () => {
                                 {result.correct ? `🎉 정답! +${result.coinsEarned} 코인` : "😢 아쉬워요..."}
                               </p>
                               <p className="text-base mt-2 text-foreground">{result.explanation}</p>
+                              <div className="mt-3 pt-3 border-t border-wood-dark/30">
+                                <p className="font-jua text-sm opacity-70">
+                                  📊 이 문제 정답률: <span className="text-yellow-400">
+                                    {questionAccuracy !== null ? `${questionAccuracy.toFixed(1)}%` : '계산 중...'}
+                                  </span>
+                                </p>
+                              </div>
                             </WoodPanel>
                             <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
                           </>
@@ -580,8 +657,84 @@ const GamePage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 레벨업 / 티어 승급 모달 */}
+      <AnimatePresence>
+        {showTierUpModal && newTier && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+            onClick={() => setShowTierUpModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.5, y: 60 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <WoodPanel className="max-w-sm w-full p-8 text-center">
+                {newTier.promoted ? (
+                  // 티어 승급 - 화려하게
+                  <>
+                    <TierPromotionEffect />
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 0.9, 1.15, 1], rotate: [0, -8, 8, -4, 0] }}
+                      transition={{ duration: 0.8, repeat: 2 }}
+                      className="text-9xl mb-3"
+                    >
+                      {newTier.name === '불사조' ? '🦅' : newTier.name === '맹금닭' ? '🐓' : newTier.name === '삐약이' ? '🐥' : '🥚'}
+                    </motion.div>
+                    <motion.h2
+                      animate={{ scale: [1, 1.05, 1] }}
+                      transition={{ duration: 0.5, repeat: 3 }}
+                      className="font-jua text-4xl text-yellow-300 mb-1"
+                    >
+                      🎊 티어 승급! 🎊
+                    </motion.h2>
+                    <p className="font-jua text-3xl text-white mb-1">{newTier.name}</p>
+                    <p className="font-jua text-xl text-yellow-200 mb-6">Lv.{newTier.level}로 시작!</p>
+                  </>
+                ) : (
+                  // 레벨업 - 심플하게
+                  <>
+                    <motion.div
+                      animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.15, 1] }}
+                      transition={{ duration: 0.5, repeat: 1 }}
+                      className="text-7xl mb-3"
+                    >
+                      ⬆️
+                    </motion.div>
+                    <h2 className="font-jua text-3xl text-yellow-400 mb-2">레벨 업!</h2>
+                    <p className="font-jua text-xl mb-6">{newTier.name} Lv.{newTier.level}</p>
+                  </>
+                )}
+                <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>확인</GameButton>
+              </WoodPanel>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
+
+function TierPromotionEffect() {
+  useEffect(() => {
+    const colors = ['#FFD700', '#FF6B35', '#FFF3B0', '#FF4500', '#FFAA00'];
+    const burst = () => {
+      confetti({ particleCount: 60, angle: 60, spread: 70, origin: { x: 0.1, y: 0.5 }, colors });
+      confetti({ particleCount: 60, angle: 120, spread: 70, origin: { x: 0.9, y: 0.5 }, colors });
+      confetti({ particleCount: 40, angle: 90, spread: 100, origin: { x: 0.5, y: 0.3 }, colors });
+    };
+    burst();
+    const t1 = setTimeout(burst, 400);
+    const t2 = setTimeout(burst, 800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  return null;
+}
 
 export default GamePage;

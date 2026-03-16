@@ -32,9 +32,29 @@ const Header = ({ isVisible = true }: HeaderProps) => {
     }
   };
 
-  const TIER_EMOJI_BY_GROUP: Record<number, string> = { 1: "🥚", 2: "🐣", 3: "🐥", 4: "🐓", 5: "🦅" };
-  const displayTierEmoji = TIER_EMOJI_BY_GROUP[Math.ceil((quizProfile?.level ?? 1) / 5)] ?? "🥚";
-  const displayTierName = quizProfile?.tierName ?? '알병아리';
+  const handleEasterEgg = async () => {
+    if (!quizProfile) return;
+    try {
+      // 에너지 풀충 (임시로 로컬 업데이트)
+      updateQuizProfile({ ...quizProfile, energy: quizProfile.maxEnergy });
+      await refreshQuizProfile();
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGS57OihUBELTKXh8bllHAU2jdXvzn0pBSh+zPDajzsKElyx6OyrWBQLSKDf8sFuJAUuhM/z2Ik2CBhku+zooVARC0yl4fG5ZRwFNo3V7859KQUofsz');
+      audio.play().catch(() => {});
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getTierEmoji = (tierName: string): string => {
+    if (tierName.startsWith("불사조")) return "🦅";
+    if (tierName.startsWith("맹금닭")) return "🐓";
+    if (tierName.startsWith("삐약이")) return "🐥";
+    if (tierName.startsWith("알병아리")) return "🐣";
+    return "🥚";
+  };
+  
+  const displayTierName = quizProfile?.tierName ?? '알 Lv.1';
+  const displayTierEmoji = getTierEmoji(displayTierName);
   const displayCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
   return (
@@ -53,8 +73,10 @@ const Header = ({ isVisible = true }: HeaderProps) => {
       <motion.div
         className="font-jua cursor-pointer flex items-center gap-2.5 text-3xl text-foreground text-shadow-deep"
         onClick={() => handleNav("/")}
+        onDoubleClick={handleEasterEgg}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
+        title="더블클릭으로 에너지 충전!"
       >
         <span className="text-4xl drop-shadow-lg">🐾</span> PawFiler
       </motion.div>

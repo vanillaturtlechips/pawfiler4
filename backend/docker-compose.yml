@@ -61,8 +61,10 @@ services:
     container_name: pawfiler-community
     environment:
       DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+      HTTP_PORT: "8081"
     ports:
       - "50053:50053"
+      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,27 +117,27 @@ services:
     networks:
       - pawfiler-network
 
-  # Envoy Gateway (gRPC-JSON transcoding)
-  envoy:
-    image: envoyproxy/envoy:v1.28-latest
-    container_name: pawfiler-envoy
-    ports:
-      - "8080:8080"
-      - "9901:9901"
-    volumes:
-      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
-      - ./proto/proto.pb:/etc/envoy/proto.pb
-    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
-    depends_on:
-      proto-generator:
-        condition: service_completed_successfully
-      quiz-service:
-        condition: service_started
-      community-service:
-        condition: service_started
-    networks:
-      - pawfiler-network
-
+#   # Envoy Gateway (gRPC-JSON transcoding)
+#   envoy:
+#     image: envoyproxy/envoy:v1.28-latest
+#     container_name: pawfiler-envoy
+#     ports:
+#       - "8080:8080"
+#       - "9901:9901"
+#     volumes:
+#       - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
+#       - ./proto/proto.pb:/etc/envoy/proto.pb
+#     command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
+#     depends_on:
+#       proto-generator:
+#         condition: service_completed_successfully
+#       quiz-service:
+#         condition: service_started
+#       community-service:
+#         condition: service_started
+#     networks:
+#       - pawfiler-network
+# 
 volumes:
   postgres_data:
 

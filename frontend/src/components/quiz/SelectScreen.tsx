@@ -10,18 +10,19 @@ interface SelectScreenProps {
   selectedCount: number;
   onDifficultyChange: (d: string) => void;
   onCountChange: (c: number) => void;
+  onEnergyRefill?: () => void;
 }
 
 const DIFFICULTY_OPTIONS = [
-  { value: "all", label: "🎲 랜덤", desc: "모든 난이도 혼합", color: "#a78bfa" },
-  { value: "easy", label: "🟢 쉬움", desc: "Lv.1 입문자용", color: "#22c55e" },
-  { value: "medium", label: "🟡 보통", desc: "Lv.2 일반", color: "#eab308" },
-  { value: "hard", label: "🔴 어려움", desc: "Lv.3 고급", color: "#ef4444" },
+  { value: "all", label: "🎲 랜덤", desc: "모든 난이도 혼합", detail: "4가지 유형 무작위 출제", color: "#a78bfa" },
+  { value: "easy", label: "🟢 쉬움", desc: "Lv.1 입문자용", detail: "비교적 명확한 딥페이크 영상·이미지", color: "#22c55e" },
+  { value: "medium", label: "🟡 보통", desc: "Lv.2 일반", detail: "육안으로 구분하기 애매한 수준", color: "#eab308" },
+  { value: "hard", label: "🔴 어려움", desc: "Lv.3 고급", detail: "최신 기술로 정교하게 합성된 미디어", color: "#ef4444" },
 ];
 
 const COUNT_OPTIONS = [
-  { value: 5, label: "5문제", energyCost: 10 },
-  { value: 10, label: "10문제", energyCost: 20 },
+  { value: 5, label: "5문제", bonus: null },
+  { value: 10, label: "10문제", bonus: "완주 보너스 +50XP +100코인" },
 ];
 
 const SelectScreen = ({
@@ -31,11 +32,18 @@ const SelectScreen = ({
   selectedCount,
   onDifficultyChange,
   onCountChange,
+  onEnergyRefill,
 }: SelectScreenProps) => {
   const energy = profile?.energy ?? 100;
   const maxEnergy = profile?.maxEnergy ?? 100;
-  const energyCost = COUNT_OPTIONS.find((o) => o.value === selectedCount)?.energyCost ?? 10;
+  const energyCost = selectedCount === 5 ? 25 : 40; // 5문제=25, 10문제=40
   const canStart = energy >= energyCost;
+
+  const handleEmojiClick = () => {
+    if (onEnergyRefill) {
+      onEnergyRefill();
+    }
+  };
   const sessionAccuracy = null; // 세션 시작 전이므로 없음
 
   return (
@@ -50,9 +58,13 @@ const SelectScreen = ({
           {/* 헤더 */}
           <div className="flex flex-col items-center gap-2">
             <motion.span
-              className="text-7xl"
+              className="text-7xl cursor-pointer"
               animate={{ y: [-4, 4, -4] }}
               transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              onClick={handleEmojiClick}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              title="클릭하면 에너지 풀충!"
             >
               🦊
             </motion.span>
@@ -108,6 +120,9 @@ const SelectScreen = ({
                 >
                   <div className="text-base">{opt.label}</div>
                   <div className="text-xs opacity-60">{opt.desc}</div>
+                  {selectedDifficulty === opt.value && (
+                    <div className="text-xs mt-1 opacity-80">{opt.detail}</div>
+                  )}
                 </motion.button>
               ))}
             </div>
@@ -137,7 +152,7 @@ const SelectScreen = ({
                   whileTap={{ scale: 0.97 }}
                 >
                   <div className="text-xl">{opt.label}</div>
-                  <div className="text-sm opacity-70">⚡ -{opt.energyCost}</div>
+                  {opt.bonus && <div className="text-xs opacity-70 mt-1">🎁 {opt.bonus}</div>}
                 </motion.button>
               ))}
             </div>
@@ -150,7 +165,7 @@ const SelectScreen = ({
               className="w-full text-xl"
               onClick={() => onStart(selectedDifficulty, selectedCount)}
             >
-              🚀 게임 시작! (⚡-{energyCost})
+              🚀 게임 시작!
             </GameButton>
           ) : (
             <div className="w-full">

@@ -319,7 +319,7 @@ func main() {
 		httpPort = "8080"
 	}
 	log.Printf("Community REST server started on :%s", httpPort)
-	if err := http.ListenAndServe(":"+httpPort, rest.NewMux(svc)); err != nil {
+	if err := http.ListenAndServe(":"+httpPort, rest.NewMuxWithDB(svc, db)); err != nil {
 		log.Fatalf("Failed to serve HTTP: %v", err)
 	}
 }
