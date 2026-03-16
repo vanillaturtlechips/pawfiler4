@@ -14,15 +14,15 @@ interface SelectScreenProps {
 }
 
 const DIFFICULTY_OPTIONS = [
-  { value: "all", label: "🎲 랜덤", desc: "모든 난이도 혼합", color: "#a78bfa" },
-  { value: "easy", label: "🟢 쉬움", desc: "Lv.1 입문자용", color: "#22c55e" },
-  { value: "medium", label: "🟡 보통", desc: "Lv.2 일반", color: "#eab308" },
-  { value: "hard", label: "🔴 어려움", desc: "Lv.3 고급", color: "#ef4444" },
+  { value: "all", label: "🎲 랜덤", desc: "모든 난이도 혼합", detail: "4가지 유형 무작위 출제", color: "#a78bfa" },
+  { value: "easy", label: "🟢 쉬움", desc: "Lv.1 입문자용", detail: "비교적 명확한 딥페이크 영상·이미지", color: "#22c55e" },
+  { value: "medium", label: "🟡 보통", desc: "Lv.2 일반", detail: "육안으로 구분하기 애매한 수준", color: "#eab308" },
+  { value: "hard", label: "🔴 어려움", desc: "Lv.3 고급", detail: "최신 기술로 정교하게 합성된 미디어", color: "#ef4444" },
 ];
 
 const COUNT_OPTIONS = [
-  { value: 5, label: "5문제" },
-  { value: 10, label: "10문제" },
+  { value: 5, label: "5문제", energy: 25, bonus: null },
+  { value: 10, label: "10문제", energy: 40, bonus: "완주 보너스 +50XP +100코인" },
 ];
 
 const SelectScreen = ({
@@ -120,6 +120,9 @@ const SelectScreen = ({
                 >
                   <div className="text-base">{opt.label}</div>
                   <div className="text-xs opacity-60">{opt.desc}</div>
+                  {selectedDifficulty === opt.value && (
+                    <div className="text-xs mt-1 opacity-80">{opt.detail}</div>
+                  )}
                 </motion.button>
               ))}
             </div>
@@ -149,6 +152,8 @@ const SelectScreen = ({
                   whileTap={{ scale: 0.97 }}
                 >
                   <div className="text-xl">{opt.label}</div>
+                  <div className="text-xs opacity-60 mt-1">⚡ {opt.energy} 소모</div>
+                  {opt.bonus && <div className="text-xs opacity-70 mt-1">🎁 {opt.bonus}</div>}
                 </motion.button>
               ))}
             </div>

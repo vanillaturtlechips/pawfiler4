@@ -18,6 +18,8 @@ import CommunityPostPage from "@/pages/CommunityPostPage";
 import RankingPage from "@/pages/RankingPage";
 import ShopPage from "@/pages/ShopPage";
 import ProfilePage from "@/pages/ProfilePage";
+import RankingPage from "@/pages/RankingPage";
+import AdminPage from "@/pages/AdminPage";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 
@@ -74,6 +76,7 @@ const AppContent = () => {
                 <Route path="/ranking" element={<AuthGuard><RankingPage /></AuthGuard>} />
                 <Route path="/shop" element={<AuthGuard><ShopPage /></AuthGuard>} />
                 <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+                <Route path="/admin" element={<AdminPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AnimatePresence>

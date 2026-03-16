@@ -211,8 +211,18 @@ export async function mockLogin(req: LoginRequest): Promise<{ token: string; use
   if (!validCred || validCred.password !== req.password) {
     throw new Error("이메일 또는 비밀번호가 올바르지 않습니다");
   }
+
+  // 이메일별 고유 id 유지 (localStorage)
+  const idKey = `mock_user_id_${req.email}`;
+  let userId = localStorage.getItem(idKey);
+  if (!userId) {
+    userId = defaultCredentials.find(c => c.email === req.email)
+      ? MOCK_USER.id
+      : uuid();
+    localStorage.setItem(idKey, userId);
+  }
   
-  const user = { ...MOCK_USER, email: req.email, nickname: validCred.nickname, avatarEmoji: validCred.avatarEmoji };
+  const user = { ...MOCK_USER, id: userId, email: req.email, nickname: validCred.nickname, avatarEmoji: validCred.avatarEmoji };
   const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: user.subscriptionType, iat: Date.now(), exp: Date.now() + 3600000 });
   return { token, user };
 }
@@ -234,6 +244,7 @@ export async function mockSignup(req: SignupRequest): Promise<{ token: string; u
   });
   
   const user: UserProfile = { ...MOCK_USER, id: uuid(), email: req.email, nickname: req.nickname, avatarEmoji: req.avatarEmoji, coins: 100, level: 1, levelTitle: "새싹 탐정", xp: 0 };
+  localStorage.setItem(`mock_user_id_${req.email}`, user.id);
   const token = fakeJwt({ sub: user.id, email: user.email, nickname: user.nickname, avatarEmoji: user.avatarEmoji, role: "free", iat: Date.now(), exp: Date.now() + 3600000 });
   return { token, user };
 }

@@ -76,6 +76,19 @@ CREATE TABLE quiz.user_stats (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE quiz.user_profiles (
+    user_id UUID PRIMARY KEY,
+    nickname VARCHAR(100) NOT NULL DEFAULT '탐정',
+    avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🥚',
+    total_exp INTEGER DEFAULT 0,
+    total_coins INTEGER DEFAULT 3000,
+    current_tier VARCHAR(50) DEFAULT '알',
+    energy INTEGER DEFAULT 100,
+    max_energy INTEGER DEFAULT 100,
+    last_energy_refill TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE INDEX idx_user_answers_user_id ON quiz.user_answers(user_id);
 CREATE INDEX idx_user_answers_question_id ON quiz.user_answers(question_id);
 CREATE INDEX idx_questions_type ON quiz.questions(type);
@@ -195,6 +208,58 @@ CREATE TABLE payment.transactions (
 
 CREATE INDEX idx_subscriptions_user_id ON payment.subscriptions(user_id);
 CREATE INDEX idx_transactions_user_id ON payment.transactions(user_id);
+
+-- User Service Schema
+CREATE SCHEMA IF NOT EXISTS user_svc;
+
+CREATE TABLE user_svc.preferences (
+    user_id UUID PRIMARY KEY,
+    nickname VARCHAR(100) NOT NULL DEFAULT '탐정',
+    avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🦊',
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE user_svc.shop_purchases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    item_id VARCHAR(100) NOT NULL,
+    item_name VARCHAR(200) NOT NULL,
+    item_type VARCHAR(50) NOT NULL,
+    coins_paid INTEGER NOT NULL DEFAULT 0,
+    purchased_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_shop_purchases_user_id ON user_svc.shop_purchases(user_id);
+
+CREATE TABLE user_svc.shop_items (
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    description VARCHAR(500) NOT NULL DEFAULT '',
+    price INTEGER NOT NULL DEFAULT 0,
+    icon VARCHAR(10) NOT NULL DEFAULT '🎁',
+    badge VARCHAR(50),
+    type VARCHAR(50) NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    bonus INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO user_svc.shop_items (id, name, description, price, icon, badge, type, quantity, bonus, sort_order) VALUES
+  ('premium-monthly', '프리미엄 월간', '무제한 퀴즈 + 영상 분석', 9900, '👑', '인기', 'subscription', 0, 0, 1),
+  ('premium-yearly', '프리미엄 연간', '12개월 + 2개월 무료', 99000, '💎', '최고가치', 'subscription', 0, 0, 2),
+  ('coins-100', '소량 코인', '기본 코인 팩', 1000, '💰', NULL, 'coins', 100, 0, 1),
+  ('coins-500', '중량 코인', '+50 보너스', 4500, '💰', '보너스', 'coins', 500, 50, 2),
+  ('coins-1000', '대량 코인', '+150 보너스', 8500, '💎', '인기', 'coins', 1000, 150, 3),
+  ('daily-package', '일일오픽 패키지', '퀴즈 5회 + 분석 1회', 250, '📝', '신규', 'item', 0, 0, 1),
+  ('growth-package', '성급육성 패키지', 'XP 부스트 + 코인', 600, '⭐', '신규', 'item', 0, 0, 2),
+  ('random-package', '만신전 패키지', '랜덤 아이템 3개', 300, '🎲', NULL, 'item', 0, 0, 3),
+  ('color-package', '염색 세트 패키지', '아바타 커스터마이징', 500, '🎨', NULL, 'item', 0, 0, 4),
+  ('costume-package', '코스튬권 패키지', '특별 의상 획득', 800, '👔', NULL, 'item', 0, 0, 5),
+  ('gem-package', '금화 패키지', '프리미엄 재화', 1200, '💎', '한정', 'item', 0, 0, 6),
+  ('special-package', '특파 재료 패키지', '희귀 아이템', 450, '🔮', NULL, 'item', 0, 0, 7);
 
 -- Insert sample quiz questions
 INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index, correct_answer, correct_regions, tolerance, comparison_media_url, correct_side, created_at, updated_at) VALUES ('550e8400-e29b-41d4-a716-446655440001', 'multiple_choice', 'image', 'https://YOUR_CLOUDFRONT_DOMAIN/images/deepfake/deepfake_easy_001.jpg', '🎬', 'easy', 'ai-generated-detection', '오른쪽 위 보드의 글씨가 깨지고 왜곡된 것이 AI 생성 이미지의 특징입니다!', '{"얼굴 표정이 부자연스러워요","배경 글씨가 깨져있어요","조명이 완벽해요","그림자가 정확해요"}', 1, NULL, NULL, NULL, NULL, NULL, '2026-03-05 01:59:21.339212', '2026-03-05 01:59:21.339212');

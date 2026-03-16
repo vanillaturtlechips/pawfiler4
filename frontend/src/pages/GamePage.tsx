@@ -5,7 +5,8 @@ import confetti from "canvas-confetti";
 import WoodPanel from "@/components/WoodPanel";
 import GameButton from "@/components/GameButton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy, fetchQuestionStats } from "@/lib/api";
+import { fetchQuizQuestion, submitQuizAnswer, fetchUserStats, refillEnergy, fetchQuestionStats, syncProfileToQuiz } from "@/lib/api";
+import { toast } from "sonner";
 import { config } from "@/lib/config";
 import type { QuizQuestion, QuizSubmitResponse, QuizStats, QuizGameProfile } from "@/lib/types";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
@@ -60,7 +61,7 @@ const GamePage = () => {
   };
   const [energyError, setEnergyError] = useState<number | null>(null);
   const [showTierUpModal, setShowTierUpModal] = useState(false);
-  const [newTier, setNewTier] = useState<{ level: number; name: string } | null>(null);
+  const [newTier, setNewTier] = useState<{ level: number; name: string; promoted: boolean } | null>(null);
 
   // 게임 완료 시 폭죽 효과
   useEffect(() => {
@@ -124,6 +125,18 @@ const GamePage = () => {
     if (questionCount >= maxQuestions) {
       setGameFinished(true);
       setPhase("finished");
+      // 10문제 완주 보너스
+      if (maxQuestions >= 10 && profile) {
+        const bonusXP = 50;
+        const bonusCoins = 100;
+        const updated = {
+          ...profile,
+          totalExp: profile.totalExp + bonusXP,
+          totalCoins: profile.totalCoins + bonusCoins,
+        };
+        setProfile(updated);
+        toast.success(`🎁 10문제 완주 보너스! +${bonusXP} XP +${bonusCoins} 코인!`);
+      }
       await fetchUserStats().then(setStats).catch(console.error);
       return;
     }
@@ -220,9 +233,14 @@ const GamePage = () => {
         setProfile(updatedProfile);
         
         // 레벨업 감지
-        if (res.level > prevLevel) {
-          setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName });
+        const tierPromoted = res.tierPromoted === true;
+        if (tierPromoted || res.level > prevLevel) {
+          setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName, promoted: tierPromoted });
           setShowTierUpModal(true);
+        }
+        // 5연속 정답 보너스 토스트
+        if (res.streakBonus && res.streakBonus > 0) {
+          toast.success(`🔥 ${res.streakCount}연속 정답! +${res.streakBonus} XP 보너스!`);
         }
       } else if (profile) {
         // 에너지 2 차감 (백엔드 연동 전 로컬 처리)
@@ -640,7 +658,7 @@ const GamePage = () => {
         )}
       </AnimatePresence>
 
-      {/* 티어 업 모달 */}
+      {/* 레벨업 / 티어 승급 모달 */}
       <AnimatePresence>
         {showTierUpModal && newTier && (
           <motion.div
@@ -651,29 +669,49 @@ const GamePage = () => {
             onClick={() => setShowTierUpModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.8, y: 50 }}
+              initial={{ scale: 0.5, y: 60 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 50 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <WoodPanel className="max-w-md p-8 text-center">
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 10, 0], scale: [1, 1.2, 1] }}
-                  transition={{ duration: 0.6, repeat: 2 }}
-                  className="text-8xl mb-4"
-                >
-                  🎉
-                </motion.div>
-                <h2 className="font-jua text-4xl text-yellow-400 mb-2">레벨 업!</h2>
-                <p className="font-jua text-2xl mb-4">
-                  Lv.{newTier.level} {newTier.name}
-                </p>
-                <p className="font-jua text-lg opacity-70 mb-6">
-                  축하합니다! 새로운 티어에 도달했습니다!
-                </p>
-                <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>
-                  확인
-                </GameButton>
+              <WoodPanel className="max-w-sm w-full p-8 text-center">
+                {newTier.promoted ? (
+                  // 티어 승급 - 화려하게
+                  <>
+                    <TierPromotionEffect />
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 0.9, 1.15, 1], rotate: [0, -8, 8, -4, 0] }}
+                      transition={{ duration: 0.8, repeat: 2 }}
+                      className="text-9xl mb-3"
+                    >
+                      {newTier.name === '불사조' ? '🦅' : newTier.name === '맹금닭' ? '🐓' : newTier.name === '삐약이' ? '🐥' : '🥚'}
+                    </motion.div>
+                    <motion.h2
+                      animate={{ scale: [1, 1.05, 1] }}
+                      transition={{ duration: 0.5, repeat: 3 }}
+                      className="font-jua text-4xl text-yellow-300 mb-1"
+                    >
+                      🎊 티어 승급! 🎊
+                    </motion.h2>
+                    <p className="font-jua text-3xl text-white mb-1">{newTier.name}</p>
+                    <p className="font-jua text-xl text-yellow-200 mb-6">Lv.{newTier.level}로 시작!</p>
+                  </>
+                ) : (
+                  // 레벨업 - 심플하게
+                  <>
+                    <motion.div
+                      animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.15, 1] }}
+                      transition={{ duration: 0.5, repeat: 1 }}
+                      className="text-7xl mb-3"
+                    >
+                      ⬆️
+                    </motion.div>
+                    <h2 className="font-jua text-3xl text-yellow-400 mb-2">레벨 업!</h2>
+                    <p className="font-jua text-xl mb-6">{newTier.name} Lv.{newTier.level}</p>
+                  </>
+                )}
+                <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>확인</GameButton>
               </WoodPanel>
             </motion.div>
           </motion.div>
@@ -682,5 +720,21 @@ const GamePage = () => {
     </div>
   );
 };
+
+function TierPromotionEffect() {
+  useEffect(() => {
+    const colors = ['#FFD700', '#FF6B35', '#FFF3B0', '#FF4500', '#FFAA00'];
+    const burst = () => {
+      confetti({ particleCount: 60, angle: 60, spread: 70, origin: { x: 0.1, y: 0.5 }, colors });
+      confetti({ particleCount: 60, angle: 120, spread: 70, origin: { x: 0.9, y: 0.5 }, colors });
+      confetti({ particleCount: 40, angle: 90, spread: 100, origin: { x: 0.5, y: 0.3 }, colors });
+    };
+    burst();
+    const t1 = setTimeout(burst, 400);
+    const t2 = setTimeout(burst, 800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  return null;
+}
 
 export default GamePage;

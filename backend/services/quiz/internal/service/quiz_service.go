@@ -44,10 +44,11 @@ type QuizService interface {
 
 // SubmitResult represents the result of a submitted answer
 type SubmitResult struct {
-	IsCorrect   bool
-	XPEarned    int32
-	CoinsEarned int32
-	Explanation string
+	IsCorrect    bool
+	XPEarned     int32
+	CoinsEarned  int32
+	StreakBonus  int32
+	Explanation  string
 }
 
 // quizServiceImpl implements the QuizService interface
@@ -288,12 +289,13 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 	}
 
 	// Step 5: Update user statistics
-	_, err = s.statsTracker.UpdateStats(context.Background(), userID, isCorrect)
+	updatedStats, err := s.statsTracker.UpdateStats(context.Background(), userID, isCorrect)
 	if err != nil {
 		fmt.Printf("Warning: failed to update user stats: %v\n", err)
 	}
 
 	// Step 5b: Update gamification profile (XP + coins)
+	streakBonus := int32(0)
 	if xpEarned > 0 || coinsEarned > 0 {
 		profile, err := s.repo.GetUserProfile(context.Background(), userID)
 		if err != nil {
@@ -302,6 +304,12 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 			}
 		}
 		if profile != nil {
+			// 5연속 정답 보너스
+			if isCorrect && updatedStats != nil && updatedStats.CurrentStreak > 0 && updatedStats.CurrentStreak%5 == 0 {
+				streakBonus = 20
+				xpEarned += streakBonus
+			}
+
 			profile.TotalExp += xpEarned
 			profile.TotalCoins += coinsEarned
 			
@@ -314,25 +322,25 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 				leveledUp := false
 				switch tier {
 				case "알":
-					if exp >= 500 {
+					if exp >= 1000 {
 						profile.CurrentTier = "삐약이"
-						profile.TotalExp = exp - 500
+						profile.TotalExp = exp - 1000
 						tier = "삐약이"
 						exp = profile.TotalExp
 						leveledUp = true
 					}
 				case "삐약이":
-					if exp >= 1000 {
+					if exp >= 2000 {
 						profile.CurrentTier = "맹금닭"
-						profile.TotalExp = exp - 1000
+						profile.TotalExp = exp - 2000
 						tier = "맹금닭"
 						exp = profile.TotalExp
 						leveledUp = true
 					}
 				case "맹금닭":
-					if exp >= 2000 {
+					if exp >= 4000 {
 						profile.CurrentTier = "불사조"
-						profile.TotalExp = exp - 2000
+						profile.TotalExp = exp - 4000
 						tier = "불사조"
 						exp = profile.TotalExp
 						leveledUp = true
@@ -352,11 +360,11 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 	}
 
 	// Step 6: Return result
-	// Requirement 10.4: Include xp_earned and coins_earned in response
 	return &SubmitResult{
 		IsCorrect:   isCorrect,
 		XPEarned:    xpEarned,
 		CoinsEarned: coinsEarned,
+		StreakBonus: streakBonus,
 		Explanation: question.Explanation,
 	}, nil
 }

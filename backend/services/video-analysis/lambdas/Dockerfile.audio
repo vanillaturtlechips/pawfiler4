@@ -1,0 +1,21 @@
+FROM public.ecr.aws/lambda/python:3.11
+
+# ffmpeg 설치
+RUN yum install -y wget tar xz && \
+    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
+    tar xf ffmpeg-release-amd64-static.tar.xz && \
+    mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/ && \
+    mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/ && \
+    rm -rf ffmpeg-*
+
+# 의존성 설치
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# 오디오 모델 복사
+COPY audio_deepfake_detector.py ${LAMBDA_TASK_ROOT}/
+
+# 코드 복사
+COPY lambdas/audio_lambda.py ${LAMBDA_TASK_ROOT}/
+
+CMD ["audio_lambda.handler"]

@@ -48,6 +48,9 @@ func main() {
 	communityRepo := repository.NewCommunityRepository(db)
 	communityHandler := handler.NewCommunityAdminHandler(communityRepo)
 
+	shopRepo := repository.NewShopRepository(db)
+	shopHandler := handler.NewShopAdminHandler(shopRepo)
+
 	// Setup router
 	router := mux.NewRouter()
 
@@ -65,6 +68,14 @@ func main() {
 	adminRouter.HandleFunc("/questions/{id}", quizHandler.UpdateQuestion).Methods("PUT")
 	adminRouter.HandleFunc("/questions/{id}", quizHandler.DeleteQuestion).Methods("DELETE")
 	adminRouter.HandleFunc("/upload", quizHandler.UploadMedia).Methods("POST")
+
+	// Admin Shop routes
+	shopRouter := router.PathPrefix("/admin/shop").Subrouter()
+	shopRouter.HandleFunc("/items", shopHandler.ListItems).Methods("GET")
+	shopRouter.HandleFunc("/items", shopHandler.CreateItem).Methods("POST")
+	shopRouter.HandleFunc("/items/{id}", shopHandler.GetItem).Methods("GET")
+	shopRouter.HandleFunc("/items/{id}", shopHandler.UpdateItem).Methods("PUT")
+	shopRouter.HandleFunc("/items/{id}", shopHandler.DeleteItem).Methods("DELETE")
 
 	// Admin Community routes
 	communityRouter := router.PathPrefix("/admin/community").Subrouter()
