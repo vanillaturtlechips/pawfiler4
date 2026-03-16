@@ -280,7 +280,7 @@ type GormUserProfile struct {
 	Nickname       string    `gorm:"column:nickname;default:''" json:"nickname"`
 	AvatarEmoji    string    `gorm:"column:avatar_emoji;default:'🥚'" json:"avatar_emoji"`
 	TotalExp       int32     `gorm:"default:0" json:"total_exp"`
-	TotalCoins     int32     `gorm:"default:0" json:"total_coins"`
+	TotalCoins     int32     `gorm:"default:1500" json:"total_coins"`
 	CurrentTier    string    `gorm:"default:알" json:"current_tier"`
 	Energy         int32     `gorm:"default:100" json:"energy"`
 	MaxEnergy      int32     `gorm:"default:100" json:"max_energy"`
