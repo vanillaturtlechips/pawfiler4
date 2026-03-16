@@ -429,6 +429,8 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 		rows, err := db.QueryContext(r.Context(), `
 			SELECT 
 				up.user_id,
+				COALESCE(au.nickname, LEFT(up.user_id::text, 8)) as nickname,
+				COALESCE(au.avatar_emoji, '🥚') as avatar_emoji,
 				COALESCE(up.current_tier, '알') as tier,
 				up.total_exp,
 				up.total_coins,
@@ -439,6 +441,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 					ELSE 0 END as accuracy
 			FROM quiz.user_profiles up
 			LEFT JOIN quiz.user_stats us ON us.user_id = up.user_id
+			LEFT JOIN auth.users au ON au.id = up.user_id
 			ORDER BY `+orderBy)
 		if err != nil {
 			http.Error(w, "query failed: "+err.Error(), http.StatusInternalServerError)
@@ -449,6 +452,8 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 		type entry struct {
 			Rank          int     `json:"rank"`
 			UserID        string  `json:"userId"`
+			Nickname      string  `json:"nickname"`
+			AvatarEmoji   string  `json:"avatarEmoji"`
 			Tier          string  `json:"tier"`
 			TotalExp      int     `json:"totalExp"`
 			TotalCoins    int     `json:"totalCoins"`
@@ -460,7 +465,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 		rank := 1
 		for rows.Next() {
 			var e entry
-			if err := rows.Scan(&e.UserID, &e.Tier, &e.TotalExp, &e.TotalCoins, &e.TotalAnswered, &e.CorrectCount, &e.Accuracy); err != nil {
+			if err := rows.Scan(&e.UserID, &e.Nickname, &e.AvatarEmoji, &e.Tier, &e.TotalExp, &e.TotalCoins, &e.TotalAnswered, &e.CorrectCount, &e.Accuracy); err != nil {
 				continue
 			}
 			e.Rank = rank
