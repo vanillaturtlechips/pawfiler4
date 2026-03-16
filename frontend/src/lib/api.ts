@@ -391,7 +391,7 @@ export const fetchCommunityFeed = async (
     }
     
     const response = await fetch(
-      `${config.apiBaseUrl}/community.CommunityService/GetFeed`,
+      `${config.communityBaseUrl}/community.CommunityService/GetFeed`,
       {
         method: "POST",
         headers: {
@@ -440,7 +440,7 @@ export const createCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CreatePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreatePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -465,7 +465,7 @@ export const updateCommunityPost = async (req: {
   tags: string[];
 }): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/UpdatePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/UpdatePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -485,7 +485,7 @@ export const updateCommunityPost = async (req: {
 
 export const deleteCommunityPost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeletePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeletePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -611,7 +611,7 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
 // Community Comments & Likes
 export const fetchCommunityComments = async (postId: string): Promise<CommunityComment[]> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetComments`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetComments`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -651,7 +651,7 @@ export const createCommunityComment = async (req: {
   body: string;
 }): Promise<CommunityComment> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CreateComment`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreateComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -671,7 +671,7 @@ export const createCommunityComment = async (req: {
 
 export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/DeleteComment`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeleteComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -691,7 +691,7 @@ export const deleteCommunityComment = async (commentId: string): Promise<{ succe
 
 export const likePost = async (postId: string, userId: string): Promise<{ success: boolean; alreadyLiked?: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/LikePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/LikePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -711,7 +711,7 @@ export const likePost = async (postId: string, userId: string): Promise<{ succes
 
 export const unlikePost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/UnlikePost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/UnlikePost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -731,7 +731,7 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ succ
 
 export const getPost = async (postId: string): Promise<CommunityPost> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetPost`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetPost`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -751,7 +751,7 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
 
 export const checkLike = async (postId: string, userId: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/CheckLike`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CheckLike`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -774,7 +774,7 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
 // Community Dashboard APIs
 export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetNotices`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetNotices`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -795,7 +795,7 @@ export const fetchNotices = async (): Promise<Array<{ id: string; title: string 
 
 export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetTopDetective`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetTopDetective`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -816,7 +816,7 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
 
 export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
   try {
-    const response = await fetch(`${config.apiBaseUrl}/community.CommunityService/GetHotTopic`, {
+    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetHotTopic`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
