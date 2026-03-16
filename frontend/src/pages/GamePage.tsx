@@ -202,7 +202,8 @@ const GamePage = () => {
 
       // 정답률 fetch
       fetchQuestionStats(question.id).then(stats => {
-        if (stats.length > 0) setQuestionAccuracy(stats[0].accuracy);
+        const found = stats.find((s: {id: string; accuracy: number}) => s.id === question.id);
+        if (found) setQuestionAccuracy(found.accuracy);
       }).catch(() => {});
 
       // 프로필 업데이트 (에너지/XP/코인)
