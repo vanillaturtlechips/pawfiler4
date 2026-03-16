@@ -51,7 +51,7 @@ export default function RankingPage() {
   const getDisplayName = (e: RankEntry) => {
     if (e.nickname) return e.nickname;
     if (e.userId === myQuizId) return user?.nickname || '나';
-    return `탐정#${e.userId.slice(0, 6)}`;
+    return `탐정 ${e.rank}위`;
   };
 
   const getAvatar = (e: RankEntry) => {
