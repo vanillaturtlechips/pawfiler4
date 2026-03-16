@@ -29,6 +29,7 @@ jobs:
             community: 'backend/services/community/**'
             admin: 'backend/services/admin/**'
             video-analysis: 'backend/services/video-analysis/**'
+            user: 'backend/services/user/**'
 
       - name: Generate Matrix
         id: set-matrix
