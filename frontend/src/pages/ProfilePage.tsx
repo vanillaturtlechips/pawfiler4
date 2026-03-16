@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
-import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, type UserFullProfile, type UserActivity } from "@/lib/api";
+import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, syncProfileToQuiz, syncAuthorToCommunity, type UserFullProfile, type UserActivity } from "@/lib/api";
 import { config } from "@/lib/config";
 import { toast } from "sonner";
 import ParchmentPanel from "@/components/ParchmentPanel";
@@ -56,6 +56,10 @@ const ProfilePage = () => {
     try {
       const res = await updateUserProfile(userId, undefined, selectedAvatar);
       updateUser({ avatarEmoji: res.avatar_emoji });
+      await Promise.all([
+        syncProfileToQuiz(user.nickname, res.avatar_emoji),
+        syncAuthorToCommunity(userId, user.nickname, res.avatar_emoji),
+      ]);
       toast.success("아바타가 저장되었습니다!");
     } catch {
       toast.error("저장에 실패했습니다.");
@@ -70,6 +74,10 @@ const ProfilePage = () => {
     try {
       const res = await updateUserProfile(userId, editedNickname.trim(), undefined);
       updateUser({ nickname: res.nickname });
+      await Promise.all([
+        syncProfileToQuiz(res.nickname, user.avatarEmoji || '🥚'),
+        syncAuthorToCommunity(userId, res.nickname, user.avatarEmoji || '🥚'),
+      ]);
       setIsEditingNickname(false);
       toast.success("닉네임이 저장되었습니다!");
     } catch {

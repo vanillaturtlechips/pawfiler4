@@ -67,6 +67,7 @@ func NewMuxWithDB(svc CommunityService, db *sql.DB) http.Handler {
 		mux.HandleFunc(prefix+"/community.CommunityService/GetTopDetective", withCORS(handle(svc.GetTopDetective, &pb.GetTopDetectiveRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetHotTopic", withCORS(handle(svc.GetHotTopic, &pb.GetHotTopicRequest{})))
 		mux.HandleFunc(prefix+"/community.CommunityService/GetRanking", withCORS(handleGetRanking(db)))
+		mux.HandleFunc(prefix+"/community.CommunityService/SyncAuthorNickname", handleSyncAuthorNickname(db))
 	}
 	return mux
 }
@@ -173,6 +174,52 @@ type RankingEntry struct {
 	TotalAnswered  int    `json:"totalAnswered"`
 	CorrectAnswers int    `json:"correctAnswers"`
 	TotalCoins     int    `json:"totalCoins"`
+}
+
+func handleSyncAuthorNickname(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			UserID      string `json:"user_id"`
+			Nickname    string `json:"nickname"`
+			AvatarEmoji string `json:"avatar_emoji"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.UserID == "" || req.Nickname == "" {
+			writeError(w, http.StatusBadRequest, "user_id and nickname are required")
+			return
+		}
+		_, err := db.ExecContext(r.Context(), `
+			UPDATE community.posts SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3
+		`, req.Nickname, req.AvatarEmoji, req.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update posts")
+			return
+		}
+		_, err = db.ExecContext(r.Context(), `
+			UPDATE community.comments SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3
+		`, req.Nickname, req.AvatarEmoji, req.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update comments")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success":true}`))
+	}
 }
 
 func handleGetRanking(db *sql.DB) http.HandlerFunc {
