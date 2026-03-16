@@ -56,6 +56,7 @@ func NewMuxWithDB(svc QuizService, db *sql.DB) http.Handler {
 		mux.HandleFunc(prefix+"/quiz.QuizService/RefillEnergy", withCORS(handleRefillEnergy(svc)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetQuestionStats", withCORS(handleGetQuestionStats(db)))
 		mux.HandleFunc(prefix+"/quiz.QuizService/GetRanking", withCORS(handleGetRanking(db)))
+		mux.HandleFunc(prefix+"/quiz.QuizService/UpdateUserProfile", withCORS(handleUpdateUserProfile(svc)))
 	}
 	return mux
 }
@@ -345,6 +346,41 @@ func handleRefillEnergy(svc QuizService) http.HandlerFunc {
 	}
 }
 
+func handleUpdateUserProfile(svc QuizService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			UserID      string `json:"user_id"`
+			Nickname    string `json:"nickname"`
+			AvatarEmoji string `json:"avatar_emoji"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
+			writeError(w, http.StatusBadRequest, "invalid request")
+			return
+		}
+		profile, err := svc.GetUserProfile(r.Context(), req.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to get profile")
+			return
+		}
+		if req.Nickname != "" {
+			profile.Nickname = req.Nickname
+		}
+		if req.AvatarEmoji != "" {
+			profile.AvatarEmoji = req.AvatarEmoji
+		}
+		if err := svc.UpdateUserProfile(r.Context(), profile); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update profile")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	}
+}
+
 func handleGetQuestionStats(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -439,9 +475,9 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 		rows, err := db.QueryContext(r.Context(), `
 			SELECT 
 				up.user_id,
-				COALESCE(au.nickname, '') as nickname,
-				COALESCE(au.avatar_emoji, '🥚') as avatar_emoji,
-				COALESCE(up.current_tier, '알') as tier,
+				COALESCE(NULLIF(au.nickname,''), NULLIF(up.nickname,''), '') as nickname,
+				COALESCE(NULLIF(au.avatar_emoji,''), NULLIF(up.avatar_emoji,''), '🥚') as avatar_emoji,
+				COALESCE(NULLIF(up.current_tier,''), '알') as tier,
 				up.total_exp,
 				up.total_coins,
 				COALESCE(us.total_answered, 0) as total_answered,

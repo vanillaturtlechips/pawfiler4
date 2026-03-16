@@ -844,6 +844,16 @@ export const refillEnergy = async (): Promise<void> => {
   });
 };
 
+export const syncProfileToQuiz = async (nickname: string, avatarEmoji: string): Promise<void> => {
+  const userId = getUserId();
+  if (!userId || !nickname) return;
+  await fetch(`${config.apiBaseUrl}/quiz.QuizService/UpdateUserProfile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, nickname, avatar_emoji: avatarEmoji }),
+  }).catch(() => {});
+};
+
 export const fetchRanking = async (sortBy: string = "correct") => {
   try {
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRanking`, {

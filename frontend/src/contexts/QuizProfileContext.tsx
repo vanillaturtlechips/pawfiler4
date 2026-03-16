@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { QuizGameProfile } from "@/lib/types";
-import { fetchUserStats, fetchUserProfile } from "@/lib/api";
+import { fetchUserStats, fetchUserProfile, syncProfileToQuiz } from "@/lib/api";
 import { useAuth } from "./AuthContext";
 
 interface QuizProfileContextValue {
@@ -22,7 +22,7 @@ export const useQuizProfile = () => {
 };
 
 export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const [quizProfile, setQuizProfile] = useState<QuizGameProfile | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingNav, setPendingNav] = useState<string | null>(null);
@@ -52,6 +52,9 @@ export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (isLoggedIn) {
       refreshQuizProfile();
+      if (user?.nickname) {
+        syncProfileToQuiz(user.nickname, user.avatarEmoji || '🥚');
+      }
     } else {
       setQuizProfile(null);
     }

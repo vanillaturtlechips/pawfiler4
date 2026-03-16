@@ -277,6 +277,8 @@ func (ra RegionArray) Value() (driver.Value, error) {
 // GormUserProfile GORM용 UserProfile 모델 (XP, 코인, 에너지)
 type GormUserProfile struct {
 	UserID         string    `gorm:"primaryKey;type:uuid" json:"user_id"`
+	Nickname       string    `gorm:"column:nickname;default:''" json:"nickname"`
+	AvatarEmoji    string    `gorm:"column:avatar_emoji;default:'🥚'" json:"avatar_emoji"`
 	TotalExp       int32     `gorm:"default:0" json:"total_exp"`
 	TotalCoins     int32     `gorm:"default:0" json:"total_coins"`
 	CurrentTier    string    `gorm:"default:알" json:"current_tier"`
@@ -293,6 +295,8 @@ func (GormUserProfile) TableName() string { return "quiz.user_profiles" }
 func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 	return &UserProfile{
 		UserID:           gup.UserID,
+		Nickname:         gup.Nickname,
+		AvatarEmoji:      gup.AvatarEmoji,
 		TotalExp:         gup.TotalExp,
 		TotalCoins:       gup.TotalCoins,
 		CurrentTier:      gup.CurrentTier,
@@ -304,6 +308,8 @@ func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 // FromUserProfile 기존 UserProfile 모델을 GORM 모델로 변환
 func (gup *GormUserProfile) FromUserProfile(p *UserProfile) {
 	gup.UserID = p.UserID
+	gup.Nickname = p.Nickname
+	gup.AvatarEmoji = p.AvatarEmoji
 	gup.TotalExp = p.TotalExp
 	gup.TotalCoins = p.TotalCoins
 	gup.CurrentTier = p.CurrentTier
