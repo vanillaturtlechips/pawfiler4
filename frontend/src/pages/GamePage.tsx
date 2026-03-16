@@ -527,6 +527,7 @@ const GamePage = () => {
                               onNext={loadQuestion}
                               resultExplanation={result?.explanation}
                               coinsEarned={result?.coinsEarned}
+                              accuracy={questionAccuracy}
                             />
                           </div>
                         );
@@ -547,6 +548,7 @@ const GamePage = () => {
                               resultExplanation={result?.explanation}
                               coinsEarned={result?.coinsEarned}
                               onSwapChange={setIsComparisonSwapped}
+                              accuracy={questionAccuracy}
                             />
                           </div>
                         );
@@ -562,7 +564,23 @@ const GamePage = () => {
                     {result ? (
                       <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 flex-shrink-0">
                         {question.type === "true_false" ? (
-                          <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
+                          <>
+                            {result && (
+                              <WoodPanel className="p-3 bg-wood-base">
+                                <p className="font-jua text-xl" style={{ color: result.correct ? "hsl(var(--magic-green))" : "hsl(var(--destructive))" }}>
+                                  {result.correct ? `🎉 정답! +${result.coinsEarned} 코인` : "😢 아쉬워요..."}
+                                </p>
+                                <div className="mt-2 pt-2 border-t border-wood-dark/30">
+                                  <p className="font-jua text-sm opacity-70">
+                                    📊 이 문제 정답률: <span className="text-yellow-400">
+                                      {questionAccuracy !== null ? `${questionAccuracy.toFixed(1)}%` : '계산 중...'}
+                                    </span>
+                                  </p>
+                                </div>
+                              </WoodPanel>
+                            )}
+                            <GameButton variant="blue" onClick={loadQuestion}>다음 문제 →</GameButton>
+                          </>
                         ) : (
                           <>
                             <WoodPanel className="p-4 bg-wood-base">
