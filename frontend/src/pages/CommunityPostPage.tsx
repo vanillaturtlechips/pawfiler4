@@ -27,8 +27,8 @@ import {
   votePost,
   getVoteResult,
   getUserVote,
+  checkLike,
 } from "@/lib/communityApi";
-import { checkLike } from "@/lib/api";
 import { 
   ArrowLeft, 
   Heart, 
