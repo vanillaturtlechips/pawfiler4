@@ -284,7 +284,7 @@ type GormUserProfile struct {
 	CurrentTier    string    `gorm:"default:알" json:"current_tier"`
 	Energy         int32     `gorm:"default:100" json:"energy"`
 	MaxEnergy      int32     `gorm:"default:100" json:"max_energy"`
-	LastEnergyRefill time.Time `gorm:"default:now()" json:"last_energy_time"`
+	LastEnergyRefill time.Time `gorm:"column:last_energy_refill;default:now()" json:"last_energy_refill"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 

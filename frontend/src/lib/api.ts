@@ -529,7 +529,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
         method: "POST",
         body: JSON.stringify({
           video_url: videoFile,
-          user_id: localStorage.getItem(config.storageKeys.userId) || ''
+          user_id: localStorage.getItem(config.storageKeys.quizUserId) || ''
         }),
       });
       
@@ -549,7 +549,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       }
       
       // 파일 업로드 - multipart로 전송
-      const userId = localStorage.getItem(config.storageKeys.userId) || '';
+      const userId = localStorage.getItem(config.storageKeys.quizUserId) || '';
       const formData = new FormData();
       formData.append('video', videoFile);
       formData.append('user_id', userId);
