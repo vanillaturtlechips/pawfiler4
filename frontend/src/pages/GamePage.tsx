@@ -702,13 +702,13 @@ const GamePage = () => {
                 ) : (
                   // 레벨업 - 심플하게
                   <>
-                    <motion.div
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ duration: 0.5, repeat: 1 }}
-                      className="text-7xl mb-3"
-                    >
-                      {newTier.name === '불사조' ? '🦅' : newTier.name === '맹금닭' ? '🐓' : newTier.name === '삐약이' ? '🐥' : '🥚'}
-                    </motion.div>
+                    <motion.img
+                      src="/levelup-cat.png"
+                      alt="levelup"
+                      className="w-32 h-32 object-contain mx-auto mb-3"
+                      animate={{ rotate: [-8, 8, -8], scale: [1, 1.1, 1] }}
+                      transition={{ duration: 0.5, repeat: 2 }}
+                    />
                     <h2 className="font-jua text-3xl text-yellow-400 mb-2">레벨 업!</h2>
                     <p className="font-jua text-xl mb-6">
                       {newTier.name} Lv.{newTier.prevLevel} → Lv.{newTier.level}
