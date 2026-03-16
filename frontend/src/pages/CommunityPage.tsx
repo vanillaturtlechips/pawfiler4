@@ -302,85 +302,80 @@ const CommunityPage = () => {
         </header>
 
         {/* Notice & Info Panels */}
-        <div className="grid grid-cols-3 gap-4">
-          {/* 공지사항 + 명탐정 랭킹 (2칸) */}
-          <ParchmentPanel className="col-span-2 p-5 rounded-2xl border-4">
-            <div className="grid grid-cols-2 gap-5 h-full">
-              {/* 오늘의 추천 글 */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-2xl">⭐</span>
-                  <h3 className="font-jua text-lg text-wood-darkest">오늘의 추천 글</h3>
-                </div>
-                <div className="space-y-2">
-                  {featuredPosts.length > 0 ? featuredPosts.map((post) => (
-                    <div key={post.id} onClick={() => navigate(`/community/${post.id}`)}
-                      className="text-sm text-wood-dark hover:text-orange-600 cursor-pointer transition-colors">
-                      <span className="truncate block">• {post.title}</span>
-                      <span className="text-xs text-gray-400">❤️ {post.likes} · {post.authorNickname}</span>
-                    </div>
-                  )) : <div className="text-sm text-wood-dark/50">게시글이 없습니다</div>}
-                </div>
-              </div>
+        <ParchmentPanel className="rounded-2xl border-4 overflow-hidden">
+          <div className="grid grid-cols-3 divide-x divide-parchment-border">
 
-              {/* 명탐정 랭킹 */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🏆</span>
-                    <h3 className="font-jua text-lg text-wood-darkest">명탐정 TOP3</h3>
+            {/* 오늘의 추천 글 */}
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xl">⭐</span>
+                <h3 className="font-jua text-base text-wood-darkest">오늘의 추천 글</h3>
+              </div>
+              <div className="space-y-3">
+                {featuredPosts.length > 0 ? featuredPosts.map((post) => (
+                  <div key={post.id} onClick={() => navigate(`/community/${post.id}`)}
+                    className="cursor-pointer group">
+                    <p className="text-sm text-wood-dark group-hover:text-amber-700 transition-colors truncate leading-snug">
+                      {post.title}
+                    </p>
+                    <p className="text-xs text-wood-light mt-0.5">❤️ {post.likes} · {post.authorNickname}</p>
                   </div>
-                </div>
-                <div className="space-y-2 mb-3">
-                  {ranking.slice(0, 3).map((entry, i) => (
-                    <div key={entry.userId} className={`flex items-center gap-2 p-2 rounded-xl ${i === 0 ? 'bg-yellow-50 border border-yellow-200' : i === 1 ? 'bg-gray-50 border border-gray-200' : 'bg-orange-50 border border-orange-200'}`}>
-                      <span className="text-base">{['🥇','🥈','🥉'][i]}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-jua text-xs truncate">
-                          {entry.nickname || `탐정 ${i + 1}위`}
-                        </div>
-                        <div className="text-xs text-gray-400">{entry.tier || '알'}</div>
-                      </div>
-                      <span className="text-xs font-bold text-green-600 shrink-0">{entry.correctCount}개</span>
-                    </div>
-                  ))}
-                  {ranking.length === 0 && <p className="text-xs text-wood-dark/50 text-center py-2">데이터 없음</p>}
-                </div>
-                <button
-                  onClick={() => navigate('/ranking')}
-                  className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-jua text-sm hover:from-amber-500 hover:to-orange-600 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  🏅 전체 랭킹 보기
-                </button>
+                )) : <p className="text-sm text-wood-light">게시글이 없습니다</p>}
               </div>
             </div>
-          </ParchmentPanel>
 
-          {/* 오늘의 핫토픽 */}
-          <ParchmentPanel className="p-5 rounded-2xl border-4 bg-gradient-to-br from-red-50/50 to-pink-50/50">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="text-3xl">🔥</div>
-              <h3 className="font-jua text-xl text-wood-darkest">오늘의 핫토픽</h3>
+            {/* 명탐정 TOP3 */}
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xl">🏆</span>
+                <h3 className="font-jua text-base text-wood-darkest">명탐정 TOP3</h3>
+              </div>
+              <div className="space-y-2 mb-4">
+                {ranking.slice(0, 3).map((entry, i) => (
+                  <div key={entry.userId} className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg bg-parchment-border/30">
+                    <span className="text-base shrink-0">{['🥇','🥈','🥉'][i]}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-jua text-xs text-wood-darkest truncate">{entry.nickname || `탐정 ${i + 1}위`}</p>
+                      <p className="text-xs text-wood-light">{entry.tier || '알'}</p>
+                    </div>
+                    <span className="text-xs font-bold text-amber-700 shrink-0">{entry.correctCount}개</span>
+                  </div>
+                ))}
+                {ranking.length === 0 && <p className="text-xs text-wood-light text-center py-2">데이터 없음</p>}
+              </div>
+              <button
+                onClick={() => navigate('/ranking')}
+                className="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-parchment font-jua text-sm transition-colors flex items-center justify-center gap-1.5"
+              >
+                🏅 전체 랭킹 보기
+              </button>
             </div>
-            <div className="space-y-1">
+
+            {/* 오늘의 핫토픽 */}
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xl">🔥</span>
+                <h3 className="font-jua text-base text-wood-darkest">오늘의 핫토픽</h3>
+              </div>
               <div
-                className="text-sm font-bold text-red-600 cursor-pointer hover:text-red-700 transition-colors"
+                className="inline-block text-sm font-jua text-amber-700 cursor-pointer hover:text-amber-800 transition-colors mb-2"
                 onClick={() => { if (hotTopic.tag !== "없음") setQuery(hotTopic.tag); }}
               >
                 #{hotTopic.tag}
               </div>
-              <div className="text-xs text-wood-dark">
+              <p className="text-xs text-wood-light">
                 {hotTopic.count > 0 ? `${hotTopic.count}개 게시글에서 언급` : '데이터 없음'}
-              </div>
+              </p>
               {hotTopic.count > 0 && (
-                <div className="flex gap-2 mt-2">
-                  <Badge className="bg-red-100 text-red-600 text-xs">+{hotTopic.count}</Badge>
-                  <Badge className="bg-orange-100 text-orange-600 text-xs">인기급상승</Badge>
+                <div className="flex gap-2 mt-3">
+                  <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-xs">+{hotTopic.count}</Badge>
+                  <Badge className="bg-orange-100 text-wood-dark border border-orange-200 text-xs">인기급상승</Badge>
                 </div>
               )}
             </div>
-          </ParchmentPanel>
-        </div>
+
+          </div>
+        </ParchmentPanel>
 
         {/* Board Table */}
         <ParchmentPanel className="rounded-3xl border-[6px] overflow-hidden">
