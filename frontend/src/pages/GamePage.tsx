@@ -20,7 +20,7 @@ type GamePhase = "select" | "playing" | "finished";
 
 const GamePage = () => {
   const navigate = useNavigate();
-  const { quizProfile: ctxProfile, updateQuizProfile, setIsPlaying, pendingNav, setPendingNav } = useQuizProfile();
+  const { quizProfile: ctxProfile, updateQuizProfile, refreshQuizProfile, setIsPlaying, pendingNav, setPendingNav } = useQuizProfile();
 
   // 게임 단계
   const [phase, setPhase] = useState<GamePhase>("select");
