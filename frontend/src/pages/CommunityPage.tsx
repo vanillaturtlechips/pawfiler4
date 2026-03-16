@@ -62,7 +62,7 @@ const CommunityPage = () => {
   const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({ tag: "없음", count: 0 });
 
   // Ranking Modal State
-  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; nickname: string; avatarEmoji: string; tier: string; totalExp: number; totalCoins: number; totalAnswered: number; correctCount: number; accuracy: number }>>([]);
+  const [ranking, setRanking] = useState<Array<{ rank: number; userId: string; nickname: string; avatarEmoji: string; tier: string; level: number; totalExp: number; totalCoins: number; totalAnswered: number; correctCount: number; accuracy: number }>>([]);
   const [featuredPosts, setFeaturedPosts] = useState<Array<{ id: string; title: string; authorNickname: string; likes: number }>>([]);
 
   // CRUD State
@@ -329,9 +329,12 @@ const CommunityPage = () => {
               {ranking.slice(0, 3).map((entry, i) => (
                 <div key={entry.userId} className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg bg-parchment-border/30">
                   <span className="text-base shrink-0">{['🥇','🥈','🥉'][i]}</span>
+                  <span className="text-lg shrink-0">
+                    {entry.avatarEmoji || (entry.tier === '불사조' ? '🦅' : entry.tier === '맹금닭' ? '🐓' : entry.tier === '삐약이' ? '🐥' : '🥚')}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <p className="font-jua text-xs text-wood-darkest truncate">{entry.nickname || `탐정 ${i + 1}위`}</p>
-                    <p className="text-xs text-wood-light">{entry.tier || '알'}</p>
+                    <p className="text-xs text-wood-light">{entry.tier || '알'} Lv.{entry.level ?? 1}</p>
                   </div>
                   <span className="text-xs font-bold text-amber-700 shrink-0">{entry.correctCount}개</span>
                 </div>

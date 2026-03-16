@@ -9,7 +9,7 @@ import { config } from "@/lib/config";
 
 type RankEntry = {
   rank: number; userId: string; nickname: string; avatarEmoji: string;
-  tier: string; totalExp: number; totalCoins: number;
+  tier: string; level: number; totalExp: number; totalCoins: number;
   totalAnswered: number; correctCount: number; accuracy: number;
 };
 
@@ -148,7 +148,7 @@ export default function RankingPage() {
                         <div className={`font-jua text-sm truncate ${e.userId === myQuizId ? 'text-amber-700' : 'text-wood-darkest'}`}>
                           {getDisplayName(e)}{e.userId === myQuizId ? ' 👈 나' : ''}
                         </div>
-                        <div className="text-xs text-wood-light">{e.totalExp} XP</div>
+                        <div className="text-xs text-wood-light">{e.tier || '알'} Lv.{e.level ?? 1}</div>
                       </div>
                     </div>
 

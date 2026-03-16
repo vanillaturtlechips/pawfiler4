@@ -103,6 +103,15 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
+
+		// 승급 감지를 위해 제출 전 티어 저장
+		prevTierName := ""
+		if req.UserId != "" {
+			if prevProfile, err := svc.GetUserProfile(r.Context(), req.UserId); err == nil {
+				prevTierName = prevProfile.TierName()
+			}
+		}
+
 		resp, err := svc.SubmitAnswer(r.Context(), &req)
 		if err != nil {
 			writeGRPCError(w, err)
@@ -126,6 +135,7 @@ func handleSubmitAnswer(svc QuizService) http.HandlerFunc {
 				result["total_coins"] = profile.TotalCoins
 				result["energy"] = profile.Energy
 				result["max_energy"] = profile.MaxEnergy
+				result["tier_promoted"] = prevTierName != "" && prevTierName != profile.TierName()
 			}
 		}
 
@@ -456,6 +466,7 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 			Nickname      string  `json:"nickname"`
 			AvatarEmoji   string  `json:"avatarEmoji"`
 			Tier          string  `json:"tier"`
+			Level         int     `json:"level"`
 			TotalExp      int     `json:"totalExp"`
 			TotalCoins    int     `json:"totalCoins"`
 			TotalAnswered int     `json:"totalAnswered"`
@@ -470,6 +481,9 @@ func handleGetRanking(db *sql.DB) http.HandlerFunc {
 				continue
 			}
 			e.Rank = rank
+			// Level 계산
+			p := &repository.UserProfile{TotalExp: int32(e.TotalExp), CurrentTier: e.Tier}
+			e.Level = int(p.Level())
 			entries = append(entries, e)
 			rank++
 		}
