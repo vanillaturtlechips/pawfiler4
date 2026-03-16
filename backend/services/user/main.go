@@ -1,3 +1,4 @@
+// user-service: profile and shop REST API
 package main
 
 import (
