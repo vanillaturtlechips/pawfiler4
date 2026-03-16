@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
+import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, type UserFullProfile, type UserActivity } from "@/lib/api";
+import { config } from "@/lib/config";
+import { toast } from "sonner";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,44 +17,86 @@ import {
 } from "lucide-react";
 
 const ProfilePage = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { quizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"journey" | "stats" | "settings">("journey");
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [editedNickname, setEditedNickname] = useState(user?.nickname || "");
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarEmoji || "🦊");
+  const [isSaving, setIsSaving] = useState(false);
+  const [fullProfile, setFullProfile] = useState<UserFullProfile | null>(null);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
+
+  const userId = localStorage.getItem(config.storageKeys.quizUserId) || "";
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/login");
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchUserFullProfile(userId)
+      .then(setFullProfile)
+      .catch(() => {});
+    fetchUserActivities(userId)
+      .then(setActivities)
+      .catch(() => {});
+  }, [userId]);
 
   if (!user) {
-    navigate("/login");
     return null;
   }
 
+  const handleSaveAvatar = async () => {
+    if (!userId || selectedAvatar === user.avatarEmoji) return;
+    setIsSaving(true);
+    try {
+      const res = await updateUserProfile(userId, undefined, selectedAvatar);
+      updateUser({ avatarEmoji: res.avatar_emoji });
+      toast.success("아바타가 저장되었습니다!");
+    } catch {
+      toast.error("저장에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveNickname = async () => {
+    if (!userId || !editedNickname.trim()) return;
+    setIsSaving(true);
+    try {
+      const res = await updateUserProfile(userId, editedNickname.trim(), undefined);
+      updateUser({ nickname: res.nickname });
+      setIsEditingNickname(false);
+      toast.success("닉네임이 저장되었습니다!");
+    } catch {
+      toast.error("저장에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const avatarOptions = ["🦊", "🐶", "🐱", "🐰", "🐻", "🐼", "🦝", "🐨", "🐯", "🦁", "🐮", "🐷"];
-  
-  const recentActivities = [
-    { id: 1, icon: "🎮", title: "딥페이크 퀴즈 완료", time: "2시간 전", xp: 50 },
-    { id: 2, icon: "📜", title: "커뮤니티 게시글 작성", time: "5시간 전", xp: 30 },
-    { id: 3, icon: "🔮", title: "영상 분석 완료", time: "1일 전", xp: 100 },
-    { id: 4, icon: "💬", title: "댓글 작성", time: "2일 전", xp: 10 },
-  ];
 
   const achievements = [
-    { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: true },
-    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: true },
-    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: true },
-    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: false },
+    { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: (fullProfile?.total_quizzes ?? 0) >= 1 },
+    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: (fullProfile?.current_streak ?? 0) >= 3 },
+    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: (fullProfile?.total_quizzes ?? 0) >= 5 },
+    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: (fullProfile?.correct_rate ?? 0) >= 90 },
     { id: 5, icon: "💎", title: "수집가", desc: "모든 배지 획득", unlocked: false },
-    { id: 6, icon: "🌟", title: "레벨 마스터", desc: "레벨 10 달성", unlocked: false },
+    { id: 6, icon: "🌟", title: "레벨 마스터", desc: "레벨 10 달성", unlocked: (fullProfile?.level ?? 0) >= 10 },
   ];
 
   const stats = {
-    totalQuizzes: 42,
-    correctRate: 78,
-    totalAnalysis: 15,
-    communityPosts: 8,
-    currentStreak: 3,
-    bestStreak: 7,
+    totalQuizzes: fullProfile?.total_quizzes ?? 0,
+    correctRate: Math.round(fullProfile?.correct_rate ?? 0),
+    totalAnalysis: fullProfile?.total_analysis ?? 0,
+    communityPosts: fullProfile?.community_posts ?? 0,
+    currentStreak: fullProfile?.current_streak ?? 0,
+    bestStreak: fullProfile?.best_streak ?? 0,
   };
 
   return (
@@ -326,9 +371,9 @@ const ProfilePage = () => {
                       최근 활동
                     </h4>
                     <div className="space-y-2">
-                      {recentActivities.slice(0, 3).map((activity) => (
+                      {activities.slice(0, 3).map((activity, idx) => (
                         <div
-                          key={activity.id}
+                          key={idx}
                           className="flex items-center justify-between p-2 rounded-lg bg-white border border-parchment-border"
                         >
                           <div className="flex items-center gap-2">
@@ -541,15 +586,16 @@ const ProfilePage = () => {
                         </button>
                       ))}
                     </div>
-                    <Button 
-                      disabled={selectedAvatar === user.avatarEmoji}
+                    <Button
+                      onClick={handleSaveAvatar}
+                      disabled={selectedAvatar === user.avatarEmoji || isSaving}
                       className={`w-full mt-2 font-jua text-sm py-2 ${
                         selectedAvatar === user.avatarEmoji
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-orange-500 hover:bg-orange-600 text-white'
                       }`}
                     >
-                      아바타 저장
+                      {isSaving ? "저장 중..." : "아바타 저장"}
                     </Button>
                   </div>
 
@@ -571,10 +617,8 @@ const ProfilePage = () => {
                       ) : (
                         <div className="flex gap-1">
                           <Button
-                            onClick={() => {
-                              // TODO: API call
-                              setIsEditingNickname(false);
-                            }}
+                            onClick={handleSaveNickname}
+                            disabled={isSaving}
                             className="font-jua text-xs bg-green-500 hover:bg-green-600 text-white py-1 px-2 h-auto"
                           >
                             <Save className="w-3 h-3 mr-1" />

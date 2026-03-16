@@ -44,7 +44,6 @@ services:
       REDIS_ADDR: "redis:6379"
     ports:
       - "50052:50052"
-      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,6 +64,23 @@ services:
     ports:
       - "50053:50053"
       - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pawfiler-network
+
+  # User Service (Profile + Shop)
+  user-service:
+    build:
+      context: ./services/user
+      dockerfile: Dockerfile
+    container_name: pawfiler-user
+    environment:
+      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+      HTTP_PORT: "8083"
+    ports:
+      - "8083:8083"
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,27 +133,10 @@ services:
     networks:
       - pawfiler-network
 
-#   # Envoy Gateway (gRPC-JSON transcoding)
+#   # Envoy Gateway (gRPC-JSON transcoding) - removed in PR #80, services use direct HTTP ports
 #   envoy:
-#     image: envoyproxy/envoy:v1.28-latest
-#     container_name: pawfiler-envoy
-#     ports:
-#       - "8080:8080"
-#       - "9901:9901"
-#     volumes:
-#       - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
-#       - ./proto/proto.pb:/etc/envoy/proto.pb
-#     command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
-#     depends_on:
-#       proto-generator:
-#         condition: service_completed_successfully
-#       quiz-service:
-#         condition: service_started
-#       community-service:
-#         condition: service_started
-#     networks:
-#       - pawfiler-network
-# 
+#     ...
+
 volumes:
   postgres_data:
 

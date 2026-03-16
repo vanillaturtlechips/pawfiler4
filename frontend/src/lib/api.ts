@@ -948,3 +948,160 @@ export const fetchQuestionStats = async (questionId?: string) => {
     return [];
   }
 };
+
+// ============================
+// User Service (Profile + Shop)
+// ============================
+
+export interface UserFullProfile {
+  user_id: string;
+  nickname: string;
+  avatar_emoji: string;
+  level: number;
+  tier_name: string;
+  total_exp: number;
+  total_coins: number;
+  energy: number;
+  max_energy: number;
+  total_quizzes: number;
+  correct_rate: number;
+  total_analysis: number;
+  community_posts: number;
+  current_streak: number;
+  best_streak: number;
+}
+
+export interface UserActivity {
+  icon: string;
+  title: string;
+  time: string;
+  xp: number;
+}
+
+export interface ShopItemData {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge?: string;
+  type: string;
+  quantity?: number;
+  bonus?: number;
+}
+
+export interface ShopCatalog {
+  subscriptions: ShopItemData[];
+  coin_packages: ShopItemData[];
+  packages: ShopItemData[];
+}
+
+export interface PurchaseResult {
+  success: boolean;
+  item_name: string;
+  coins_paid: number;
+  total_coins: number;
+}
+
+const userServicePost = async <T>(path: string, body: object): Promise<T> => {
+  const res = await fetch(`${config.userServiceBaseUrl}/user.UserService/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
+  }
+  return data as T;
+};
+
+export const fetchUserFullProfile = async (userId: string): Promise<UserFullProfile> => {
+  return userServicePost<UserFullProfile>("GetProfile", { user_id: userId });
+};
+
+export const updateUserProfile = async (
+  userId: string,
+  nickname?: string,
+  avatarEmoji?: string
+): Promise<{ success: boolean; nickname: string; avatar_emoji: string }> => {
+  return userServicePost("UpdateProfile", {
+    user_id: userId,
+    ...(nickname && { nickname }),
+    ...(avatarEmoji && { avatar_emoji: avatarEmoji }),
+  });
+};
+
+export const fetchUserActivities = async (userId: string): Promise<UserActivity[]> => {
+  const res = await userServicePost<{ activities: UserActivity[] }>("GetRecentActivities", { user_id: userId });
+  return res.activities ?? [];
+};
+
+export const fetchShopItems = async (): Promise<ShopCatalog> => {
+  return userServicePost<ShopCatalog>("GetShopItems", {});
+};
+
+export const purchaseItem = async (userId: string, itemId: string): Promise<PurchaseResult> => {
+  return userServicePost<PurchaseResult>("PurchaseItem", { user_id: userId, item_id: itemId });
+};
+
+export const fetchPurchaseHistory = async (userId: string) => {
+  return userServicePost<{ purchases: object[] }>("GetPurchaseHistory", { user_id: userId });
+};
+
+// ─── Admin Shop API ────────────────────────────────────────────────────────────
+
+export interface AdminShopItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge?: string;
+  type: string;
+  quantity: number;
+  bonus: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminShopItemInput {
+  id?: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge?: string;
+  type: string;
+  quantity?: number;
+  bonus?: number;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+const adminFetch = async <T>(method: string, path: string, body?: object): Promise<T> => {
+  const res = await fetch(`${config.adminServiceBaseUrl}/admin/shop${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
+  }
+  return data as T;
+};
+
+export const adminFetchShopItems = async (): Promise<{ items: AdminShopItem[]; total: number }> =>
+  adminFetch("GET", "/items");
+
+export const adminCreateShopItem = async (input: AdminShopItemInput): Promise<AdminShopItem> =>
+  adminFetch("POST", "/items", input);
+
+export const adminUpdateShopItem = async (id: string, input: Partial<AdminShopItemInput>): Promise<AdminShopItem> =>
+  adminFetch("PUT", `/items/${id}`, input);
+
+export const adminDeleteShopItem = async (id: string): Promise<void> =>
+  adminFetch("DELETE", `/items/${id}`);

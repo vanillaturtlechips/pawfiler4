@@ -8,6 +8,8 @@ import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { ArrowLeft, Coins, Sparkles, Gift, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { purchaseItem, fetchShopItems, type ShopCatalog } from "@/lib/api";
+import { config } from "@/lib/config";
 
 type ShopTab = "subscription" | "coins" | "packages";
 
@@ -24,161 +26,66 @@ interface ShopItem {
 }
 
 const ShopPage = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { quizProfile, refreshQuizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ShopTab>("packages");
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<ShopCatalog>({
+    subscriptions: [],
+    coin_packages: [],
+    packages: [],
+  });
 
   const userCoins = quizProfile?.totalCoins ?? user?.coins ?? 0;
 
-  // 페이지 로드 시 프로필 새로고침
   useEffect(() => {
     refreshQuizProfile();
+    fetchShopItems()
+      .then(setCatalog)
+      .catch(() => {});
   }, []);
 
-  // 상점 아이템 데이터
-  const subscriptionItems: ShopItem[] = [
-    {
-      id: "premium-monthly",
-      name: "프리미엄 월간",
-      description: "무제한 퀴즈 + 영상 분석",
-      price: 9900,
-      icon: "👑",
-      badge: "인기",
-      type: "subscription",
-    },
-    {
-      id: "premium-yearly",
-      name: "프리미엄 연간",
-      description: "12개월 + 2개월 무료",
-      price: 99000,
-      icon: "💎",
-      badge: "최고가치",
-      type: "subscription",
-    },
-  ];
-
-  const coinPackages: ShopItem[] = [
-    {
-      id: "coins-100",
-      name: "소량 코인",
-      description: "기본 코인 팩",
-      price: 1000,
-      icon: "💰",
-      type: "coins",
-      quantity: 100,
-    },
-    {
-      id: "coins-500",
-      name: "중량 코인",
-      description: "+50 보너스",
-      price: 4500,
-      icon: "💰",
-      badge: "보너스",
-      type: "coins",
-      quantity: 500,
-      bonus: 50,
-    },
-    {
-      id: "coins-1000",
-      name: "대량 코인",
-      description: "+150 보너스",
-      price: 8500,
-      icon: "💎",
-      badge: "인기",
-      type: "coins",
-      quantity: 1000,
-      bonus: 150,
-    },
-  ];
-
-  const packageItems: ShopItem[] = [
-    {
-      id: "daily-package",
-      name: "일일오픽 패키지",
-      description: "퀴즈 5회 + 분석 1회",
-      price: 250,
-      icon: "📝",
-      badge: "신규",
-      type: "item",
-    },
-    {
-      id: "growth-package",
-      name: "성급육성 패키지",
-      description: "XP 부스트 + 코인",
-      price: 600,
-      icon: "⭐",
-      badge: "신규",
-      type: "item",
-    },
-    {
-      id: "random-package",
-      name: "만신전 패키지",
-      description: "랜덤 아이템 3개",
-      price: 300,
-      icon: "🎲",
-      type: "item",
-    },
-    {
-      id: "color-package",
-      name: "염색 세트 패키지",
-      description: "아바타 커스터마이징",
-      price: 500,
-      icon: "🎨",
-      type: "item",
-    },
-    {
-      id: "costume-package",
-      name: "코스튬권 패키지",
-      description: "특별 의상 획득",
-      price: 800,
-      icon: "👔",
-      type: "item",
-    },
-    {
-      id: "gem-package",
-      name: "금화 패키지",
-      description: "프리미엄 재화",
-      price: 1200,
-      icon: "💎",
-      badge: "한정",
-      type: "item",
-    },
-    {
-      id: "special-package",
-      name: "특파 재료 패키지",
-      description: "희귀 아이템",
-      price: 450,
-      icon: "🔮",
-      type: "item",
-    },
-  ];
-
-  const handlePurchase = (item: ShopItem) => {
+  const handlePurchase = async (item: ShopItem) => {
     if (!user) {
       toast.error("로그인이 필요합니다.");
       return;
     }
-    
+
+    const userId = localStorage.getItem(config.storageKeys.quizUserId);
+    if (!userId) {
+      toast.error("사용자 정보를 찾을 수 없습니다.");
+      return;
+    }
+
     if (userCoins < item.price) {
       toast.error("코인이 부족합니다!");
       return;
     }
 
-    // TODO: API 연동
-    toast.success(`${item.name}을(를) 구매했습니다!`);
+    setPurchasing(item.id);
+    try {
+      const result = await purchaseItem(userId, item.id);
+      toast.success(`${result.item_name}을(를) 구매했습니다!`);
+      updateUser({ coins: result.total_coins });
+    } catch (err: any) {
+      const msg = err?.data?.error || err?.message || "구매 실패";
+      toast.error(msg);
+    } finally {
+      setPurchasing(null);
+    }
   };
 
-  const getCurrentItems = () => {
+  const getCurrentItems = (): ShopItem[] => {
     switch (activeTab) {
       case "subscription":
-        return subscriptionItems;
+        return catalog.subscriptions;
       case "coins":
-        return coinPackages;
+        return catalog.coin_packages;
       case "packages":
-        return packageItems;
+        return catalog.packages;
       default:
-        return packageItems;
+        return catalog.packages;
     }
   };
 
@@ -491,9 +398,10 @@ const ShopPage = () => {
                       {/* Buy Button */}
                       <Button
                         onClick={() => handlePurchase(item)}
-                        className="w-full font-jua text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-2 h-auto shadow-md"
+                        disabled={purchasing === item.id}
+                        className="w-full font-jua text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-2 h-auto shadow-md disabled:opacity-60"
                       >
-                        구매
+                        {purchasing === item.id ? "처리중..." : "구매"}
                       </Button>
                     </ParchmentPanel>
                   </div>

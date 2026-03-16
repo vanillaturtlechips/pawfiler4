@@ -114,6 +114,7 @@ func (s *UserStats) CorrectRate() float64 {
 	return float64(s.CorrectCount) / float64(s.TotalAnswered)
 }
 
+
 // Answer is an interface for all answer types
 // Each question type has its own answer implementation
 type Answer interface {

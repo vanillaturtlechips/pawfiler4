@@ -305,6 +305,7 @@ func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 		LastEnergyRefill: gup.LastEnergyRefill,
 	}
 }
+
 // FromUserProfile 기존 UserProfile 모델을 GORM 모델로 변환
 func (gup *GormUserProfile) FromUserProfile(p *UserProfile) {
 	gup.UserID = p.UserID
