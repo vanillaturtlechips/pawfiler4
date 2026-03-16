@@ -236,8 +236,13 @@ const GamePage = () => {
         
         // 레벨업 감지
         const tierPromoted = res.tierPromoted === true;
-        if (tierPromoted || newLevel > prevLevel) {
-          setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: tierPromoted });
+        if (tierPromoted) {
+          // 티어 승급 모달만
+          setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: true });
+          setShowTierUpModal(true);
+        } else if (newLevel > prevLevel) {
+          // 레벨업 모달
+          setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: false });
           setShowTierUpModal(true);
         }
         // 5연속 정답 보너스 토스트
@@ -409,7 +414,20 @@ const GamePage = () => {
                   </div>
                 )}
                 <div className="flex gap-4 mt-2">
-                  <GameButton variant="green" onClick={restartGame} className="whitespace-nowrap">다시 시작</GameButton>
+                  <GameButton
+                    variant="green"
+                    onClick={() => {
+                      const energy = profile?.energy ?? 0;
+                      if (energy < 25) {
+                        navigate("/shop");
+                      } else {
+                        restartGame();
+                      }
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    {(profile?.energy ?? 0) < 25 ? "⚡ 에너지 부족 (상점)" : "다시 시작"}
+                  </GameButton>
                   <GameButton variant="blue" onClick={() => navigate("/")} className="whitespace-nowrap">마을 입구로</GameButton>
                 </div>
               </WoodPanel>
@@ -710,9 +728,7 @@ const GamePage = () => {
                       transition={{ duration: 0.5, repeat: 2 }}
                     />
                     <h2 className="font-jua text-3xl text-yellow-400 mb-2">레벨 업!</h2>
-                    <p className="font-jua text-xl mb-6">
-                      {newTier.name} Lv.{newTier.prevLevel} → Lv.{newTier.level}
-                    </p>
+                    <p className="font-jua text-xl mb-6">Lv.{newTier.prevLevel} → Lv.{newTier.level}</p>
                   </>
                 )}
                 <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>확인</GameButton>
