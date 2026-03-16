@@ -44,6 +44,7 @@ services:
       REDIS_ADDR: "redis:6379"
     ports:
       - "50052:50052"
+      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy

@@ -316,7 +316,7 @@ func main() {
 
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
-		httpPort = "8080"
+		httpPort = "8081"
 	}
 	log.Printf("Community REST server started on :%s", httpPort)
 	if err := http.ListenAndServe(":"+httpPort, rest.NewMuxWithDB(svc, db)); err != nil {
