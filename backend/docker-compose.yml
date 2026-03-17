@@ -139,9 +139,7 @@ services:
     networks:
       - pawfiler-network
 
-#   # Envoy Gateway (gRPC-JSON transcoding) - removed in PR #80, services use direct HTTP ports
-#   envoy:
-#     ...
+
 
 volumes:
   postgres_data:

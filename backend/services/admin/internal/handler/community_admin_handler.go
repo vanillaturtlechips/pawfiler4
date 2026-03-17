@@ -120,3 +120,33 @@ func (h *CommunityAdminHandler) DeleteComment(w http.ResponseWriter, r *http.Req
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// POST /admin/community/posts
+func (h *CommunityAdminHandler) CreateAdminPost(w http.ResponseWriter, r *http.Request) {
+	var req repository.CreateAdminPostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Title == "" || req.Body == "" {
+		respondError(w, http.StatusBadRequest, "title and body are required")
+		return
+	}
+	if req.Nickname == "" {
+		req.Nickname = "운영진"
+	}
+	if req.Emoji == "" {
+		req.Emoji = "🐾"
+	}
+	if req.Tags == nil {
+		req.Tags = []string{}
+	}
+
+	post, err := h.repo.CreateAdminPost(&req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, post)
+}

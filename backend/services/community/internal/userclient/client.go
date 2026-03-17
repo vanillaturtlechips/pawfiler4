@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	userpb "community/pb"
+	userpb "community/internal/userpb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

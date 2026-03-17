@@ -63,7 +63,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
 			FROM community.posts
 			WHERE %s
-			ORDER BY created_at DESC
+			ORDER BY is_admin_post DESC, created_at DESC
 			LIMIT $3 OFFSET $4
 		`, whereClause), searchPattern, searchQuery, pageSize, offset)
 	} else {
@@ -73,7 +73,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 				likes, comments, created_at::text, tags,
 				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
 			FROM community.posts
-			ORDER BY created_at DESC
+			ORDER BY is_admin_post DESC, created_at DESC
 			LIMIT $1 OFFSET $2
 		`, pageSize, offset)
 	}
@@ -152,6 +152,9 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 	// user 서비스 gRPC 호출로 최신 닉네임/아바타 조회
 	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
 
+	// is_admin_post는 강제 false - 어드민은 별도 엔드포인트 사용
+	isAdminPost := false
+
 	postID := uuid.New().String()
 	createdAt := time.Now()
 
@@ -159,7 +162,7 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, postID, req.UserId, nickname, avatarEmoji, req.Title, req.Body,
-		pq.Array(req.Tags), nullableString(req.MediaUrl), nullableString(req.MediaType), req.IsAdminPost, req.IsCorrect, createdAt)
+		pq.Array(req.Tags), nullableString(req.MediaUrl), nullableString(req.MediaType), isAdminPost, req.IsCorrect, createdAt)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to create post")
@@ -175,7 +178,7 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		Tags:           req.Tags,
 		MediaUrl:       req.MediaUrl,
 		MediaType:      req.MediaType,
-		IsAdminPost:    req.IsAdminPost,
+		IsAdminPost:    isAdminPost,
 		CreatedAt:      createdAt.Format(time.RFC3339),
 		Likes:          0,
 		Comments:       0,
@@ -305,4 +308,44 @@ func nullableString(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// CreateAdminPost - 운영진 게시글 작성 (미디어/투표 없이, is_admin_post=true 강제)
+func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRequest) (*pb.Post, error) {
+	if req.Title == "" {
+		return nil, status.Error(codes.InvalidArgument, "Title is required")
+	}
+	if req.Body == "" {
+		return nil, status.Error(codes.InvalidArgument, "Body is required")
+	}
+
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+
+	postID := uuid.New().String()
+	createdAt := time.Now()
+
+	_, err := h.db.ExecContext(ctx, `
+		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, true, $8, $9)
+	`, postID, req.UserId, nickname, avatarEmoji, req.Title, req.Body,
+		pq.Array(req.Tags), req.IsCorrect, createdAt)
+
+	if err != nil {
+		log.Printf("CreateAdminPost error: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to create admin post")
+	}
+
+	return &pb.Post{
+		Id:             postID,
+		AuthorId:       req.UserId,
+		AuthorNickname: nickname,
+		AuthorEmoji:    avatarEmoji,
+		Title:          req.Title,
+		Body:           req.Body,
+		Tags:           req.Tags,
+		IsAdminPost:    true,
+		CreatedAt:      createdAt.Format(time.RFC3339),
+		Likes:          0,
+		Comments:       0,
+	}, nil
 }
