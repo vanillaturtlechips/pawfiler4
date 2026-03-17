@@ -645,21 +645,33 @@ export const fetchQuestionStats = async (questionId?: string) => {
 // ============================
 
 export interface UserFullProfile {
-  user_id: string;
+  userId: string;
+  user_id?: string;
   nickname: string;
-  avatar_emoji: string;
+  avatarEmoji: string;
+  avatar_emoji?: string;
   level: number;
-  tier_name: string;
-  total_exp: number;
-  total_coins: number;
+  tierName: string;
+  tier_name?: string;
+  totalExp: number;
+  total_exp?: number;
+  totalCoins: number;
+  total_coins?: number;
   energy: number;
-  max_energy: number;
-  total_quizzes: number;
-  correct_rate: number;
-  total_analysis: number;
-  community_posts: number;
-  current_streak: number;
-  best_streak: number;
+  maxEnergy: number;
+  max_energy?: number;
+  totalQuizzes: number;
+  total_quizzes?: number;
+  correctRate: number;
+  correct_rate?: number;
+  totalAnalysis: number;
+  total_analysis?: number;
+  communityPosts: number;
+  community_posts?: number;
+  currentStreak: number;
+  current_streak?: number;
+  bestStreak: number;
+  best_streak?: number;
 }
 
 export interface UserActivity {

@@ -45,23 +45,23 @@ export const fetchCommunityFeed = async (
     // gRPC snake_case를 camelCase로 변환
     const transformedPosts: CommunityPost[] = data.posts?.map((post: any) => ({
       id: post.id,
-      authorNickname: post.author_nickname || "익명",
-      authorEmoji: post.author_emoji || "👤",
+      authorNickname: post.authorNickname || post.author_nickname || "익명",
+      authorEmoji: post.authorEmoji || post.author_emoji || "👤",
       title: post.title,
       body: post.body,
       likes: post.likes || 0,
       comments: post.comments || 0,
-      createdAt: post.created_at || new Date().toISOString(),
+      createdAt: post.createdAt || post.created_at || new Date().toISOString(),
       tags: post.tags || [],
-      userId: post.author_id,
-      mediaUrl: post.media_url || post.mediaUrl,
-      mediaType: post.media_type || post.mediaType,
-      isAdminPost: post.is_admin_post || post.isAdminPost || false,
+      userId: post.authorId || post.author_id,
+      mediaUrl: post.mediaUrl || post.media_url,
+      mediaType: post.mediaType || post.media_type,
+      isAdminPost: post.isAdminPost || post.is_admin_post || false,
     })) || [];
 
     return {
       posts: transformedPosts,
-      totalCount: data.total_count || 0,
+      totalCount: data.totalCount || data.total_count || 0,
       page: data.page || page,
     };
   } catch (error) {
@@ -111,18 +111,18 @@ export const createCommunityPost = async (req: {
     const data = await response.json();
     return {
       id: data.id,
-      authorNickname: data.author_nickname || data.authorNickname || req.authorNickname,
+      authorNickname: data.authorNickname || data.author_nickname || req.authorNickname,
       authorEmoji: data.author_emoji || data.authorEmoji || req.authorEmoji,
       title: data.title,
       body: data.body,
       likes: data.likes || 0,
       comments: data.comments || 0,
-      createdAt: data.created_at || data.createdAt || new Date().toISOString(),
+      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
       tags: data.tags || [],
-      userId: data.author_id || req.userId,
-      mediaUrl: data.media_url || data.mediaUrl,
+      userId: data.authorId || data.author_id || req.userId,
+      mediaUrl: data.mediaUrl || data.media_url,
       mediaType: data.media_type || data.mediaType,
-      isAdminPost: data.is_admin_post || data.isAdminPost || false,
+      isAdminPost: data.isAdminPost || data.is_admin_post || false,
     };
   } catch (error) {
     return handleApiError(error, '게시글 작성');
@@ -198,20 +198,20 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
     const data = await response.json();
     return {
       id: data.id,
-      authorNickname: data.author_nickname || data.authorNickname || '익명',
+      authorNickname: data.authorNickname || data.author_nickname || '익명',
       authorEmoji: data.author_emoji || data.authorEmoji || '🐾',
       title: data.title,
       body: data.body,
       likes: data.likes || 0,
       comments: data.comments || 0,
-      createdAt: data.created_at || data.createdAt || new Date().toISOString(),
+      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
       tags: data.tags || [],
-      userId: data.author_id || data.userId,
-      mediaUrl: data.media_url || data.mediaUrl,
+      userId: data.authorId || data.author_id || data.userId,
+      mediaUrl: data.mediaUrl || data.media_url,
       mediaType: data.media_type || data.mediaType,
-      isAdminPost: data.is_admin_post || data.isAdminPost || false,
-      trueVotes: data.true_votes || data.trueVotes || 0,
-      falseVotes: data.false_votes || data.falseVotes || 0,
+      isAdminPost: data.isAdminPost || data.is_admin_post || false,
+      trueVotes: data.trueVotes || data.true_votes || 0,
+      falseVotes: data.falseVotes || data.false_votes || 0,
     };
   } catch (error) {
     return handleApiError(error, '게시글 로드');
@@ -239,11 +239,11 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
     const transformedComments: CommunityComment[] = data.comments?.map((comment: any) => ({
       id: comment.id,
       postId: comment.post_id,
-      authorNickname: comment.author_nickname || "익명",
+      authorNickname: comment.authorNickname || comment.author_nickname || "익명",
       authorEmoji: comment.author_emoji || "👤",
       body: comment.body,
-      createdAt: comment.created_at || new Date().toISOString(),
-      userId: comment.author_id,
+      createdAt: comment.createdAt || comment.created_at || new Date().toISOString(),
+      userId: comment.authorId || comment.author_id,
     })) || [];
     
     return transformedComments;
@@ -441,7 +441,7 @@ export const uploadCommunityMedia = async (file: File): Promise<{ mediaUrl: stri
     }
     const data = await response.json();
     return {
-      mediaUrl: data.media_url || data.mediaUrl || "",
+      mediaUrl: data.mediaUrl || data.media_url || "",
       mediaType: data.media_type || data.mediaType || "",
     };
   } catch (error) {
@@ -476,8 +476,8 @@ export const getVoteResult = async (postId: string): Promise<{ trueVotes: number
     if (!response.ok) throw new Error("투표 결과 조회 실패");
     const data = await response.json();
     return {
-      trueVotes: data.true_votes || data.trueVotes || 0,
-      falseVotes: data.false_votes || data.falseVotes || 0,
+      trueVotes: data.trueVotes || data.true_votes || 0,
+      falseVotes: data.falseVotes || data.false_votes || 0,
     };
   } catch (error) {
     // 투표 기능이 아직 완전히 구현되지 않았으므로 조용히 기본값 반환

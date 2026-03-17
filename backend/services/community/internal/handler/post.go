@@ -79,7 +79,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 	}
 
 	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to fetch posts")
+		log.Printf("GetFeed query error: %v", err); return nil, status.Error(codes.Internal, "Failed to fetch posts")
 	}
 	defer rows.Close()
 

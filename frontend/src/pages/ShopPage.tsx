@@ -71,9 +71,9 @@ const ShopPage = () => {
     try {
       const result = await purchaseItem(userId, item.id);
       toast.success(`${result.item_name}을(를) 구매했습니다!`);
-      updateUser({ coins: result.total_coins });
+      updateUser({ coins: result.totalCoins ?? result.total_coins });
       if (quizProfile) {
-        updateQuizProfile({ ...quizProfile, totalCoins: result.total_coins });
+        updateQuizProfile({ ...quizProfile, totalCoins: result.totalCoins ?? result.total_coins });
       }
     } catch (err: any) {
       const msg = err?.data?.error || err?.message || "구매 실패";
