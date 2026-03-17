@@ -81,26 +81,63 @@ export const createCommunityPost = async (req: {
   isCorrect?: boolean;
 }): Promise<CommunityPost> => {
   try {
-    const formData = new FormData();
-    formData.append('user_id', req.userId);
-    formData.append('author_nickname', req.authorNickname);
-    formData.append('author_emoji', req.authorEmoji);
-    formData.append('title', req.title);
-    formData.append('body', req.body);
-    formData.append('tags', JSON.stringify(req.tags));
-    formData.append('is_admin_post', String(req.isAdminPost || false));
-    
-    if (req.isCorrect !== undefined) {
-      formData.append('is_correct', String(req.isCorrect));
-    }
-    
+    // 1. 미디어 파일이 있으면 먼저 업로드 (gRPC로 변경)
+    let mediaUrl = "";
+    let mediaType = "";
     if (req.mediaFile) {
-      formData.append('file', req.mediaFile);
+      // 파일을 base64로 변환
+      const arrayBuffer = await req.mediaFile.arrayBuffer();
+      const base64Content = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+
+      const uploadResponse = await fetch(`${config.communityBaseUrl}/community.CommunityService/UploadMedia`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          file_name: req.mediaFile.name,
+          content: base64Content,
+          content_type: req.mediaFile.type,
+        }),
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("미디어 업로드 실패");
+      }
+
+      const uploadData = await uploadResponse.json();
+      mediaUrl = uploadData.media_url || uploadData.mediaUrl || "";
+      mediaType = uploadData.media_type || uploadData.mediaType || "";
+    }
+
+    // 2. JSON으로 게시글 생성 (gRPC Gateway는 JSON만 받음)
+    const requestBody: any = {
+      user_id: req.userId,
+      author_nickname: req.authorNickname,
+      author_emoji: req.authorEmoji,
+      title: req.title,
+      body: req.body,
+      tags: req.tags,
+      is_admin_post: req.isAdminPost || false,
+    };
+
+    if (mediaUrl) {
+      requestBody.media_url = mediaUrl;
+      requestBody.media_type = mediaType;
+    }
+
+    if (req.isCorrect !== undefined) {
+      requestBody.is_correct = req.isCorrect;
     }
 
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreatePost`, {
       method: "POST",
-      body: formData, // FormData 사용 (Content-Type 헤더 자동 설정)
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -426,30 +463,7 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
   }
 };
 
-// Community Media
-export const uploadCommunityMedia = async (file: File): Promise<{ mediaUrl: string; mediaType: string }> => {
-  const formData = new FormData();
-  formData.append("file", file);
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community/upload-media`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(err || "미디어 업로드 실패");
-    }
-    const data = await response.json();
-    return {
-      mediaUrl: data.mediaUrl || data.media_url || "",
-      mediaType: data.media_type || data.mediaType || "",
-    };
-  } catch (error) {
-    console.error("미디어 업로드 실패:", error);
-    toast.error("미디어 업로드에 실패했습니다.");
-    throw error;
-  }
-};
+// Community Media - 이제 gRPC UploadMedia로 통합됨
 
 // Community Voting (현재 백엔드 이슈로 인해 기본값 반환)
 export const votePost = async (postId: string, userId: string, vote: boolean): Promise<{ success: boolean; alreadyVoted: boolean; xpEarned: number }> => {
