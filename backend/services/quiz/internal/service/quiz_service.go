@@ -40,6 +40,9 @@ type QuizService interface {
 	
 	// UpdateUserProfile updates gamification profile
 	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
+
+	// GetRanking returns ranked users
+	GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error)
 }
 
 // SubmitResult represents the result of a submitted answer
@@ -151,6 +154,10 @@ func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*r
 
 func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
 	return s.repo.UpdateUserProfile(ctx, profile)
+}
+
+func (s *quizServiceImpl) GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error) {
+	return s.repo.GetRanking(ctx, sortBy, limit)
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType

@@ -694,7 +694,7 @@ export interface PurchaseResult {
 }
 
 const userServicePost = async <T>(path: string, body: object): Promise<T> => {
-  const res = await fetch(`${config.apiBaseUrl}/user.UserService/${path}`, {
+  const res = await fetch(`${config.userServiceBaseUrl}/user.UserService/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

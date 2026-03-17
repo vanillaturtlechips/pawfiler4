@@ -1,7 +1,8 @@
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25rc1-alpine AS builder
 ARG TARGETPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
+ENV GOTOOLCHAIN=auto
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download

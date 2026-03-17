@@ -8,8 +8,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -17,12 +19,10 @@ import (
 	pb "github.com/pawfiler/backend/services/quiz/proto"
 	"github.com/pawfiler/backend/services/quiz/internal/handler"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
-	"github.com/pawfiler/backend/services/quiz/internal/rest"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
 )
 
 func main() {
-	// 환경 변수 확인
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL not set")
@@ -30,95 +30,93 @@ func main() {
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
-		redisAddr = "redis:6379" // Kubernetes 서비스명
+		redisAddr = "redis:6379"
 	}
 
-	// GORM 데이터베이스 연결
-	gormConfig := &gorm.Config{
+	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
-	}
-
-	db, err := gorm.Open(postgres.Open(dbURL), gormConfig)
+	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database with GORM: %v", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// 커넥션 풀 설정
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("Failed to get underlying sql.DB: %v", err)
+		log.Fatalf("Failed to get sql.DB: %v", err)
 	}
-
-	// 최적화된 커넥션 풀 설정 (최대 5000명 동시 사용자 기준)
-	sqlDB.SetMaxOpenConns(30)     // 파드당 30개 (총 300개)
-	sqlDB.SetMaxIdleConns(15)     // 파드당 15개 (총 150개)
+	sqlDB.SetMaxOpenConns(30)
+	sqlDB.SetMaxIdleConns(15)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	log.Println("Successfully connected to PostgreSQL with GORM")
+	log.Println("Connected to PostgreSQL")
 
-	// Redis 클라이언트 연결 (최적화된 설정)
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:         redisAddr,
-		Password:     "", // 패스워드 없음
-		DB:           0,  // 기본 DB
-		PoolSize:     30, // 파드당 30개 (총 300개)
-		MinIdleConns: 10, // 파드당 10개 (총 100개)
-		DialTimeout:  5 * time.Second,  // 연결 타임아웃
-		ReadTimeout:  3 * time.Second,  // 읽기 타임아웃
-		WriteTimeout: 3 * time.Second,  // 쓰기 타임아웃
-		MaxRetries:   3,                // 재시도 횟수
+		PoolSize:     30,
+		MinIdleConns: 10,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+		MaxRetries:   3,
 	})
-
-	// Redis 연결 테스트
 	ctx := context.Background()
-	_, err = redisClient.Ping(ctx).Result()
-	if err != nil {
+	if _, err = redisClient.Ping(ctx).Result(); err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
-	log.Println("Successfully connected to Redis")
+	log.Println("Connected to Redis")
 
-	// Repository 생성 (GORM + Redis)
 	repo := repository.NewGormQuizRepository(db, redisClient)
-	
-	// 기존 서비스 레이어는 그대로 사용
-	statsTracker := service.NewStatsTracker(repo)
-	validator := service.NewAnswerValidator()
-	svc := service.NewQuizService(repo, statsTracker, validator)
+	svc := service.NewQuizService(repo, service.NewStatsTracker(repo), service.NewAnswerValidator())
 	quizHandler := handler.NewQuizHandler(svc)
 
-	// gRPC 서버 시작
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "50052"
+	// gRPC 서버 (내부 서비스 간 통신용)
+	grpcPort := os.Getenv("PORT")
+	if grpcPort == "" {
+		grpcPort = "50052"
 	}
-
-	lis, err := net.Listen("tcp", ":"+port)
+	lis, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
-
 	grpcServer := grpc.NewServer()
 	pb.RegisterQuizServiceServer(grpcServer, quizHandler)
-
-	// gRPC 서버 백그라운드 실행
 	go func() {
-		log.Printf("Quiz gRPC server started on :%s", port)
+		log.Printf("gRPC server on :%s", grpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Failed to serve gRPC: %v", err)
+			log.Fatalf("gRPC serve error: %v", err)
 		}
 	}()
 
-	// REST HTTP 서버 (Envoy transcoder 대체)
+	// grpc-gateway: JSON → gRPC 변환 후 내부 gRPC 서버로 프록시
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
 		httpPort = "8080"
 	}
-	log.Printf("Quiz REST server started on :%s", httpPort)
-	if err := http.ListenAndServe(":"+httpPort, rest.NewMuxWithDB(quizHandler, sqlDB)); err != nil {
-		log.Fatalf("Failed to serve HTTP: %v", err)
+
+	mux := runtime.NewServeMux()
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	if err := pb.RegisterQuizServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {
+		log.Fatalf("Failed to register gateway: %v", err)
+	}
+
+	// CORS 미들웨어
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+
+	log.Printf("grpc-gateway on :%s → gRPC :%s", httpPort, grpcPort)
+	if err := http.ListenAndServe(":"+httpPort, handler); err != nil {
+		log.Fatalf("HTTP serve error: %v", err)
 	}
 }

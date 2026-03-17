@@ -429,7 +429,61 @@ func (r *GormQuizRepository) UpdateUserProfile(ctx context.Context, profile *Use
 	return nil
 }
 
-// ApplyAnswerRewards stats + profile을 단일 트랜잭션으로 업데이트
+// GetRanking returns ranked users
+func (r *GormQuizRepository) GetRanking(ctx context.Context, sortBy string, limit int) ([]RankingEntry, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	orderBy := "us.correct_count DESC"
+	switch sortBy {
+	case "accuracy":
+		orderBy = "CASE WHEN COALESCE(us.total_answered,0)>0 THEN us.correct_count::float/us.total_answered ELSE 0 END DESC"
+	case "tier":
+		orderBy = "CASE up.current_tier WHEN '불사조' THEN 4 WHEN '맹금닭' THEN 3 WHEN '삐약이' THEN 2 ELSE 1 END DESC, up.total_exp DESC"
+	case "coins":
+		orderBy = "up.total_coins DESC"
+	}
+
+	query := `
+		SELECT up.user_id,
+			COALESCE(NULLIF(up.nickname,''), '') as nickname,
+			COALESCE(NULLIF(up.avatar_emoji,''), '🥚') as avatar_emoji,
+			COALESCE(NULLIF(up.current_tier,''), '알') as tier,
+			up.total_exp, up.total_coins,
+			COALESCE(us.total_answered, 0), COALESCE(us.correct_count, 0),
+			CASE WHEN COALESCE(us.total_answered,0) > 0
+				THEN ROUND(us.correct_count::numeric / us.total_answered * 100, 1)
+				ELSE 0 END
+		FROM quiz.user_profiles up
+		LEFT JOIN quiz.user_stats us ON us.user_id = up.user_id
+		WHERE COALESCE(us.total_answered, 0) > 0
+		ORDER BY ` + orderBy + ` LIMIT $1`
+
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlDB.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []RankingEntry
+	rank := 1
+	for rows.Next() {
+		var e RankingEntry
+		if err := rows.Scan(&e.UserID, &e.Nickname, &e.AvatarEmoji, &e.Tier, &e.TotalExp, &e.TotalCoins, &e.TotalAnswered, &e.CorrectCount, &e.Accuracy); err != nil {
+			continue
+		}
+		e.Rank = rank
+		p := &UserProfile{TotalExp: e.TotalExp, CurrentTier: e.Tier}
+		e.Level = int(p.Level())
+		entries = append(entries, e)
+		rank++
+	}
+	return entries, nil
+}
 func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID string, isCorrect bool, xpDelta, coinDelta int32) (*UserStats, *UserProfile, error) {
 	var stats *UserStats
 	var profile *UserProfile

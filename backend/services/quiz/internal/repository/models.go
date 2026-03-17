@@ -181,6 +181,21 @@ func (a ComparisonAnswer) ToJSON() (map[string]interface{}, error) {
 	}, nil
 }
 
+// RankingEntry represents a single ranking row
+type RankingEntry struct {
+	Rank          int
+	UserID        string
+	Nickname      string
+	AvatarEmoji   string
+	Tier          string
+	Level         int
+	TotalExp      int32
+	TotalCoins    int32
+	TotalAnswered int32
+	CorrectCount  int32
+	Accuracy      float64
+}
+
 // UserProfile stores gamification data for a user including XP, coins, and energy.
 // Energy is consumed when requesting questions and recovers automatically over time.
 type UserProfile struct {

@@ -8,6 +8,7 @@ export const config = {
   apiBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'),
   communityBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_COMMUNITY_BASE_URL || 'http://localhost:8081'),
   adminServiceBaseUrl: import.meta.env.VITE_ADMIN_SERVICE_BASE_URL || 'http://localhost:8082',
+  userServiceBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8083'),
   
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',
