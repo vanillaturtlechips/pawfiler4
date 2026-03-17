@@ -130,13 +130,75 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 	return response, nil
 }
 
-// GetUserProfile is called by the REST handler to get gamification profile
-func (h *QuizHandler) GetUserProfile(ctx context.Context, userID string) (*repository.UserProfile, error) {
-	return h.service.GetUserProfile(ctx, userID)
+// GetUserProfile implements QuizServiceServer
+func (h *QuizHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfileRequest) (*pb.UserProfile, error) {
+	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get user profile")
+	}
+	return profileToProto(profile), nil
 }
 
-func (h *QuizHandler) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
-	return h.service.UpdateUserProfile(ctx, profile)
+// UpdateUserProfile implements QuizServiceServer
+func (h *QuizHandler) UpdateUserProfile(ctx context.Context, req *pb.UpdateUserProfileRequest) (*pb.UserProfile, error) {
+	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get user profile")
+	}
+	if req.Nickname != nil {
+		profile.Nickname = *req.Nickname
+	}
+	if req.AvatarEmoji != nil {
+		profile.AvatarEmoji = *req.AvatarEmoji
+	}
+	if err := h.service.UpdateUserProfile(ctx, profile); err != nil {
+		return nil, status.Error(codes.Internal, "failed to update user profile")
+	}
+	return profileToProto(profile), nil
+}
+
+// GetRanking implements QuizServiceServer
+func (h *QuizHandler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*pb.GetRankingResponse, error) {
+	entries, err := h.service.GetRanking(ctx, req.SortBy, int(req.Limit))
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get ranking")
+	}
+	pbEntries := make([]*pb.RankingEntry, len(entries))
+	for i, e := range entries {
+		pbEntries[i] = &pb.RankingEntry{
+			Rank:          int32(e.Rank),
+			UserId:        e.UserID,
+			Nickname:      e.Nickname,
+			AvatarEmoji:   e.AvatarEmoji,
+			Tier:          e.Tier,
+			Level:         int32(e.Level),
+			TotalExp:      int32(e.TotalExp),
+			TotalCoins:    int32(e.TotalCoins),
+			TotalAnswered: int32(e.TotalAnswered),
+			CorrectCount:  int32(e.CorrectCount),
+			Accuracy:      e.Accuracy,
+		}
+	}
+	return &pb.GetRankingResponse{Entries: pbEntries}, nil
+}
+
+func profileToProto(p *repository.UserProfile) *pb.UserProfile {
+	result := &pb.UserProfile{
+		UserId:     p.UserID,
+		Energy:     p.Energy,
+		MaxEnergy:  p.MaxEnergy,
+		Level:      p.Level(),
+		TierName:   p.TierName(),
+		TotalExp:   p.TotalExp,
+		TotalCoins: p.TotalCoins,
+	}
+	if p.Nickname != "" {
+		result.Nickname = &p.Nickname
+	}
+	if p.AvatarEmoji != "" {
+		result.AvatarEmoji = &p.AvatarEmoji
+	}
+	return result
 }
 
 // GetUserStats handles the GetUserStats RPC
@@ -222,8 +284,8 @@ func convertProtoToAnswer(req *pb.SubmitAnswerRequest) (repository.Answer, error
 	if req.SelectedRegion != nil {
 		return repository.RegionSelectAnswer{
 			SelectedRegion: repository.Point{
-				X: req.SelectedRegion.X,
-				Y: req.SelectedRegion.Y,
+				X: int32(req.SelectedRegion.X),
+				Y: int32(req.SelectedRegion.Y),
 			},
 		}, nil
 	}
@@ -285,9 +347,9 @@ func convertRegionsToProto(regions []repository.Region) []*pb.Region {
 	pbRegions := make([]*pb.Region, len(regions))
 	for i, r := range regions {
 		pbRegions[i] = &pb.Region{
-			X:      r.X,
-			Y:      r.Y,
-			Radius: r.Radius,
+			X:      float32(r.X),
+			Y:      float32(r.Y),
+			Radius: float32(r.Radius),
 		}
 	}
 	return pbRegions
