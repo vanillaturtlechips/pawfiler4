@@ -2,43 +2,15 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"log"
-	"net/http"
+
+	"community/pb"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type RankingEntry struct {
-	Rank           int32  `json:"rank"`
-	UserId         string `json:"userId"`
-	Nickname       string `json:"nickname"`
-	Emoji          string `json:"emoji"`
-	TierName       string `json:"tierName"`
-	TotalAnswered  int32  `json:"totalAnswered"`
-	CorrectAnswers int32  `json:"correctAnswers"`
-	TotalCoins     int32  `json:"totalCoins"`
-}
-
-// HandleGetRanking - REST 핸들러로 직접 JSON 응답 (pb 타입 불필요)
-func (h *Handler) HandleGetRanking(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SortBy string `json:"sort_by"`
-	}
-	json.NewDecoder(r.Body).Decode(&req)
-
-	entries, err := h.getRankingEntries(r.Context(), req.SortBy)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"entries": entries})
-}
-
-func (h *Handler) getRankingEntries(ctx context.Context, sortBy string) ([]*RankingEntry, error) {
+func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*pb.GetRankingResponse, error) {
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT 
 			p.author_id,
@@ -63,7 +35,7 @@ func (h *Handler) getRankingEntries(ctx context.Context, sortBy string) ([]*Rank
 	}
 	defer rows.Close()
 
-	var entries []*RankingEntry
+	var entries []*pb.RankingEntry
 	rank := int32(1)
 	for rows.Next() {
 		var userId, nickname, emoji, tier string
@@ -71,7 +43,7 @@ func (h *Handler) getRankingEntries(ctx context.Context, sortBy string) ([]*Rank
 		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctAnswers, &totalCoins); err != nil {
 			continue
 		}
-		entries = append(entries, &RankingEntry{
+		entries = append(entries, &pb.RankingEntry{
 			Rank:           rank,
 			UserId:         userId,
 			Nickname:       nickname,
@@ -83,5 +55,5 @@ func (h *Handler) getRankingEntries(ctx context.Context, sortBy string) ([]*Rank
 		})
 		rank++
 	}
-	return entries, nil
+	return &pb.GetRankingResponse{Entries: entries}, nil
 }
