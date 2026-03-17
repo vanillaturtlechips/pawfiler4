@@ -633,7 +633,8 @@ export const fetchQuestionStats = async (questionId?: string) => {
       body: JSON.stringify(questionId ? { question_id: questionId } : {}),
     });
     if (!response.ok) return [];
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.stats ?? []);
   } catch {
     return [];
   }
