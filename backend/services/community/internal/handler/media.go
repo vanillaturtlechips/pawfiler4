@@ -51,6 +51,9 @@ func (h *Handler) UploadMedia(ctx context.Context, req *pb.UploadMediaRequest) (
 		region = "ap-northeast-2"
 	}
 	cloudfrontDomain := os.Getenv("CLOUDFRONT_COMMUNITY_DOMAIN")
+	if cloudfrontDomain == "" {
+		cloudfrontDomain = "https://diqtpoikktqu2.cloudfront.net"
+	}
 
 	// S3 키 생성
 	key := fmt.Sprintf("community/%s/%s%s", mediaType, uuid.New().String(), ext)
