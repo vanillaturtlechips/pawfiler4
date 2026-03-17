@@ -237,7 +237,7 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	defer tx.Rollback()
 
 	var authorID, mediaURL string
-	err = tx.QueryRowContext(ctx, "SELECT author_id, media_url FROM community.posts WHERE id = $1 FOR UPDATE", req.PostId).Scan(&authorID, &mediaURL)
+	err = tx.QueryRowContext(ctx, "SELECT author_id, COALESCE(media_url, '') FROM community.posts WHERE id = $1 FOR UPDATE", req.PostId).Scan(&authorID, &mediaURL)
 	if err == sql.ErrNoRows {
 		return nil, status.Error(codes.NotFound, "Post not found")
 	}

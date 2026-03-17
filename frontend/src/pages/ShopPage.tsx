@@ -59,10 +59,15 @@ const ShopPage = () => {
     setPurchasing(item.id);
     try {
       const result = await purchaseItem(userId, item.id);
+      if (!result.success) {
+        toast.error((result as any).error ?? "구매에 실패했습니다.");
+        return;
+      }
       toast.success(`${result.itemName ?? result.item_name}을(를) 구매했습니다!`);
-      updateUser({ coins: result.totalCoins ?? result.total_coins });
+      const newCoins = result.totalCoins ?? result.total_coins;
+      updateUser({ coins: newCoins });
       if (quizProfile) {
-        updateQuizProfile({ ...quizProfile, totalCoins: result.totalCoins ?? result.total_coins });
+        updateQuizProfile({ ...quizProfile, totalCoins: newCoins });
       }
     } catch (err: any) {
       const msg = err?.data?.error || err?.message || "구매 실패";
