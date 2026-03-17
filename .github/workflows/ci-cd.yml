@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      is_empty: ${{ steps.filter.outputs.changes == '[]' }}
+      has_services: ${{ steps.set-matrix.outputs.has_services }}
       frontend: ${{ steps.filter.outputs.frontend }}
       admin_frontend: ${{ steps.filter.outputs.admin_frontend }}
     steps:
@@ -44,11 +44,12 @@ jobs:
             ecr_name: (. + "-service")
           })')
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "has_services=$(echo $MATRIX | jq 'length > 0')" >> $GITHUB_OUTPUT
 
   # Docker 빌드 및 ECR 푸시
   build-and-push:
     needs: detect-changes
-    if: needs.detect-changes.outputs.is_empty == 'false'
+    if: needs.detect-changes.outputs.has_services == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
