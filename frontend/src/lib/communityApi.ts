@@ -227,7 +227,10 @@ export const deleteCommunityPost = async (postId: string, userId: string): Promi
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to delete post: ${response.statusText}`);
+      const errBody = await response.json().catch(() => ({}));
+      const msg = errBody.message || errBody.error || `HTTP ${response.status}`;
+      console.error('[DeletePost] 실패:', { status: response.status, postId, userId, msg });
+      throw new Error(msg);
     }
 
     return await response.json();
