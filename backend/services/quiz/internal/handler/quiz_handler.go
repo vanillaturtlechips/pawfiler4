@@ -201,8 +201,24 @@ func profileToProto(p *repository.UserProfile) *pb.UserProfile {
 	return result
 }
 
+// GetQuestionStats returns accuracy stats for questions
+func (h *QuizHandler) GetQuestionStats(ctx context.Context, req *pb.GetQuestionStatsRequest) (*pb.GetQuestionStatsResponse, error) {
+	stats, err := h.service.GetQuestionStats(ctx, req.QuestionId)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get question stats")
+	}
+	pbStats := make([]*pb.QuestionStat, len(stats))
+	for i, s := range stats {
+		pbStats[i] = &pb.QuestionStat{
+			Id:            s.ID,
+			Accuracy:      s.Accuracy,
+			TotalAttempts: s.TotalAttempts,
+		}
+	}
+	return &pb.GetQuestionStatsResponse{Stats: pbStats}, nil
+}
+
 // GetUserStats handles the GetUserStats RPC
-// Requirements: 12.1~12.4
 func (h *QuizHandler) GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error) {
 	// Call service layer
 	stats, err := h.service.GetUserStats(ctx, req.UserId)

@@ -196,6 +196,13 @@ type RankingEntry struct {
 	Accuracy      float64
 }
 
+// QuestionStat represents accuracy stats for a single question
+type QuestionStat struct {
+	ID            string
+	Accuracy      float64
+	TotalAttempts int32
+}
+
 // UserProfile stores gamification data for a user including XP, coins, and energy.
 // Energy is consumed when requesting questions and recovers automatically over time.
 type UserProfile struct {

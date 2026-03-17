@@ -49,6 +49,12 @@ service QuizService {
       body: "*"
     };
   }
+  rpc GetQuestionStats(GetQuestionStatsRequest) returns (GetQuestionStatsResponse) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetQuestionStats"
+      body: "*"
+    };
+  }
 }
 
 enum QuestionType {
@@ -184,4 +190,18 @@ message RankingEntry {
 
 message GetRankingResponse {
   repeated RankingEntry entries = 1;
+}
+
+message GetQuestionStatsRequest {
+  optional string question_id = 1;
+}
+
+message QuestionStat {
+  string id = 1;
+  double accuracy = 2;
+  int32 total_attempts = 3;
+}
+
+message GetQuestionStatsResponse {
+  repeated QuestionStat stats = 1;
 }

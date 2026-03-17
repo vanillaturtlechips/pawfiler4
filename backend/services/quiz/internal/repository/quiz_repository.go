@@ -56,4 +56,7 @@ type QuizRepository interface {
 
 	// GetRanking returns ranked users sorted by the given criteria.
 	GetRanking(ctx context.Context, sortBy string, limit int) ([]RankingEntry, error)
+
+	// GetQuestionStats returns accuracy stats for questions.
+	GetQuestionStats(ctx context.Context, questionID *string) ([]QuestionStat, error)
 }

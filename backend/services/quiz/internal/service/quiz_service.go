@@ -43,6 +43,9 @@ type QuizService interface {
 
 	// GetRanking returns ranked users
 	GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error)
+
+	// GetQuestionStats returns accuracy stats for questions
+	GetQuestionStats(ctx context.Context, questionID *string) ([]repository.QuestionStat, error)
 }
 
 // SubmitResult represents the result of a submitted answer
@@ -158,6 +161,10 @@ func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *reposi
 
 func (s *quizServiceImpl) GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error) {
 	return s.repo.GetRanking(ctx, sortBy, limit)
+}
+
+func (s *quizServiceImpl) GetQuestionStats(ctx context.Context, questionID *string) ([]repository.QuestionStat, error) {
+	return s.repo.GetQuestionStats(ctx, questionID)
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType

@@ -484,6 +484,40 @@ func (r *GormQuizRepository) GetRanking(ctx context.Context, sortBy string, limi
 	}
 	return entries, nil
 }
+// GetQuestionStats returns accuracy stats for questions
+func (r *GormQuizRepository) GetQuestionStats(ctx context.Context, questionID *string) ([]QuestionStat, error) {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	var query string
+	var args []interface{}
+	if questionID != nil && *questionID != "" {
+		query = `SELECT question_id, COUNT(*) as total_attempts,
+			CASE WHEN COUNT(*)>0 THEN ROUND(SUM(CASE WHEN is_correct THEN 1 ELSE 0 END)::numeric/COUNT(*)*100,1) ELSE 0 END as accuracy
+			FROM quiz.answer_logs WHERE question_id=$1 GROUP BY question_id`
+		args = []interface{}{*questionID}
+	} else {
+		query = `SELECT question_id, COUNT(*) as total_attempts,
+			CASE WHEN COUNT(*)>0 THEN ROUND(SUM(CASE WHEN is_correct THEN 1 ELSE 0 END)::numeric/COUNT(*)*100,1) ELSE 0 END as accuracy
+			FROM quiz.answer_logs GROUP BY question_id`
+	}
+	rows, err := sqlDB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var stats []QuestionStat
+	for rows.Next() {
+		var s QuestionStat
+		if err := rows.Scan(&s.ID, &s.TotalAttempts, &s.Accuracy); err != nil {
+			continue
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
 func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID string, isCorrect bool, xpDelta, coinDelta int32) (*UserStats, *UserProfile, error) {
 	var stats *UserStats
 	var profile *UserProfile
