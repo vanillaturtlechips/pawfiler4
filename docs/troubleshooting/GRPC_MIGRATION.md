@@ -176,7 +176,77 @@ user 서비스 main.go에 `/health` 엔드포인트 추가 (grpc-gateway mux 외
 
 ---
 
-## 7. admin 프론트엔드 환경변수 누락
+## 8. quiz → user gRPC AddRewards 도입 시 데이터 손상
+
+### 문제
+quiz 서비스가 `quiz.user_profiles`를 직접 업데이트하면서 동시에 user gRPC `AddRewards`도 호출 → 같은 테이블을 두 서비스가 동시에 쓰면서 XP/코인이 0으로 초기화되는 현상 발생
+
+### 원인 분석
+```
+SubmitAnswer 호출 시:
+1. quiz: ApplyAnswerRewards 트랜잭션 (stats + user_profiles 업데이트)
+2. quiz: user gRPC AddRewards 호출 → user 서비스도 user_profiles 업데이트
+→ 두 서비스가 같은 행을 동시에 덮어씀 → 레이스 컨디션으로 데이터 손상
+```
+
+### 해결 (역할 분리)
+- `quiz.user_stats` → quiz 서비스가 단독 소유 (트랜잭션 직접 처리)
+- `quiz.user_profiles` XP/코인 → user 서비스 gRPC `AddRewards`로 위임
+- `ApplyAnswerRewards`에서 profile 업데이트 코드 완전 제거
+
+```go
+// quiz_service.go - stats만 트랜잭션, XP/코인은 gRPC 비동기 위임
+updatedStats, _, err := s.repo.ApplyAnswerRewards(ctx, userID, isCorrect, 0, 0)
+
+go func() {
+    gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    defer cancel()
+    s.userClient.AddRewards(gCtx, userID, xpEarned, coinsEarned)
+}()
+```
+
+---
+
+## 9. quiz → user gRPC 첫 연결 DeadlineExceeded
+
+### 문제
+```
+[userclient] AddRewards failed: rpc error: code = DeadlineExceeded
+desc = received context error while waiting for new LB policy update: context deadline exceeded
+```
+- 첫 번째 gRPC 호출 시 LB policy 초기화에 시간이 걸려 2초 타임아웃 초과
+- 이후 요청은 커넥션 재사용으로 정상
+
+### 해결
+```go
+// userclient/client.go
+func New() *Client {
+    c := &Client{}
+    _ = c.ensureConnected() // 앱 시작 시 미리 연결
+    return c
+}
+```
+타임아웃도 2초 → 5초로 조정
+
+---
+
+## 10. quiz SubmitAnswer 응답에 totalExp/totalCoins 미반영
+
+### 문제
+- XP/코인 지급을 user gRPC 비동기로 위임 후, 응답의 `totalExp`/`totalCoins`는 quiz DB에서 읽어옴
+- quiz DB `user_profiles`는 더 이상 XP/코인 업데이트 안 하므로 응답값이 항상 이전 값
+
+### 해결
+응답 생성 시 quiz DB 현재값 + 이번 획득분을 직접 합산
+
+```go
+// quiz_handler.go
+if profile, err := h.service.GetUserProfile(ctx, req.UserId); err == nil {
+    response.TotalExp   = profile.TotalExp + result.XPEarned + result.StreakBonus
+    response.TotalCoins = profile.TotalCoins + result.CoinsEarned
+    // 실제 DB 반영은 user gRPC가 비동기 처리
+}
+```
 
 ### 문제
 ```

@@ -13,15 +13,12 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-
-	"github.com/pawfiler/backend/services/quiz/internal/userclient"
 )
 
 // GormQuizRepository GORM + Redis를 사용하는 QuizRepository 구현
 type GormQuizRepository struct {
 	db           *gorm.DB
 	redis        *redis.Client
-	userClient   *userclient.Client
 	questions    []Question
 	mu           sync.RWMutex
 	workerStarted bool
@@ -31,9 +28,8 @@ type GormQuizRepository struct {
 // NewGormQuizRepository GORM + Redis 기반 repository 생성
 func NewGormQuizRepository(db *gorm.DB, redisClient *redis.Client) QuizRepository {
 	repo := &GormQuizRepository{
-		db:         db,
-		redis:      redisClient,
-		userClient: userclient.New(),
+		db:    db,
+		redis: redisClient,
 	}
 
 	// 테이블 자동 마이그레이션
@@ -522,13 +518,11 @@ func (r *GormQuizRepository) GetQuestionStats(ctx context.Context, questionID *s
 	return stats, nil
 }
 
-// ApplyAnswerRewards updates quiz stats in a single transaction (minimal DB scope),
-// then delegates XP/coin rewards to user service via gRPC.
 func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID string, isCorrect bool, xpDelta, coinDelta int32) (*UserStats, *UserProfile, error) {
 	var stats *UserStats
 
-	// stats만 트랜잭션으로 처리 (quiz DB 트랜잭션 최소화)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. stats 업데이트
 		var gs GormUserStats
 		if err := tx.Where("user_id = ?", userID).First(&gs).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -555,16 +549,9 @@ func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID stri
 		stats = gs.ToUserStats()
 		return nil
 	})
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("ApplyAnswerRewards tx failed: %w", err)
 	}
-
-	// XP/코인 보상은 user 서비스 gRPC로 위임 (서비스 간 DB 커플링 제거)
-	if xpDelta > 0 || coinDelta > 0 {
-		if err := r.userClient.AddRewards(ctx, userID, xpDelta, coinDelta); err != nil {
-			log.Printf("AddRewards gRPC failed (non-fatal): %v", err)
-		}
-	}
-
 	return stats, nil, nil
 }

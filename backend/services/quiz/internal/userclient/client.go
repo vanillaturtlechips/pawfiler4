@@ -20,7 +20,12 @@ type Client struct {
 	svc  userpb.UserServiceClient
 }
 
-func New() *Client { return &Client{} }
+func New() *Client {
+	c := &Client{}
+	// 앱 시작 시 미리 연결 (첫 요청 지연 방지)
+	_ = c.ensureConnected()
+	return c
+}
 
 func (c *Client) ensureConnected() error {
 	if c.conn != nil {
@@ -58,7 +63,7 @@ func (c *Client) AddRewards(ctx context.Context, userID string, xpDelta, coinDel
 	if err := c.ensureConnected(); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	_, err := c.svc.AddRewards(ctx, &userpb.AddRewardsRequest{
 		UserId:    userID,

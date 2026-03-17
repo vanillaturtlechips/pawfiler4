@@ -20,6 +20,7 @@ import (
 	"github.com/pawfiler/backend/services/quiz/internal/handler"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
+	"github.com/pawfiler/backend/services/quiz/internal/userclient"
 )
 
 func main() {
@@ -70,7 +71,7 @@ func main() {
 	log.Println("Connected to Redis")
 
 	repo := repository.NewGormQuizRepository(db, redisClient)
-	svc := service.NewQuizService(repo, service.NewStatsTracker(repo), service.NewAnswerValidator())
+	svc := service.NewQuizService(repo, service.NewStatsTracker(repo), service.NewAnswerValidator(), userclient.New())
 	quizHandler := handler.NewQuizHandler(svc)
 
 	// gRPC 서버 (내부 서비스 간 통신용)

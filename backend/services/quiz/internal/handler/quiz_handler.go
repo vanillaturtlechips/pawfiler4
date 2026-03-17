@@ -12,20 +12,19 @@ import (
 	pb "github.com/pawfiler/backend/services/quiz/proto"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
+	"github.com/pawfiler/backend/services/quiz/internal/userclient"
 )
 
-// QuizHandler implements the gRPC QuizService server
-// It receives RPC requests, calls the service layer, and converts responses to protobuf messages
-// Requirements: 3.1~3.8, 4.1~4.4, 12.1~12.4, 15.1~15.5
 type QuizHandler struct {
 	pb.UnimplementedQuizServiceServer
-	service service.QuizService
+	service    service.QuizService
+	userClient *userclient.Client
 }
 
-// NewQuizHandler creates a new QuizHandler instance
 func NewQuizHandler(svc service.QuizService) *QuizHandler {
 	return &QuizHandler{
-		service: svc,
+		service:    svc,
+		userClient: userclient.New(),
 	}
 }
 
@@ -122,11 +121,19 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 
 	// Include correct_index for multiple choice questions by appending to explanation
 	if question != nil && question.Type == repository.QuestionTypeMultipleChoice && question.CorrectIndex.Valid {
-		// 설명 끝에 정답 인덱스를 숨겨서 추가 (프론트엔드에서 파싱)
 		response.Explanation = fmt.Sprintf("%s||CORRECT_INDEX:%d||", result.Explanation, question.CorrectIndex.Int32)
 	}
 
-	// Requirement 10.4: Return result with xp_earned and coins_earned
+	// 최신 프로필(에너지/코인/레벨) quiz DB에서 조회 후 이번 획득분 반영
+	if profile, err := h.service.GetUserProfile(ctx, req.UserId); err == nil {
+		response.Energy     = profile.Energy
+		response.MaxEnergy  = profile.MaxEnergy
+		response.TotalExp   = profile.TotalExp + result.XPEarned + result.StreakBonus
+		response.TotalCoins = profile.TotalCoins + result.CoinsEarned
+		response.Level      = profile.Level()
+		response.TierName   = profile.TierName()
+	}
+
 	return response, nil
 }
 

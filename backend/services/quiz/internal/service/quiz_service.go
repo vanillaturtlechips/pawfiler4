@@ -57,19 +57,26 @@ type SubmitResult struct {
 	Explanation  string
 }
 
+// UserRewardClient delegates XP/coin rewards to user service via gRPC.
+type UserRewardClient interface {
+	AddRewards(ctx context.Context, userID string, xpDelta, coinDelta int32) error
+}
+
 // quizServiceImpl implements the QuizService interface
 type quizServiceImpl struct {
 	repo         repository.QuizRepository
 	statsTracker StatsTracker
 	validator    AnswerValidator
+	userClient   UserRewardClient
 }
 
 // NewQuizService creates a new QuizService instance
-func NewQuizService(repo repository.QuizRepository, statsTracker StatsTracker, validator AnswerValidator) QuizService {
+func NewQuizService(repo repository.QuizRepository, statsTracker StatsTracker, validator AnswerValidator, userClient UserRewardClient) QuizService {
 	return &quizServiceImpl{
 		repo:         repo,
 		statsTracker: statsTracker,
 		validator:    validator,
+		userClient:   userClient,
 	}
 }
 
@@ -287,21 +294,27 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		return nil, fmt.Errorf("failed to save answer: %w", err)
 	}
 
-	// Step 5: stats + profile을 단일 트랜잭션으로 업데이트
+	// Step 5: stats만 트랜잭션으로 업데이트, XP/코인은 user 서비스 gRPC로 위임
 	streakBonus := int32(0)
-	updatedStats, updatedProfile, err := s.repo.ApplyAnswerRewards(ctx, userID, isCorrect, xpEarned, coinsEarned)
+	updatedStats, _, err := s.repo.ApplyAnswerRewards(ctx, userID, isCorrect, 0, 0)
 	if err != nil {
 		fmt.Printf("Warning: ApplyAnswerRewards failed: %v\n", err)
 	}
-	// 5연속 정답 보너스 (streak 확정 후 추가 XP)
+	// 5연속 정답 보너스
 	if isCorrect && updatedStats != nil && updatedStats.CurrentStreak > 0 && updatedStats.CurrentStreak%5 == 0 {
 		streakBonus = 20
-		if updatedProfile != nil {
-			updatedProfile.TotalExp += streakBonus
-			_ = s.repo.UpdateUserProfile(ctx, updatedProfile)
-		}
+		xpEarned += streakBonus
 	}
-	_ = updatedProfile
+	// XP/코인 지급을 user 서비스 gRPC로 위임 (비동기, 실패해도 응답 블로킹 안 함)
+	if s.userClient != nil && (xpEarned > 0 || coinsEarned > 0) {
+		go func() {
+			gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := s.userClient.AddRewards(gCtx, userID, xpEarned, coinsEarned); err != nil {
+				fmt.Printf("Warning: user AddRewards gRPC failed: %v\n", err)
+			}
+		}()
+	}
 
 	// Step 6: Return result
 	return &SubmitResult{
