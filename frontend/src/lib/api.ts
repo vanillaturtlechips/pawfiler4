@@ -555,7 +555,12 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
       throw new Error(`Failed to fetch top detective: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
+      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
+      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
+    };
   } catch (error) {
     console.error('Failed to fetch top detective:', error);
     return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };

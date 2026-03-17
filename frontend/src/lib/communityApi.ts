@@ -192,7 +192,25 @@ export const updateCommunityPost = async (req: {
       throw new Error(`Failed to update post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      id: data.id,
+      authorNickname: data.authorNickname || data.author_nickname || "익명",
+      authorEmoji: data.authorEmoji || data.author_emoji || "🕵️",
+      title: data.title || req.title,
+      body: data.body || req.body,
+      likes: data.likes || 0,
+      comments: data.comments || 0,
+      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+      tags: data.tags || req.tags,
+      userId: data.authorId || data.author_id || req.userId,
+      mediaUrl: data.mediaUrl || data.media_url,
+      mediaType: data.mediaType || data.media_type,
+      isAdminPost: data.isAdminPost || data.is_admin_post || false,
+      trueVotes: data.trueVotes || data.true_votes || 0,
+      falseVotes: data.falseVotes || data.false_votes || 0,
+      isCorrect: data.isCorrect ?? data.is_correct,
+    };
   } catch (error) {
     return handleApiError(error, '게시글 수정');
   }
@@ -435,7 +453,12 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
       throw new Error(`Failed to fetch top detective: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
+      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
+      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
+    };
   } catch (error) {
     console.error('Failed to fetch top detective:', error);
     return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
