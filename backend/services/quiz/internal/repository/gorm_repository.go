@@ -13,12 +13,15 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/pawfiler/backend/services/quiz/internal/userclient"
 )
 
 // GormQuizRepository GORM + Redis를 사용하는 QuizRepository 구현
 type GormQuizRepository struct {
 	db           *gorm.DB
 	redis        *redis.Client
+	userClient   *userclient.Client
 	questions    []Question
 	mu           sync.RWMutex
 	workerStarted bool
@@ -28,8 +31,9 @@ type GormQuizRepository struct {
 // NewGormQuizRepository GORM + Redis 기반 repository 생성
 func NewGormQuizRepository(db *gorm.DB, redisClient *redis.Client) QuizRepository {
 	repo := &GormQuizRepository{
-		db:    db,
-		redis: redisClient,
+		db:         db,
+		redis:      redisClient,
+		userClient: userclient.New(),
 	}
 
 	// 테이블 자동 마이그레이션
@@ -518,12 +522,13 @@ func (r *GormQuizRepository) GetQuestionStats(ctx context.Context, questionID *s
 	return stats, nil
 }
 
+// ApplyAnswerRewards updates quiz stats in a single transaction (minimal DB scope),
+// then delegates XP/coin rewards to user service via gRPC.
 func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID string, isCorrect bool, xpDelta, coinDelta int32) (*UserStats, *UserProfile, error) {
 	var stats *UserStats
-	var profile *UserProfile
 
+	// stats만 트랜잭션으로 처리 (quiz DB 트랜잭션 최소화)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. stats 업데이트
 		var gs GormUserStats
 		if err := tx.Where("user_id = ?", userID).First(&gs).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -548,44 +553,18 @@ func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID stri
 			return err
 		}
 		stats = gs.ToUserStats()
-
-		// 2. profile 업데이트
-		if xpDelta > 0 || coinDelta > 0 {
-			var gp GormUserProfile
-			if err := tx.Where("user_id = ?", userID).First(&gp).Error; err != nil {
-				return err
-			}
-			gp.TotalExp += xpDelta
-			gp.TotalCoins += coinDelta
-
-			// 티어 승급 체크 (XP 이월)
-			tierOrder := []string{"알", "삼빡이", "맹금닭", "불사초"}
-			tierThreshold := map[string]int32{"알": 1000, "삼빡이": 2000, "맹금닭": 4000}
-			for {
-				threshold, ok := tierThreshold[gp.CurrentTier]
-				if !ok || gp.TotalExp < threshold {
-					break
-				}
-				gp.TotalExp -= threshold
-				for i, t := range tierOrder {
-					if t == gp.CurrentTier && i+1 < len(tierOrder) {
-						gp.CurrentTier = tierOrder[i+1]
-						break
-					}
-				}
-			}
-
-			if err := tx.Save(&gp).Error; err != nil {
-				return err
-			}
-			profile = gp.ToUserProfile()
-		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("ApplyAnswerRewards tx failed: %w", err)
 	}
-	r.redis.Del(ctx, fmt.Sprintf("quiz:user_profile:%s", userID))
-	return stats, profile, nil
+
+	// XP/코인 보상은 user 서비스 gRPC로 위임 (서비스 간 DB 커플링 제거)
+	if xpDelta > 0 || coinDelta > 0 {
+		if err := r.userClient.AddRewards(ctx, userID, xpDelta, coinDelta); err != nil {
+			log.Printf("AddRewards gRPC failed (non-fatal): %v", err)
+		}
+	}
+
+	return stats, nil, nil
 }

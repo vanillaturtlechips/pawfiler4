@@ -986,6 +986,142 @@ func (x *GetPurchaseHistoryResponse) GetPurchases() []*Purchase {
 	return nil
 }
 
+type AddRewardsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	XpDelta       int32                  `protobuf:"varint,2,opt,name=xp_delta,json=xpDelta,proto3" json:"xp_delta,omitempty"`
+	CoinDelta     int32                  `protobuf:"varint,3,opt,name=coin_delta,json=coinDelta,proto3" json:"coin_delta,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddRewardsRequest) Reset() {
+	*x = AddRewardsRequest{}
+	mi := &file_user_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddRewardsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddRewardsRequest) ProtoMessage() {}
+
+func (x *AddRewardsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddRewardsRequest.ProtoReflect.Descriptor instead.
+func (*AddRewardsRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *AddRewardsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *AddRewardsRequest) GetXpDelta() int32 {
+	if x != nil {
+		return x.XpDelta
+	}
+	return 0
+}
+
+func (x *AddRewardsRequest) GetCoinDelta() int32 {
+	if x != nil {
+		return x.CoinDelta
+	}
+	return 0
+}
+
+type AddRewardsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	TotalExp      int32                  `protobuf:"varint,2,opt,name=total_exp,json=totalExp,proto3" json:"total_exp,omitempty"`
+	TotalCoins    int32                  `protobuf:"varint,3,opt,name=total_coins,json=totalCoins,proto3" json:"total_coins,omitempty"`
+	TierName      string                 `protobuf:"bytes,4,opt,name=tier_name,json=tierName,proto3" json:"tier_name,omitempty"`
+	Level         int32                  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddRewardsResponse) Reset() {
+	*x = AddRewardsResponse{}
+	mi := &file_user_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddRewardsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddRewardsResponse) ProtoMessage() {}
+
+func (x *AddRewardsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddRewardsResponse.ProtoReflect.Descriptor instead.
+func (*AddRewardsResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *AddRewardsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *AddRewardsResponse) GetTotalExp() int32 {
+	if x != nil {
+		return x.TotalExp
+	}
+	return 0
+}
+
+func (x *AddRewardsResponse) GetTotalCoins() int32 {
+	if x != nil {
+		return x.TotalCoins
+	}
+	return 0
+}
+
+func (x *AddRewardsResponse) GetTierName() string {
+	if x != nil {
+		return x.TierName
+	}
+	return ""
+}
+
+func (x *AddRewardsResponse) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
 var File_user_proto protoreflect.FileDescriptor
 
 const file_user_proto_rawDesc = "" +
@@ -1070,7 +1206,19 @@ const file_user_proto_rawDesc = "" +
 	"coins_paid\x18\x05 \x01(\x05R\tcoinsPaid\x12!\n" +
 	"\fpurchased_at\x18\x06 \x01(\tR\vpurchasedAt\"J\n" +
 	"\x1aGetPurchaseHistoryResponse\x12,\n" +
-	"\tpurchases\x18\x01 \x03(\v2\x0e.user.PurchaseR\tpurchases2\xe4\x05\n" +
+	"\tpurchases\x18\x01 \x03(\v2\x0e.user.PurchaseR\tpurchases\"f\n" +
+	"\x11AddRewardsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
+	"\bxp_delta\x18\x02 \x01(\x05R\axpDelta\x12\x1d\n" +
+	"\n" +
+	"coin_delta\x18\x03 \x01(\x05R\tcoinDelta\"\x9f\x01\n" +
+	"\x12AddRewardsResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1b\n" +
+	"\ttotal_exp\x18\x02 \x01(\x05R\btotalExp\x12\x1f\n" +
+	"\vtotal_coins\x18\x03 \x01(\x05R\n" +
+	"totalCoins\x12\x1b\n" +
+	"\ttier_name\x18\x04 \x01(\tR\btierName\x12\x14\n" +
+	"\x05level\x18\x05 \x01(\x05R\x05level2\xce\x06\n" +
 	"\vUserService\x12a\n" +
 	"\n" +
 	"GetProfile\x12\x17.user.GetProfileRequest\x1a\x11.user.UserProfile\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/user.UserService/GetProfile\x12t\n" +
@@ -1078,7 +1226,9 @@ const file_user_proto_rawDesc = "" +
 	"\x13GetRecentActivities\x12 .user.GetRecentActivitiesRequest\x1a!.user.GetRecentActivitiesResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/user.UserService/GetRecentActivities\x12p\n" +
 	"\fGetShopItems\x12\x19.user.GetShopItemsRequest\x1a\x1a.user.GetShopItemsResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/user.UserService/GetShopItems\x12p\n" +
 	"\fPurchaseItem\x12\x19.user.PurchaseItemRequest\x1a\x1a.user.PurchaseItemResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/user.UserService/PurchaseItem\x12\x88\x01\n" +
-	"\x12GetPurchaseHistory\x12\x1f.user.GetPurchaseHistoryRequest\x1a .user.GetPurchaseHistoryResponse\"/\x82\xd3\xe4\x93\x02):\x01*\"$/user.UserService/GetPurchaseHistoryB\x11Z\x0fuser-service/pbb\x06proto3"
+	"\x12GetPurchaseHistory\x12\x1f.user.GetPurchaseHistoryRequest\x1a .user.GetPurchaseHistoryResponse\"/\x82\xd3\xe4\x93\x02):\x01*\"$/user.UserService/GetPurchaseHistory\x12h\n" +
+	"\n" +
+	"AddRewards\x12\x17.user.AddRewardsRequest\x1a\x18.user.AddRewardsResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/user.UserService/AddRewardsB\x11Z\x0fuser-service/pbb\x06proto3"
 
 var (
 	file_user_proto_rawDescOnce sync.Once
@@ -1092,7 +1242,7 @@ func file_user_proto_rawDescGZIP() []byte {
 	return file_user_proto_rawDescData
 }
 
-var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_user_proto_goTypes = []any{
 	(*GetProfileRequest)(nil),           // 0: user.GetProfileRequest
 	(*UserProfile)(nil),                 // 1: user.UserProfile
@@ -1109,6 +1259,8 @@ var file_user_proto_goTypes = []any{
 	(*GetPurchaseHistoryRequest)(nil),   // 12: user.GetPurchaseHistoryRequest
 	(*Purchase)(nil),                    // 13: user.Purchase
 	(*GetPurchaseHistoryResponse)(nil),  // 14: user.GetPurchaseHistoryResponse
+	(*AddRewardsRequest)(nil),           // 15: user.AddRewardsRequest
+	(*AddRewardsResponse)(nil),          // 16: user.AddRewardsResponse
 }
 var file_user_proto_depIdxs = []int32{
 	5,  // 0: user.GetRecentActivitiesResponse.activities:type_name -> user.Activity
@@ -1120,14 +1272,16 @@ var file_user_proto_depIdxs = []int32{
 	7,  // 6: user.UserService.GetShopItems:input_type -> user.GetShopItemsRequest
 	10, // 7: user.UserService.PurchaseItem:input_type -> user.PurchaseItemRequest
 	12, // 8: user.UserService.GetPurchaseHistory:input_type -> user.GetPurchaseHistoryRequest
-	1,  // 9: user.UserService.GetProfile:output_type -> user.UserProfile
-	3,  // 10: user.UserService.UpdateProfile:output_type -> user.UpdateProfileResponse
-	6,  // 11: user.UserService.GetRecentActivities:output_type -> user.GetRecentActivitiesResponse
-	9,  // 12: user.UserService.GetShopItems:output_type -> user.GetShopItemsResponse
-	11, // 13: user.UserService.PurchaseItem:output_type -> user.PurchaseItemResponse
-	14, // 14: user.UserService.GetPurchaseHistory:output_type -> user.GetPurchaseHistoryResponse
-	9,  // [9:15] is the sub-list for method output_type
-	3,  // [3:9] is the sub-list for method input_type
+	15, // 9: user.UserService.AddRewards:input_type -> user.AddRewardsRequest
+	1,  // 10: user.UserService.GetProfile:output_type -> user.UserProfile
+	3,  // 11: user.UserService.UpdateProfile:output_type -> user.UpdateProfileResponse
+	6,  // 12: user.UserService.GetRecentActivities:output_type -> user.GetRecentActivitiesResponse
+	9,  // 13: user.UserService.GetShopItems:output_type -> user.GetShopItemsResponse
+	11, // 14: user.UserService.PurchaseItem:output_type -> user.PurchaseItemResponse
+	14, // 15: user.UserService.GetPurchaseHistory:output_type -> user.GetPurchaseHistoryResponse
+	16, // 16: user.UserService.AddRewards:output_type -> user.AddRewardsResponse
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1145,7 +1299,7 @@ func file_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_proto_rawDesc), len(file_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

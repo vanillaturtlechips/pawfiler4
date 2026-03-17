@@ -25,6 +25,7 @@ const (
 	UserService_GetShopItems_FullMethodName        = "/user.UserService/GetShopItems"
 	UserService_PurchaseItem_FullMethodName        = "/user.UserService/PurchaseItem"
 	UserService_GetPurchaseHistory_FullMethodName  = "/user.UserService/GetPurchaseHistory"
+	UserService_AddRewards_FullMethodName          = "/user.UserService/AddRewards"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -37,6 +38,7 @@ type UserServiceClient interface {
 	GetShopItems(ctx context.Context, in *GetShopItemsRequest, opts ...grpc.CallOption) (*GetShopItemsResponse, error)
 	PurchaseItem(ctx context.Context, in *PurchaseItemRequest, opts ...grpc.CallOption) (*PurchaseItemResponse, error)
 	GetPurchaseHistory(ctx context.Context, in *GetPurchaseHistoryRequest, opts ...grpc.CallOption) (*GetPurchaseHistoryResponse, error)
+	AddRewards(ctx context.Context, in *AddRewardsRequest, opts ...grpc.CallOption) (*AddRewardsResponse, error)
 }
 
 type userServiceClient struct {
@@ -107,6 +109,16 @@ func (c *userServiceClient) GetPurchaseHistory(ctx context.Context, in *GetPurch
 	return out, nil
 }
 
+func (c *userServiceClient) AddRewards(ctx context.Context, in *AddRewardsRequest, opts ...grpc.CallOption) (*AddRewardsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddRewardsResponse)
+	err := c.cc.Invoke(ctx, UserService_AddRewards_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -117,6 +129,7 @@ type UserServiceServer interface {
 	GetShopItems(context.Context, *GetShopItemsRequest) (*GetShopItemsResponse, error)
 	PurchaseItem(context.Context, *PurchaseItemRequest) (*PurchaseItemResponse, error)
 	GetPurchaseHistory(context.Context, *GetPurchaseHistoryRequest) (*GetPurchaseHistoryResponse, error)
+	AddRewards(context.Context, *AddRewardsRequest) (*AddRewardsResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -144,6 +157,9 @@ func (UnimplementedUserServiceServer) PurchaseItem(context.Context, *PurchaseIte
 }
 func (UnimplementedUserServiceServer) GetPurchaseHistory(context.Context, *GetPurchaseHistoryRequest) (*GetPurchaseHistoryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPurchaseHistory not implemented")
+}
+func (UnimplementedUserServiceServer) AddRewards(context.Context, *AddRewardsRequest) (*AddRewardsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddRewards not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -274,6 +290,24 @@ func _UserService_GetPurchaseHistory_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_AddRewards_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddRewardsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).AddRewards(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_AddRewards_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).AddRewards(ctx, req.(*AddRewardsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -304,6 +338,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPurchaseHistory",
 			Handler:    _UserService_GetPurchaseHistory_Handler,
+		},
+		{
+			MethodName: "AddRewards",
+			Handler:    _UserService_AddRewards_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
