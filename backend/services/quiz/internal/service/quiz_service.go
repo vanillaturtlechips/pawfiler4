@@ -40,6 +40,12 @@ type QuizService interface {
 	
 	// UpdateUserProfile updates gamification profile
 	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
+
+	// GetRanking returns ranked users
+	GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error)
+
+	// GetQuestionStats returns accuracy stats for questions
+	GetQuestionStats(ctx context.Context, questionID *string) ([]repository.QuestionStat, error)
 }
 
 // SubmitResult represents the result of a submitted answer
@@ -51,19 +57,26 @@ type SubmitResult struct {
 	Explanation  string
 }
 
+// UserRewardClient delegates XP/coin rewards to user service via gRPC.
+type UserRewardClient interface {
+	AddRewards(ctx context.Context, userID string, xpDelta, coinDelta int32) error
+}
+
 // quizServiceImpl implements the QuizService interface
 type quizServiceImpl struct {
 	repo         repository.QuizRepository
 	statsTracker StatsTracker
 	validator    AnswerValidator
+	userClient   UserRewardClient
 }
 
 // NewQuizService creates a new QuizService instance
-func NewQuizService(repo repository.QuizRepository, statsTracker StatsTracker, validator AnswerValidator) QuizService {
+func NewQuizService(repo repository.QuizRepository, statsTracker StatsTracker, validator AnswerValidator, userClient UserRewardClient) QuizService {
 	return &quizServiceImpl{
 		repo:         repo,
 		statsTracker: statsTracker,
 		validator:    validator,
+		userClient:   userClient,
 	}
 }
 
@@ -98,7 +111,6 @@ func (s *quizServiceImpl) GetRandomQuestion(ctx context.Context, userID string, 
 		return nil, fmt.Errorf("failed to update energy: %w", err)
 	}
 
-	// Requirement 3.1: Retrieve random question from database
 	question, err := s.repo.GetRandomQuestion(ctx, difficulty, repoQuestionType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get random question: %w", err)
@@ -152,6 +164,14 @@ func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*r
 
 func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
 	return s.repo.UpdateUserProfile(ctx, profile)
+}
+
+func (s *quizServiceImpl) GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error) {
+	return s.repo.GetRanking(ctx, sortBy, limit)
+}
+
+func (s *quizServiceImpl) GetQuestionStats(ctx context.Context, questionID *string) ([]repository.QuestionStat, error) {
+	return s.repo.GetQuestionStats(ctx, questionID)
 }
 
 // convertProtoToRepoQuestionType converts protobuf QuestionType to repository QuestionType
@@ -256,22 +276,11 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		xpEarned, coinsEarned = repository.XPRewardByDifficulty(question.Difficulty)
 	}
 
-	// Step 4: Save answer to database
-	// Requirements 9.1, 9.2, 9.3, 9.4: Save answer with all required fields
+	// Step 4: Save answer (Redis queue → async batch write)
 	answerData, err := answer.ToJSON()
 	if err != nil {
-		// Requirement 15.3: Return INTERNAL for database errors
 		return nil, fmt.Errorf("failed to convert answer to JSON: %w", err)
 	}
-
-	// Get timestamp from context or use current time
-	answeredAt := time.Now()
-	if ts := ctx.Value("timestamp"); ts != nil {
-		if timestamp, ok := ts.(time.Time); ok {
-			answeredAt = timestamp
-		}
-	}
-
 	userAnswer := &repository.UserAnswer{
 		UserID:      userID,
 		QuestionID:  questionID,
@@ -279,84 +288,32 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		IsCorrect:   isCorrect,
 		XPEarned:    xpEarned,
 		CoinsEarned: coinsEarned,
-		AnsweredAt:  answeredAt, // Requirement 9.4
+		AnsweredAt:  time.Now(),
 	}
-
-	err = s.repo.SaveAnswer(context.Background(), userAnswer)
-	if err != nil {
-		// Requirement 15.3: Return INTERNAL for database errors
+	if err := s.repo.SaveAnswer(ctx, userAnswer); err != nil {
 		return nil, fmt.Errorf("failed to save answer: %w", err)
 	}
 
-	// Step 5: Update user statistics
-	updatedStats, err := s.statsTracker.UpdateStats(context.Background(), userID, isCorrect)
-	if err != nil {
-		fmt.Printf("Warning: failed to update user stats: %v\n", err)
-	}
-
-	// Step 5b: Update gamification profile (XP + coins)
+	// Step 5: stats만 트랜잭션으로 업데이트, XP/코인은 user 서비스 gRPC로 위임
 	streakBonus := int32(0)
-	if xpEarned > 0 || coinsEarned > 0 {
-		profile, err := s.repo.GetUserProfile(context.Background(), userID)
-		if err != nil {
-			if errors.Is(err, repository.ErrUserProfileNotFound) {
-				profile, _ = s.repo.CreateUserProfile(context.Background(), userID)
+	updatedStats, _, err := s.repo.ApplyAnswerRewards(ctx, userID, isCorrect, 0, 0)
+	if err != nil {
+		fmt.Printf("Warning: ApplyAnswerRewards failed: %v\n", err)
+	}
+	// 5연속 정답 보너스
+	if isCorrect && updatedStats != nil && updatedStats.CurrentStreak > 0 && updatedStats.CurrentStreak%5 == 0 {
+		streakBonus = 20
+		xpEarned += streakBonus
+	}
+	// XP/코인 지급을 user 서비스 gRPC로 위임 (비동기, 실패해도 응답 블로킹 안 함)
+	if s.userClient != nil && (xpEarned > 0 || coinsEarned > 0) {
+		go func() {
+			gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := s.userClient.AddRewards(gCtx, userID, xpEarned, coinsEarned); err != nil {
+				fmt.Printf("Warning: user AddRewards gRPC failed: %v\n", err)
 			}
-		}
-		if profile != nil {
-			// 5연속 정답 보너스
-			if isCorrect && updatedStats != nil && updatedStats.CurrentStreak > 0 && updatedStats.CurrentStreak%5 == 0 {
-				streakBonus = 20
-				xpEarned += streakBonus
-			}
-
-			profile.TotalExp += xpEarned
-			profile.TotalCoins += coinsEarned
-			
-			// 레벨업 및 티어 승급 체크
-			tier := profile.Tier()
-			exp := profile.TotalExp
-			
-			// 레벨업 XP 이월 처리
-			for {
-				leveledUp := false
-				switch tier {
-				case "알":
-					if exp >= 1000 {
-						profile.CurrentTier = "삐약이"
-						profile.TotalExp = exp - 1000
-						tier = "삐약이"
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "삐약이":
-					if exp >= 2000 {
-						profile.CurrentTier = "맹금닭"
-						profile.TotalExp = exp - 2000
-						tier = "맹금닭"
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "맹금닭":
-					if exp >= 4000 {
-						profile.CurrentTier = "불사조"
-						profile.TotalExp = exp - 4000
-						tier = "불사조"
-						exp = profile.TotalExp
-						leveledUp = true
-					}
-				case "불사조":
-					// 최고 티어, 더 이상 승급 없음
-				}
-				if !leveledUp {
-					break
-				}
-			}
-			
-			if err := s.repo.UpdateUserProfile(context.Background(), profile); err != nil {
-				fmt.Printf("Warning: failed to update user profile: %v\n", err)
-			}
-		}
+		}()
 	}
 
 	// Step 6: Return result

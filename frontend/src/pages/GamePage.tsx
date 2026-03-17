@@ -20,7 +20,7 @@ type GamePhase = "select" | "playing" | "finished";
 
 const GamePage = () => {
   const navigate = useNavigate();
-  const { quizProfile: ctxProfile, updateQuizProfile, setIsPlaying, pendingNav, setPendingNav } = useQuizProfile();
+  const { quizProfile: ctxProfile, updateQuizProfile, refreshQuizProfile, setIsPlaying, pendingNav, setPendingNav } = useQuizProfile();
 
   // 게임 단계
   const [phase, setPhase] = useState<GamePhase>("select");
@@ -61,7 +61,7 @@ const GamePage = () => {
   };
   const [energyError, setEnergyError] = useState<number | null>(null);
   const [showTierUpModal, setShowTierUpModal] = useState(false);
-  const [newTier, setNewTier] = useState<{ level: number; name: string; promoted: boolean } | null>(null);
+  const [newTier, setNewTier] = useState<{ prevLevel: number; level: number; name: string; promoted: boolean } | null>(null);
 
   // 게임 완료 시 폭죽 효과
   useEffect(() => {
@@ -220,11 +220,17 @@ const GamePage = () => {
       }).catch(() => {});
 
       // 프로필 업데이트 (에너지/XP/코인)
-      if (res.level !== undefined && profile) {
+      if (profile) {
         const prevLevel = profile.level;
+        const newLevel = res.level ?? profile.level;
+        const newTierName = res.tierName ?? profile.tierName;
+        // tier_name은 "알 Lv.3" 형식 — 티어명만 추출
+        const extractTier = (t: string) => t.split(' ')[0];
+        const prevTier = extractTier(profile.tierName);
+        const currTier = extractTier(newTierName);
         const updatedProfile: QuizGameProfile = {
-          level: res.level,
-          tierName: res.tierName ?? profile.tierName,
+          level: newLevel,
+          tierName: newTierName,
           totalExp: res.totalExp ?? profile.totalExp,
           totalCoins: res.totalCoins ?? profile.totalCoins,
           energy: res.energy ?? profile.energy,
@@ -233,16 +239,21 @@ const GamePage = () => {
         setProfile(updatedProfile);
         
         // 레벨업 감지
-        const tierPromoted = res.tierPromoted === true;
-        if (tierPromoted || res.level > prevLevel) {
-          setNewTier({ level: res.level, name: res.tierName ?? updatedProfile.tierName, promoted: tierPromoted });
+        const tierPromoted = res.tierPromoted === true || prevTier !== currTier;
+        if (tierPromoted) {
+          // 티어 승급 모달만
+          setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: true });
+          setShowTierUpModal(true);
+        } else if (newLevel > prevLevel) {
+          // 레벨업 모달
+          setNewTier({ prevLevel, level: newLevel, name: newTierName, promoted: false });
           setShowTierUpModal(true);
         }
         // 5연속 정답 보너스 토스트
         if (res.streakBonus && res.streakBonus > 0) {
           toast.success(`🔥 ${res.streakCount}연속 정답! +${res.streakBonus} XP 보너스!`);
         }
-      } else if (profile) {
+      } else if (false) {
         // 에너지 2 차감 (백엔드 연동 전 로컬 처리)
         setProfile({ ...profile, energy: Math.max(0, profile.energy - 2) });
       }
@@ -407,7 +418,20 @@ const GamePage = () => {
                   </div>
                 )}
                 <div className="flex gap-4 mt-2">
-                  <GameButton variant="green" onClick={restartGame} className="whitespace-nowrap">다시 시작</GameButton>
+                  <GameButton
+                    variant="green"
+                    onClick={() => {
+                      const energy = profile?.energy ?? 0;
+                      if (energy < 25) {
+                        navigate("/shop");
+                      } else {
+                        restartGame();
+                      }
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    {(profile?.energy ?? 0) < 25 ? "⚡ 에너지 부족 (상점)" : "다시 시작"}
+                  </GameButton>
                   <GameButton variant="blue" onClick={() => navigate("/")} className="whitespace-nowrap">마을 입구로</GameButton>
                 </div>
               </WoodPanel>
@@ -685,7 +709,7 @@ const GamePage = () => {
                       transition={{ duration: 0.8, repeat: 2 }}
                       className="text-9xl mb-3"
                     >
-                      {newTier.name === '불사조' ? '🦅' : newTier.name === '맹금닭' ? '🐓' : newTier.name === '삐약이' ? '🐥' : '🥚'}
+                      {newTier.name === '불사조' || newTier.name.startsWith('불사조') ? '🦅' : newTier.name.startsWith('맹금닭') ? '🐓' : newTier.name.startsWith('삐약이') ? '🐥' : '🥚'}
                     </motion.div>
                     <motion.h2
                       animate={{ scale: [1, 1.05, 1] }}
@@ -694,21 +718,21 @@ const GamePage = () => {
                     >
                       🎊 티어 승급! 🎊
                     </motion.h2>
-                    <p className="font-jua text-3xl text-white mb-1">{newTier.name}</p>
+                    <p className="font-jua text-3xl text-white mb-1">{newTier.name.split(' ')[0]}</p>
                     <p className="font-jua text-xl text-yellow-200 mb-6">Lv.{newTier.level}로 시작!</p>
                   </>
                 ) : (
                   // 레벨업 - 심플하게
                   <>
-                    <motion.div
-                      animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.15, 1] }}
-                      transition={{ duration: 0.5, repeat: 1 }}
-                      className="text-7xl mb-3"
-                    >
-                      ⬆️
-                    </motion.div>
+                    <motion.img
+                      src="/levelup-cat.png"
+                      alt="levelup"
+                      className="w-32 h-32 object-contain mx-auto mb-3"
+                      animate={{ rotate: [-8, 8, -8], scale: [1, 1.1, 1] }}
+                      transition={{ duration: 0.5, repeat: 2 }}
+                    />
                     <h2 className="font-jua text-3xl text-yellow-400 mb-2">레벨 업!</h2>
-                    <p className="font-jua text-xl mb-6">{newTier.name} Lv.{newTier.level}</p>
+                    <p className="font-jua text-xl mb-6">Lv.{newTier.prevLevel} → Lv.{newTier.level}</p>
                   </>
                 )}
                 <GameButton variant="green" onClick={() => setShowTierUpModal(false)}>확인</GameButton>

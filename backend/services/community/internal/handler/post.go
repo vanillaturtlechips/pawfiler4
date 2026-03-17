@@ -79,7 +79,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 	}
 
 	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to fetch posts")
+		log.Printf("GetFeed query error: %v", err); return nil, status.Error(codes.Internal, "Failed to fetch posts")
 	}
 	defer rows.Close()
 
@@ -118,20 +118,18 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 
 	err := h.db.QueryRowContext(ctx, `
 		SELECT id, author_id, author_nickname, author_emoji, title, body, 
-		       likes, comments, created_at::text, tags, media_url, media_type, is_admin_post,
-		       COALESCE((SELECT COUNT(*) FROM community.post_votes WHERE post_id = id AND vote = true), 0),
-		       COALESCE((SELECT COUNT(*) FROM community.post_votes WHERE post_id = id AND vote = false), 0)
+		       likes, comments, created_at::text, tags, media_url, media_type, is_admin_post
 		FROM community.posts
 		WHERE id = $1
 	`, req.PostId).Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
 		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
-		(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost,
-		&post.TrueVotes, &post.FalseVotes)
+		(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost)
 
 	if err == sql.ErrNoRows {
 		return nil, status.Error(codes.NotFound, "Post not found")
 	}
 	if err != nil {
+		log.Printf("GetPost error: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to fetch post")
 	}
 
@@ -142,6 +140,7 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 }
 
 // CreatePost - 게시글 작성
+// author_nickname/emoji는 user 서비스 gRPC 호출로 최신값을 가져옴
 func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*pb.Post, error) {
 	if req.Title == "" {
 		return nil, status.Error(codes.InvalidArgument, "Title is required")
@@ -150,13 +149,16 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
 
+	// user 서비스 gRPC 호출로 최신 닉네임/아바타 조회
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+
 	postID := uuid.New().String()
 	createdAt := time.Now()
 
 	_, err := h.db.ExecContext(ctx, `
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	`, postID, req.UserId, req.AuthorNickname, req.AuthorEmoji, req.Title, req.Body,
+	`, postID, req.UserId, nickname, avatarEmoji, req.Title, req.Body,
 		pq.Array(req.Tags), nullableString(req.MediaUrl), nullableString(req.MediaType), req.IsAdminPost, req.IsCorrect, createdAt)
 
 	if err != nil {
@@ -166,8 +168,8 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 	return &pb.Post{
 		Id:             postID,
 		AuthorId:       req.UserId,
-		AuthorNickname: req.AuthorNickname,
-		AuthorEmoji:    req.AuthorEmoji,
+		AuthorNickname: nickname,
+		AuthorEmoji:    avatarEmoji,
 		Title:          req.Title,
 		Body:           req.Body,
 		Tags:           req.Tags,

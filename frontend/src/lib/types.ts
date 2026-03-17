@@ -104,8 +104,9 @@ export interface QuizSubmitResponse {
   coinsEarned: number;
   explanation: string;
   streakCount: number;
-  correctIndex?: number; // 객관식 문제의 정답 인덱스
-  // 게임화 프로필 (답안 제출 후 업데이트된 값)
+  streakBonus?: number;
+  tierPromoted?: boolean;
+  correctIndex?: number;
   level?: number;
   tierName?: string;
   totalExp?: number;

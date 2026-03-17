@@ -49,4 +49,14 @@ type QuizRepository interface {
 
 	// UpdateUserProfile persists the current state of a UserProfile.
 	UpdateUserProfile(ctx context.Context, profile *UserProfile) error
+
+	// ApplyAnswerRewards atomically updates stats + profile in one transaction.
+	// Returns updated stats (for streak info) and updated profile.
+	ApplyAnswerRewards(ctx context.Context, userID string, isCorrect bool, xpDelta, coinDelta int32) (*UserStats, *UserProfile, error)
+
+	// GetRanking returns ranked users sorted by the given criteria.
+	GetRanking(ctx context.Context, sortBy string, limit int) ([]RankingEntry, error)
+
+	// GetQuestionStats returns accuracy stats for questions.
+	GetQuestionStats(ctx context.Context, questionID *string) ([]QuestionStat, error)
 }

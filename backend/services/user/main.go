@@ -1,15 +1,21 @@
-// user-service: profile and shop REST API
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
 
+	pb "user-service/pb"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var db *sql.DB
@@ -19,22 +25,18 @@ func initDB() error {
 	if dbURL == "" {
 		dbURL = "postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable"
 	}
-
 	var err error
 	db, err = sql.Open("postgres", dbURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-
 	db.SetMaxOpenConns(30)
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(2 * time.Minute)
-
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
-
 	log.Println("Database connected successfully")
 	return nil
 }
@@ -45,31 +47,53 @@ func main() {
 	}
 	defer db.Close()
 
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/health", withCORS(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	for _, prefix := range []string{"", "/api"} {
-		// Profile endpoints
-		mux.HandleFunc(prefix+"/user.UserService/GetProfile", withCORS(handleGetProfile))
-		mux.HandleFunc(prefix+"/user.UserService/UpdateProfile", withCORS(handleUpdateProfile))
-		mux.HandleFunc(prefix+"/user.UserService/GetRecentActivities", withCORS(handleGetRecentActivities))
-
-		// Shop endpoints
-		mux.HandleFunc(prefix+"/user.UserService/GetShopItems", withCORS(handleGetShopItems))
-		mux.HandleFunc(prefix+"/user.UserService/PurchaseItem", withCORS(handlePurchaseItem))
-		mux.HandleFunc(prefix+"/user.UserService/GetPurchaseHistory", withCORS(handleGetPurchaseHistory))
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50054"
+	}
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8083"
 	}
 
-	port := os.Getenv("HTTP_PORT")
-	if port == "" {
-		port = "8083"
+	svc := &userServiceServer{db: db}
+
+	lis, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	s := grpc.NewServer()
+	pb.RegisterUserServiceServer(s, svc)
+	go func() {
+		log.Printf("User gRPC server on :%s", grpcPort)
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("gRPC serve error: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+	mux := runtime.NewServeMux()
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	if err := pb.RegisterUserServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {
+		log.Fatalf("failed to register gateway: %v", err)
 	}
 
-	log.Printf("User service started on :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/" {
+			r.URL.Path = r.URL.Path[4:]
+		}
+		mux.ServeHTTP(w, r)
+	})
+
+	log.Printf("User grpc-gateway on :%s", httpPort)
+	if err := http.ListenAndServe(":"+httpPort, httpHandler); err != nil {
+		log.Fatalf("HTTP serve error: %v", err)
 	}
 }

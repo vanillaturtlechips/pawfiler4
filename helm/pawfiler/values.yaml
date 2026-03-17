@@ -59,17 +59,4 @@ adminService:
       cpu: "500m"
       memory: "256Mi"
 
-envoy:
-  replicas: 2
-  irsaRoleArn: "arn:aws:iam::009946608368:role/pawfiler-envoy-s3-role"
-  image: envoyproxy/envoy:v1.28-latest
-  port: 8080
-  adminPort: 9901
-  protoPbS3Path: s3://pawfiler-quiz-media/config/proto.pb
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "500m"
-      memory: "256Mi"
+

@@ -55,10 +55,10 @@ const ProfilePage = () => {
     setIsSaving(true);
     try {
       const res = await updateUserProfile(userId, undefined, selectedAvatar);
-      updateUser({ avatarEmoji: res.avatar_emoji });
+      updateUser({ avatarEmoji: res.avatarEmoji ?? res.avatar_emoji });
       await Promise.all([
-        syncProfileToQuiz(user.nickname, res.avatar_emoji),
-        syncAuthorToCommunity(userId, user.nickname, res.avatar_emoji),
+        syncProfileToQuiz(user.nickname, res.avatarEmoji ?? res.avatar_emoji),
+        syncAuthorToCommunity(userId, user.nickname, res.avatarEmoji ?? res.avatar_emoji),
       ]);
       toast.success("아바타가 저장되었습니다!");
     } catch {
@@ -90,21 +90,21 @@ const ProfilePage = () => {
   const avatarOptions = ["🦊", "🐶", "🐱", "🐰", "🐻", "🐼", "🦝", "🐨", "🐯", "🦁", "🐮", "🐷"];
 
   const achievements = [
-    { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: (fullProfile?.total_quizzes ?? 0) >= 1 },
-    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: (fullProfile?.current_streak ?? 0) >= 3 },
-    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: (fullProfile?.total_quizzes ?? 0) >= 5 },
-    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: (fullProfile?.correct_rate ?? 0) >= 90 },
+    { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: (fullProfile?.totalQuizzes ?? fullProfile?.total_quizzes ?? 0) >= 1 },
+    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: (fullProfile?.currentStreak ?? fullProfile?.current_streak ?? 0) >= 3 },
+    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: (fullProfile?.totalQuizzes ?? fullProfile?.total_quizzes ?? 0) >= 5 },
+    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: (fullProfile?.correctRate ?? fullProfile?.correct_rate ?? 0) >= 90 },
     { id: 5, icon: "💎", title: "수집가", desc: "모든 배지 획득", unlocked: false },
     { id: 6, icon: "🌟", title: "레벨 마스터", desc: "레벨 10 달성", unlocked: (fullProfile?.level ?? 0) >= 10 },
   ];
 
   const stats = {
-    totalQuizzes: fullProfile?.total_quizzes ?? 0,
-    correctRate: Math.round(fullProfile?.correct_rate ?? 0),
-    totalAnalysis: fullProfile?.total_analysis ?? 0,
-    communityPosts: fullProfile?.community_posts ?? 0,
-    currentStreak: fullProfile?.current_streak ?? 0,
-    bestStreak: fullProfile?.best_streak ?? 0,
+    totalQuizzes: fullProfile?.totalQuizzes ?? fullProfile?.total_quizzes ?? 0,
+    correctRate: Math.round(fullProfile?.correctRate ?? fullProfile?.correct_rate ?? 0),
+    totalAnalysis: fullProfile?.totalAnalysis ?? fullProfile?.total_analysis ?? 0,
+    communityPosts: fullProfile?.communityPosts ?? fullProfile?.community_posts ?? 0,
+    currentStreak: fullProfile?.currentStreak ?? fullProfile?.current_streak ?? 0,
+    bestStreak: fullProfile?.bestStreak ?? fullProfile?.best_streak ?? 0,
   };
 
   const currentExp = quizProfile?.totalExp ?? 0;

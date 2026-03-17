@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+package community;
+
+import "google/api/annotations.proto";
+
+option go_package = "community/pb";
+
+service CommunityService {
+  rpc GetFeed(GetFeedRequest) returns (FeedResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetFeed" body: "*" };
+  }
+  rpc GetPost(GetPostRequest) returns (Post) {
+    option (google.api.http) = { post: "/community.CommunityService/GetPost" body: "*" };
+  }
+  rpc CreatePost(CreatePostRequest) returns (Post) {
+    option (google.api.http) = { post: "/community.CommunityService/CreatePost" body: "*" };
+  }
+  rpc UpdatePost(UpdatePostRequest) returns (Post) {
+    option (google.api.http) = { post: "/community.CommunityService/UpdatePost" body: "*" };
+  }
+  rpc DeletePost(DeletePostRequest) returns (DeletePostResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/DeletePost" body: "*" };
+  }
+  rpc GetComments(GetCommentsRequest) returns (CommentsResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetComments" body: "*" };
+  }
+  rpc CreateComment(CreateCommentRequest) returns (Comment) {
+    option (google.api.http) = { post: "/community.CommunityService/CreateComment" body: "*" };
+  }
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/DeleteComment" body: "*" };
+  }
+  rpc LikePost(LikePostRequest) returns (LikePostResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/LikePost" body: "*" };
+  }
+  rpc UnlikePost(UnlikePostRequest) returns (UnlikePostResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/UnlikePost" body: "*" };
+  }
+  rpc CheckLike(CheckLikeRequest) returns (CheckLikeResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/CheckLike" body: "*" };
+  }
+  rpc VotePost(VotePostRequest) returns (VotePostResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/VotePost" body: "*" };
+  }
+  rpc GetVoteResult(GetVoteResultRequest) returns (VoteResult) {
+    option (google.api.http) = { post: "/community.CommunityService/GetVoteResult" body: "*" };
+  }
+  rpc GetUserVote(GetUserVoteRequest) returns (GetUserVoteResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetUserVote" body: "*" };
+  }
+  rpc UploadMedia(UploadMediaRequest) returns (UploadMediaResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/UploadMedia" body: "*" };
+  }
+  rpc GetNotices(GetNoticesRequest) returns (NoticesResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetNotices" body: "*" };
+  }
+  rpc GetTopDetective(GetTopDetectiveRequest) returns (TopDetectiveResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetTopDetective" body: "*" };
+  }
+  rpc GetHotTopic(GetHotTopicRequest) returns (HotTopicResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetHotTopic" body: "*" };
+  }
+}
+
+message Post {
+  string id = 1;
+  string author_id = 2;
+  string author_nickname = 3;
+  string author_emoji = 4;
+  string title = 5;
+  string body = 6;
+  int32 likes = 7;
+  int32 comments = 8;
+  string created_at = 9;
+  repeated string tags = 10;
+  string media_url = 11;
+  string media_type = 12;
+  bool is_admin_post = 13;
+  int32 true_votes = 14;
+  int32 false_votes = 15;
+  optional bool is_correct = 16;
+}
+
+message GetFeedRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string search_query = 3;
+  string search_type = 4;
+}
+
+message FeedResponse {
+  repeated Post posts = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+}
+
+message GetPostRequest { string post_id = 1; }
+
+message CreatePostRequest {
+  string user_id = 1;
+  string author_nickname = 2;
+  string author_emoji = 3;
+  string title = 4;
+  string body = 5;
+  repeated string tags = 6;
+  string media_url = 7;
+  string media_type = 8;
+  bool is_admin_post = 9;
+  optional bool is_correct = 10;
+}
+
+message UpdatePostRequest {
+  string post_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string body = 4;
+  repeated string tags = 5;
+}
+
+message DeletePostRequest { string post_id = 1; string user_id = 2; }
+message DeletePostResponse { bool success = 1; }
+
+message Comment {
+  string id = 1;
+  string post_id = 2;
+  string author_id = 3;
+  string author_nickname = 4;
+  string author_emoji = 5;
+  string body = 6;
+  string created_at = 7;
+  int32 likes = 8;
+  int32 xp_earned = 9;
+}
+
+message GetCommentsRequest { string post_id = 1; }
+message CommentsResponse { repeated Comment comments = 1; }
+
+message CreateCommentRequest {
+  string post_id = 1;
+  string user_id = 2;
+  string author_nickname = 3;
+  string author_emoji = 4;
+  string body = 5;
+}
+
+message DeleteCommentRequest { string comment_id = 1; string user_id = 2; }
+message DeleteCommentResponse { bool success = 1; }
+
+message LikePostRequest { string post_id = 1; string user_id = 2; }
+message LikePostResponse { bool success = 1; bool already_liked = 2; int32 total_likes = 3; }
+
+message UnlikePostRequest { string post_id = 1; string user_id = 2; }
+message UnlikePostResponse { bool success = 1; int32 total_likes = 2; }
+
+message CheckLikeRequest { string post_id = 1; string user_id = 2; }
+message CheckLikeResponse { bool liked = 1; }
+
+message VotePostRequest { string post_id = 1; string user_id = 2; bool vote = 3; }
+message VotePostResponse { bool success = 1; bool already_voted = 2; int32 xp_earned = 3; }
+
+message GetVoteResultRequest { string post_id = 1; }
+message VoteResult { string post_id = 1; int32 true_votes = 2; int32 false_votes = 3; int32 count = 4; }
+
+message GetUserVoteRequest { string post_id = 1; string user_id = 2; }
+message GetUserVoteResponse { bool voted = 1; bool vote = 2; }
+
+message UploadMediaRequest { string file_name = 1; bytes content = 2; string content_type = 3; }
+message UploadMediaResponse { string media_url = 1; string media_type = 2; }
+
+message GetNoticesRequest {}
+message Notice {
+  string id = 1;
+  string title = 2;
+  string body = 3;
+  string created_at = 4;
+  string author_nickname = 5;
+}
+message NoticesResponse { repeated Notice notices = 1; }
+
+message GetTopDetectiveRequest {}
+message TopDetectiveResponse {
+  string author_nickname = 1;
+  string author_emoji = 2;
+  int32 count = 3;
+  int32 total_likes = 4;
+}
+
+message GetHotTopicRequest {}
+message HotTopicResponse { string tag = 1; int32 count = 2; }

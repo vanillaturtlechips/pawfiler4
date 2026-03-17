@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -74,17 +75,21 @@ func handleGetRandomQuestion(svc QuizService) http.HandlerFunc {
 		}
 		resp, err := svc.GetRandomQuestion(r.Context(), &req)
 		if err != nil {
-			// 에너지 부족 시 429 + 현재 에너지 반환
-			if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
-				msg := st.Message() // "insufficient_energy:N"
-				energy := "0"
-				if parts := strings.SplitN(msg, ":", 2); len(parts) == 2 {
-					energy = parts[1]
+			// unwrap해서 gRPC ResourceExhausted 찾기
+			target := err
+			for target != nil {
+				if st, ok := status.FromError(target); ok && st.Code() == codes.ResourceExhausted {
+					msg := st.Message()
+					energy := "0"
+					if parts := strings.SplitN(msg, ":", 2); len(parts) == 2 {
+						energy = parts[1]
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusTooManyRequests)
+					w.Write([]byte(`{"error":"insufficient_energy","energy":` + energy + `}`))
+					return
 				}
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusTooManyRequests)
-				w.Write([]byte(`{"error":"insufficient_energy","energy":` + energy + `}`))
-				return
+				target = errors.Unwrap(target)
 			}
 			writeGRPCError(w, err)
 			return

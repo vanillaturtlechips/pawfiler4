@@ -2,13 +2,75 @@ syntax = "proto3";
 
 package quiz;
 
-option go_package = "github.com/pawfiler/backend/services/quiz/pb";
+import "google/api/annotations.proto";
+
+option go_package = "github.com/pawfiler/backend/services/quiz/proto";
 
 service QuizService {
-  rpc GetRandomQuestion(GetRandomQuestionRequest) returns (QuizQuestion);
-  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
-  rpc GetUserStats(GetUserStatsRequest) returns (QuizStats);
-  rpc GetQuestionById(GetQuestionByIdRequest) returns (QuizQuestion);
+  rpc GetRandomQuestion(GetRandomQuestionRequest) returns (QuizQuestion) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetRandomQuestion"
+      body: "*"
+    };
+  }
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/SubmitAnswer"
+      body: "*"
+    };
+  }
+  rpc GetUserStats(GetUserStatsRequest) returns (QuizStats) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetUserStats"
+      body: "*"
+    };
+  }
+  rpc GetQuestionById(GetQuestionByIdRequest) returns (QuizQuestion) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetQuestionById"
+      body: "*"
+    };
+  }
+  rpc GetUserProfile(GetUserProfileRequest) returns (UserProfile) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetUserProfile"
+      body: "*"
+    };
+  }
+  rpc UpdateUserProfile(UpdateUserProfileRequest) returns (UserProfile) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/UpdateUserProfile"
+      body: "*"
+    };
+  }
+  rpc GetRanking(GetRankingRequest) returns (GetRankingResponse) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetRanking"
+      body: "*"
+    };
+  }
+  rpc GetQuestionStats(GetQuestionStatsRequest) returns (GetQuestionStatsResponse) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/GetQuestionStats"
+      body: "*"
+    };
+  }
+  rpc RefillEnergy(RefillEnergyRequest) returns (RefillEnergyResponse) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/RefillEnergy"
+      body: "*"
+    };
+  }
+}
+
+message RefillEnergyRequest {
+  string user_id = 1;
+}
+
+message RefillEnergyResponse {
+  bool success = 1;
+  int32 energy = 2;
+  int32 max_energy = 3;
 }
 
 enum QuestionType {
@@ -42,21 +104,13 @@ message QuizQuestion {
   string difficulty = 6;
   string category = 7;
   string explanation = 8;
-  
-  // Multiple Choice fields
   repeated string options = 10;
   optional int32 correct_index = 11;
-  
-  // True/False fields
   optional bool correct_answer = 12;
-  
-  // Region Select fields
   repeated Region correct_regions = 13;
   optional int32 tolerance = 14;
-  
-  // Comparison fields
   optional string comparison_media_url = 15;
-  optional string correct_side = 16; // "left" or "right"
+  optional string correct_side = 16;
 }
 
 message Region {
@@ -68,18 +122,10 @@ message Region {
 message SubmitAnswerRequest {
   string user_id = 1;
   string question_id = 2;
-  
-  // Multiple Choice
   optional int32 selected_index = 3;
-  
-  // True/False
   optional bool selected_answer = 4;
-  
-  // Region Select
   optional Point selected_region = 5;
-  
-  // Comparison
-  optional string selected_side = 6; // "left" or "right"
+  optional string selected_side = 6;
 }
 
 message Point {
@@ -94,6 +140,15 @@ message SubmitAnswerResponse {
   string explanation = 4;
   int32 streak_count = 5;
   optional int32 correct_index = 6;
+  // 게임화 필드
+  int32 streak_bonus = 7;
+  bool tier_promoted = 8;
+  int32 level = 9;
+  string tier_name = 10;
+  int32 total_exp = 11;
+  int32 total_coins = 12;
+  int32 energy = 13;
+  int32 max_energy = 14;
 }
 
 message GetUserStatsRequest {
@@ -106,4 +161,63 @@ message QuizStats {
   int32 current_streak = 3;
   int32 best_streak = 4;
   int32 lives = 5;
+}
+
+message GetUserProfileRequest {
+  string user_id = 1;
+}
+
+message UpdateUserProfileRequest {
+  string user_id = 1;
+  optional string nickname = 2;
+  optional string avatar_emoji = 3;
+}
+
+message UserProfile {
+  string user_id = 1;
+  int32 energy = 2;
+  int32 max_energy = 3;
+  int32 level = 4;
+  string tier_name = 5;
+  int32 total_exp = 6;
+  int32 total_coins = 7;
+  optional string nickname = 8;
+  optional string avatar_emoji = 9;
+}
+
+message GetRankingRequest {
+  string sort_by = 1;
+  int32 limit = 2;
+}
+
+message RankingEntry {
+  int32 rank = 1;
+  string user_id = 2;
+  string nickname = 3;
+  string avatar_emoji = 4;
+  string tier = 5;
+  int32 level = 6;
+  int32 total_exp = 7;
+  int32 total_coins = 8;
+  int32 total_answered = 9;
+  int32 correct_count = 10;
+  double accuracy = 11;
+}
+
+message GetRankingResponse {
+  repeated RankingEntry entries = 1;
+}
+
+message GetQuestionStatsRequest {
+  optional string question_id = 1;
+}
+
+message QuestionStat {
+  string id = 1;
+  double accuracy = 2;
+  int32 total_attempts = 3;
+}
+
+message GetQuestionStatsResponse {
+  repeated QuestionStat stats = 1;
 }
