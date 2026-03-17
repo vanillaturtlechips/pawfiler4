@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -16,8 +18,6 @@ import (
 	"github.com/lib/pq"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
-	"os"
 )
 
 // GetFeed - 게시글 피드 조회
