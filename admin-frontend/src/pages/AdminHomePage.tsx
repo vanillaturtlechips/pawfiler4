@@ -18,6 +18,7 @@ export default function AdminHomePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="퀴즈 관리" desc="문제 등록/수정, 통계 확인" to="/admin/quiz" />
         <Card title="커뮤니티 관리" desc="게시글 검색/수정/삭제" to="/admin/community" />
+        <Card title="상점 관리" desc="아이템 등록/수정/삭제, 이미지 업로드" to="/admin/shop" />
       </div>
     </div>
   );

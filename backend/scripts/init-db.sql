@@ -76,6 +76,19 @@ CREATE TABLE quiz.user_stats (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE quiz.user_profiles (
+    user_id UUID PRIMARY KEY,
+    nickname VARCHAR(100) NOT NULL DEFAULT '탐정',
+    avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🥚',
+    total_exp INTEGER DEFAULT 0,
+    total_coins INTEGER DEFAULT 3000,
+    current_tier VARCHAR(50) DEFAULT '알',
+    energy INTEGER DEFAULT 100,
+    max_energy INTEGER DEFAULT 100,
+    last_energy_refill TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE INDEX idx_user_answers_user_id ON quiz.user_answers(user_id);
 CREATE INDEX idx_user_answers_question_id ON quiz.user_answers(question_id);
 CREATE INDEX idx_questions_type ON quiz.questions(type);
@@ -94,8 +107,22 @@ CREATE TABLE community.posts (
     likes INTEGER DEFAULT 0,
     comments INTEGER DEFAULT 0,
     tags TEXT[] DEFAULT '{}',
+    media_url TEXT,
+    media_type VARCHAR(10) CHECK (media_type IN ('image', 'video')),
+    is_admin_post BOOLEAN DEFAULT FALSE,
+    is_correct BOOLEAN DEFAULT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE community.post_votes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    vote BOOLEAN NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(post_id, user_id),
+    FOREIGN KEY (post_id) REFERENCES community.posts(id) ON DELETE CASCADE
 );
 
 -- Indexes for performance
@@ -124,6 +151,7 @@ CREATE TABLE community.likes (
 CREATE INDEX idx_posts_created_at ON community.posts(created_at DESC);
 CREATE INDEX idx_comments_post_id ON community.comments(post_id);
 CREATE INDEX idx_likes_post_id ON community.likes(post_id);
+CREATE INDEX idx_post_votes_post_id ON community.post_votes(post_id);
 
 -- Video Analysis Service Schema
 CREATE SCHEMA IF NOT EXISTS video_analysis;
@@ -181,6 +209,58 @@ CREATE TABLE payment.transactions (
 CREATE INDEX idx_subscriptions_user_id ON payment.subscriptions(user_id);
 CREATE INDEX idx_transactions_user_id ON payment.transactions(user_id);
 
+-- User Service Schema
+CREATE SCHEMA IF NOT EXISTS user_svc;
+
+CREATE TABLE user_svc.preferences (
+    user_id UUID PRIMARY KEY,
+    nickname VARCHAR(100) NOT NULL DEFAULT '탐정',
+    avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🦊',
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE user_svc.shop_purchases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    item_id VARCHAR(100) NOT NULL,
+    item_name VARCHAR(200) NOT NULL,
+    item_type VARCHAR(50) NOT NULL,
+    coins_paid INTEGER NOT NULL DEFAULT 0,
+    purchased_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_shop_purchases_user_id ON user_svc.shop_purchases(user_id);
+
+CREATE TABLE user_svc.shop_items (
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    description VARCHAR(500) NOT NULL DEFAULT '',
+    price INTEGER NOT NULL DEFAULT 0,
+    icon VARCHAR(10) NOT NULL DEFAULT '🎁',
+    badge VARCHAR(50),
+    type VARCHAR(50) NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    bonus INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO user_svc.shop_items (id, name, description, price, icon, badge, type, quantity, bonus, sort_order) VALUES
+  ('premium-monthly', '프리미엄 월간', '무제한 퀴즈 + 영상 분석', 9900, '👑', '인기', 'subscription', 0, 0, 1),
+  ('premium-yearly', '프리미엄 연간', '12개월 + 2개월 무료', 99000, '💎', '최고가치', 'subscription', 0, 0, 2),
+  ('coins-100', '소량 코인', '기본 코인 팩', 1000, '💰', NULL, 'coins', 100, 0, 1),
+  ('coins-500', '중량 코인', '+50 보너스', 4500, '💰', '보너스', 'coins', 500, 50, 2),
+  ('coins-1000', '대량 코인', '+150 보너스', 8500, '💎', '인기', 'coins', 1000, 150, 3),
+  ('daily-package', '일일오픽 패키지', '퀴즈 5회 + 분석 1회', 250, '📝', '신규', 'item', 0, 0, 1),
+  ('growth-package', '성급육성 패키지', 'XP 부스트 + 코인', 600, '⭐', '신규', 'item', 0, 0, 2),
+  ('random-package', '만신전 패키지', '랜덤 아이템 3개', 300, '🎲', NULL, 'item', 0, 0, 3),
+  ('color-package', '염색 세트 패키지', '아바타 커스터마이징', 500, '🎨', NULL, 'item', 0, 0, 4),
+  ('costume-package', '코스튬권 패키지', '특별 의상 획득', 800, '👔', NULL, 'item', 0, 0, 5),
+  ('gem-package', '금화 패키지', '프리미엄 재화', 1200, '💎', '한정', 'item', 0, 0, 6),
+  ('special-package', '특파 재료 패키지', '희귀 아이템', 450, '🔮', NULL, 'item', 0, 0, 7);
+
 -- Insert sample quiz questions
 INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index, correct_answer, correct_regions, tolerance, comparison_media_url, correct_side, created_at, updated_at) VALUES ('550e8400-e29b-41d4-a716-446655440001', 'multiple_choice', 'image', 'https://YOUR_CLOUDFRONT_DOMAIN/images/deepfake/deepfake_easy_001.jpg', '🎬', 'easy', 'ai-generated-detection', '오른쪽 위 보드의 글씨가 깨지고 왜곡된 것이 AI 생성 이미지의 특징입니다!', '{"얼굴 표정이 부자연스러워요","배경 글씨가 깨져있어요","조명이 완벽해요","그림자가 정확해요"}', 1, NULL, NULL, NULL, NULL, NULL, '2026-03-05 01:59:21.339212', '2026-03-05 01:59:21.339212');
 INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index, correct_answer, correct_regions, tolerance, comparison_media_url, correct_side, created_at, updated_at) VALUES ('550e8400-e29b-41d4-a716-446655440003', 'multiple_choice', 'image', 'https://YOUR_CLOUDFRONT_DOMAIN/images/deepfake/deepfake_easy_001.jpg', '🖼️', 'easy', 'ai-generated-detection', 'AI가 생성한 이미지는 텍스트나 작은 디테일을 제대로 표현하지 못하는 경우가 많습니다.', '{"인물의 포즈가 자연스러워요","배경의 텍스트가 왜곡되어있어요","그림자가 정확해요","색감이 일치해요"}', 1, NULL, NULL, NULL, NULL, NULL, '2026-03-05 01:59:21.339212', '2026-03-05 01:59:21.339212');
@@ -194,8 +274,8 @@ INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, di
 INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index, correct_answer, correct_regions, tolerance, comparison_media_url, correct_side, created_at, updated_at) VALUES ('550e8400-e29b-41d4-a716-446655440005', 'true_false', 'video', 'https://YOUR_CLOUDFRONT_DOMAIN/videos/deepfake/deepfake_easy_001.mp4', '❌', 'medium', 'video-synthesis-detection', '이 영상은 합성 영상입니다. 파티 장면에 고양이를 합성했으며, 고양이가 책상에 떨어질 때 효과가 부자연스럽고, 불빛 반사와 손 동작이 어색합니다.', NULL, NULL, false, NULL, NULL, NULL, NULL, '2026-03-05 01:59:21.339212', '2026-03-05 01:59:21.339212');
 INSERT INTO quiz.questions (id, type, media_type, media_url, thumbnail_emoji, difficulty, category, explanation, options, correct_index, correct_answer, correct_regions, tolerance, comparison_media_url, correct_side, created_at, updated_at) VALUES ('3c9e2951-0607-40eb-a4f1-04a05c25515e', 'multiple_choice', 'video', 'https://YOUR_CLOUDFRONT_DOMAIN/ai-generated-detection/video/easy/f5c3d00c-60b4-4a89-a909-c67940deb051.mp4', '🎯', 'easy', 'ai-generated-detection', '까마귀가 도구를 사용하는 모습이나 움직임은 매우 정교하고 자연스럽게 표현되었습니다. 하지만 바닥의 질감이 불규칙하게 흔들리는 물리적 오류가 발견되며, 영상 하단에 OpenAI의 비디오 생성 AI인 Sora 로고와 워터마크가 명시되어 있어 AI 생성물임을 확실히 알 수 있습니다.', '{"까마귀의 도구 사용 모습이 자연스러워요","하단에 소라 로고와 워터마크가 보여요","까마귀의 움직임이 매우 정교해 보여요"}', 1, NULL, 'null', NULL, NULL, NULL, '2026-03-05 03:17:18.292014', '2026-03-05 03:17:18.292014');
 
--- Insert sample community posts (공지 1개 + 일반 2개)
-INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, likes, comments, tags, created_at) VALUES
+-- Insert sample community posts (어드민 공지만)
+INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, likes, comments, tags, is_admin_post, created_at) VALUES
 ('550e8400-e29b-41d4-a716-446655440000', 'admin', '운영진', '👮', '커뮤니티 이용 규칙 안내', '안녕하세요, 운영진입니다.
 
 커뮤니티를 더 건강하게 만들기 위한 규칙을 안내드립니다:
@@ -205,37 +285,4 @@ INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title
 3. 상업적 광고 금지
 4. 개인정보 보호
 
-함께 만드는 건강한 커뮤니티! 협조 부탁드립니다.', 0, 0, ARRAY['공지', '규칙', '운영'], NOW() - INTERVAL '3 days'),
-
-('550e8400-e29b-41d4-a716-446655440001', 'user_raccoon', '탐정 너구리', '🦝', '딥페이크 탐지 초보자 가이드', '안녕하세요! 딥페이크 탐지를 시작하는 분들을 위한 가이드입니다.
-
-1. 눈 깜빡임 패턴 확인
-2. 얼굴 경계선 체크
-3. 조명 일관성 확인
-4. 입술 싱크 분석
-
-이 4가지만 잘 체크하면 대부분의 딥페이크를 찾아낼 수 있습니다!', 0, 0, ARRAY['초보자', '가이드', '딥페이크'], NOW() - INTERVAL '2 hours'),
-
-('550e8400-e29b-41d4-a716-446655440002', 'user_fox', '명탐정 여우', '🦊', '최신 AI 딥페이크 기술 분석', '최근 GPT-4 기반 딥페이크 생성 기술이 발전하면서 탐지가 더욱 어려워지고 있습니다.
-
-특히 주의해야 할 점:
-- 미세한 피부 텍스처 변화
-- 머리카락 경계선의 부자연스러움
-- 배경과의 조명 불일치
-
-여러분도 조심하세요!', 0, 0, ARRAY['AI', '딥페이크', '분석'], NOW() - INTERVAL '1 hour');
-
--- Insert sample comments
-INSERT INTO community.comments (id, post_id, author_id, author_nickname, author_emoji, content, created_at) VALUES
-('c50e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 'user_fox', '명탐정 여우', '🦊', '정말 유용한 가이드네요! 초보자들에게 큰 도움이 될 것 같습니다.', NOW() - INTERVAL '1 day'),
-('c50e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440002', 'user_raccoon', '탐정 너구리', '🦝', '좋은 정보 감사합니다!', NOW() - INTERVAL '12 hours');
-
--- Insert sample likes
-INSERT INTO community.likes (id, post_id, user_id, created_at) VALUES
-('150e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 'user_fox', NOW() - INTERVAL '1 day'),
-('150e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440002', 'user_raccoon', NOW() - INTERVAL '12 hours');
-
--- Update likes and comments count to match actual data
-UPDATE community.posts p
-SET likes = (SELECT COUNT(*) FROM community.likes l WHERE l.post_id = p.id),
-    comments = (SELECT COUNT(*) FROM community.comments c WHERE c.post_id = p.id);
+함께 만드는 건강한 커뮤니티! 협조 부탁드립니다.', 0, 0, ARRAY['공지', '규칙', '운영'], TRUE, NOW() - INTERVAL '3 days');

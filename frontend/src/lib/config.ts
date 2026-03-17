@@ -7,6 +7,7 @@ const _isProd = _origin.includes('pawfiler.site');
 export const config = {
   apiBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'),
   communityBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_COMMUNITY_BASE_URL || 'http://localhost:8081'),
+  adminServiceBaseUrl: import.meta.env.VITE_ADMIN_SERVICE_BASE_URL || 'http://localhost:8082',
   
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',
@@ -18,7 +19,7 @@ export const config = {
   
   // Game Config
   quizQuestionsPerGame: 10,
-  quizTimeout: 30000, // 30 seconds
+  quizTimeout: 30000,
   
   // Pagination
   communityPageSize: 15,

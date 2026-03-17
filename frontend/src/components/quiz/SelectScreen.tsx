@@ -21,8 +21,8 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const COUNT_OPTIONS = [
-  { value: 5, label: "5문제", bonus: null },
-  { value: 10, label: "10문제", bonus: "완주 보너스 +50XP +100코인" },
+  { value: 5, label: "5문제", energy: 25, bonus: null },
+  { value: 10, label: "10문제", energy: 40, bonus: "완주 보너스 +50XP +100코인" },
 ];
 
 const SelectScreen = ({
@@ -152,6 +152,7 @@ const SelectScreen = ({
                   whileTap={{ scale: 0.97 }}
                 >
                   <div className="text-xl">{opt.label}</div>
+                  <div className="text-xs opacity-60 mt-1">⚡ {opt.energy} 소모</div>
                   {opt.bonus && <div className="text-xs opacity-70 mt-1">🎁 {opt.bonus}</div>}
                 </motion.button>
               ))}

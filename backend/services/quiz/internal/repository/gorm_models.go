@@ -280,11 +280,11 @@ type GormUserProfile struct {
 	Nickname       string    `gorm:"column:nickname;default:''" json:"nickname"`
 	AvatarEmoji    string    `gorm:"column:avatar_emoji;default:'🥚'" json:"avatar_emoji"`
 	TotalExp       int32     `gorm:"default:0" json:"total_exp"`
-	TotalCoins     int32     `gorm:"default:0" json:"total_coins"`
+	TotalCoins     int32     `gorm:"default:3000" json:"total_coins"`
 	CurrentTier    string    `gorm:"default:알" json:"current_tier"`
 	Energy         int32     `gorm:"default:100" json:"energy"`
 	MaxEnergy      int32     `gorm:"default:100" json:"max_energy"`
-	LastEnergyRefill time.Time `gorm:"default:now()" json:"last_energy_time"`
+	LastEnergyRefill time.Time `gorm:"column:last_energy_refill;default:now()" json:"last_energy_refill"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
@@ -305,6 +305,7 @@ func (gup *GormUserProfile) ToUserProfile() *UserProfile {
 		LastEnergyRefill: gup.LastEnergyRefill,
 	}
 }
+
 // FromUserProfile 기존 UserProfile 모델을 GORM 모델로 변환
 func (gup *GormUserProfile) FromUserProfile(p *UserProfile) {
 	gup.UserID = p.UserID

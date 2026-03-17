@@ -24,8 +24,11 @@ import {
   likePost,
   unlikePost,
   getPost,
+  votePost,
+  getVoteResult,
+  getUserVote,
   checkLike,
-} from "@/lib/api";
+} from "@/lib/communityApi";
 import { 
   ArrowLeft, 
   Heart, 
@@ -51,6 +54,13 @@ const CommunityPostPage = () => {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // 투표 state
+  const [trueVotes, setTrueVotes] = useState(0);
+  const [falseVotes, setFalseVotes] = useState(0);
+  const [userVote, setUserVote] = useState<boolean | null>(null);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [votingLoading, setVotingLoading] = useState(false);
+
   useEffect(() => {
     const loadPost = async () => {
       if (!postId) {
@@ -74,6 +84,24 @@ const CommunityPostPage = () => {
           const isLiked = await checkLike(postId, user.id);
           setLiked(isLiked);
         }
+
+        // 투표 결과 로드
+        try {
+          const voteResult = await getVoteResult(postId);
+          setTrueVotes(voteResult.trueVotes);
+          setFalseVotes(voteResult.falseVotes);
+        } catch {}
+
+        // 내 투표 여부 확인
+        if (user) {
+          try {
+            const myVote = await getUserVote(postId, user.id);
+            if (myVote.voted && myVote.vote !== undefined) {
+              setHasVoted(true);
+              setUserVote(myVote.vote);
+            }
+          } catch {}
+        }
       } catch (error) {
         console.error('Failed to load post:', error);
         toast.error("게시글을 불러오는데 실패했습니다.");
@@ -85,6 +113,32 @@ const CommunityPostPage = () => {
 
     loadPost();
   }, [postId, user]);
+
+  const handleVote = async (vote: boolean) => {
+    if (!user) { toast.error("로그인이 필요합니다."); return; }
+    if (hasVoted) { toast.info("이미 투표하셨습니다."); return; }
+    if (!postId) return;
+
+    setVotingLoading(true);
+    try {
+      const result = await votePost(postId, user.id, vote);
+      if (result.alreadyVoted) {
+        toast.info("이미 투표하셨습니다.");
+        setHasVoted(true);
+      } else {
+        if (vote) setTrueVotes(v => v + 1);
+        else setFalseVotes(v => v + 1);
+        setHasVoted(true);
+        setUserVote(vote);
+        if (result.xpEarned > 0) toast.success(`투표 완료! +${result.xpEarned} XP`);
+        else toast.success("투표가 완료되었습니다.");
+      }
+    } catch {
+      toast.error("투표에 실패했습니다.");
+    } finally {
+      setVotingLoading(false);
+    }
+  };
 
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !user) {
@@ -250,10 +304,95 @@ const CommunityPostPage = () => {
 
           {/* 본문 */}
           <div className="p-12">
-            <div className="text-xl leading-relaxed text-wood-dark whitespace-pre-wrap font-medium min-h-[400px] max-w-[900px] mx-auto">
+            {/* 미디어 표시 */}
+            {post.mediaUrl && (
+              <div className="mb-8 flex justify-center">
+                {post.mediaType === "video" ? (
+                  <video
+                    src={post.mediaUrl}
+                    controls
+                    className="max-w-full max-h-[600px] rounded-2xl shadow-lg border-4 border-parchment-border"
+                    style={{ maxWidth: '800px' }}
+                  >
+                    브라우저가 비디오를 지원하지 않습니다.
+                  </video>
+                ) : (
+                  <img
+                    src={post.mediaUrl}
+                    alt={post.title}
+                    className="max-w-full max-h-[600px] rounded-2xl shadow-lg border-4 border-parchment-border object-contain"
+                    style={{ maxWidth: '800px' }}
+                  />
+                )}
+              </div>
+            )}
+            
+            <div className="text-xl leading-relaxed text-wood-dark whitespace-pre-wrap font-medium min-h-[200px] max-w-[900px] mx-auto">
               {post.body}
             </div>
           </div>
+
+          {/* 투표 섹션 */}
+          {(() => {
+            const total = trueVotes + falseVotes;
+            const trueRatio = total > 0 ? Math.round((trueVotes / total) * 100) : 50;
+            const falseRatio = total > 0 ? 100 - trueRatio : 50;
+            return (
+              <div className="border-t-4 border-wood-darkest/20 p-8 bg-gradient-to-br from-orange-50/30 to-amber-50/30">
+                <div className="max-w-[700px] mx-auto flex flex-col gap-5">
+                  {/* 투표 버튼 */}
+                  <div className="flex flex-col gap-3">
+                    <p className="font-jua text-xl text-wood-darkest">이 영상/사진, 어떻게 생각하세요?</p>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => handleVote(true)}
+                        disabled={hasVoted || votingLoading}
+                        className={`flex-1 py-4 rounded-2xl border-4 font-jua text-xl transition-all
+                          ${userVote === true ? 'border-green-500 bg-green-100 text-green-700 shadow-md' :
+                            hasVoted ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' :
+                            'border-parchment-border bg-white text-wood-dark hover:border-green-400 hover:bg-green-50 hover:scale-[1.02]'}`}
+                      >
+                        ✅ 정답 {hasVoted && `(${trueVotes})`}
+                      </button>
+                      <button
+                        onClick={() => handleVote(false)}
+                        disabled={hasVoted || votingLoading}
+                        className={`flex-1 py-4 rounded-2xl border-4 font-jua text-xl transition-all
+                          ${userVote === false ? 'border-red-500 bg-red-100 text-red-700 shadow-md' :
+                            hasVoted ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' :
+                            'border-parchment-border bg-white text-wood-dark hover:border-red-400 hover:bg-red-50 hover:scale-[1.02]'}`}
+                      >
+                        ❌ 오답 {hasVoted && `(${falseVotes})`}
+                      </button>
+                    </div>
+
+                    {/* 투표 결과 바 (투표 후에만 표시) */}
+                    {hasVoted && total > 0 && (
+                      <div className="flex flex-col gap-2 mt-1">
+                        <div className="flex justify-between font-jua text-sm text-wood-dark">
+                          <span>✅ {trueRatio}%</span>
+                          <span className="text-xs text-muted-foreground">총 {total}명 투표</span>
+                          <span>❌ {falseRatio}%</span>
+                        </div>
+                        <div className="h-4 rounded-full overflow-hidden bg-gray-100 border-2 border-parchment-border flex">
+                          <div
+                            className="bg-green-400 transition-all duration-700"
+                            style={{ width: `${trueRatio}%` }}
+                          />
+                          <div
+                            className="bg-red-400 transition-all duration-700 flex-1"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {!hasVoted && (
+                      <p className="text-xs text-muted-foreground font-jua text-center">투표 후 결과를 확인할 수 있습니다</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 액션 버튼 */}
           <div className="border-t-4 border-wood-darkest/20 p-8 bg-wood-dark/10">

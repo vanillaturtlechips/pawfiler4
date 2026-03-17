@@ -109,6 +109,98 @@ export async function deleteQuestion(id: string): Promise<void> {
   }
 }
 
+// ── Shop Items ──────────────────────────────────────────────────────────────
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge: string;
+  type: string;
+  quantity: number;
+  bonus: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ShopItemRequest {
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge: string;
+  type: string;
+  quantity: number;
+  bonus: number;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export async function listShopItems(): Promise<ShopItem[]> {
+  const response = await fetch(`${ADMIN_API_URL}/admin/shop/items`);
+  if (!response.ok) throw new Error('Failed to fetch shop items');
+  const data = await response.json();
+  return data.items ?? data;
+}
+
+export async function createShopItem(data: ShopItemRequest): Promise<ShopItem> {
+  const response = await fetch(`${ADMIN_API_URL}/admin/shop/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create shop item');
+  }
+  return response.json();
+}
+
+export async function updateShopItem(id: string, data: ShopItemRequest): Promise<ShopItem> {
+  const response = await fetch(`${ADMIN_API_URL}/admin/shop/items/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update shop item');
+  }
+  return response.json();
+}
+
+export async function deleteShopItem(id: string): Promise<void> {
+  const response = await fetch(`${ADMIN_API_URL}/admin/shop/items/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to delete shop item');
+  }
+}
+
+export async function uploadShopImage(file: File): Promise<UploadMediaResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('category', 'shop');
+  formData.append('media_type', 'image');
+  formData.append('difficulty', 'general');
+
+  const response = await fetch(`${ADMIN_API_URL}/admin/quiz/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to upload image');
+  }
+  return response.json();
+}
+
 // Upload media
 export async function uploadMedia(
   file: File,

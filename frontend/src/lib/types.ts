@@ -151,6 +151,11 @@ export interface CommunityPost {
   createdAt: string;
   tags: string[];
   userId?: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  isAdminPost?: boolean;
+  trueVotes?: number;
+  falseVotes?: number;
 }
 
 export interface CommunityComment {

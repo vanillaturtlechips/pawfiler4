@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
+import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, syncProfileToQuiz, syncAuthorToCommunity, type UserFullProfile, type UserActivity } from "@/lib/api";
+import { config } from "@/lib/config";
+import { toast } from "sonner";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,45 +17,127 @@ import {
 } from "lucide-react";
 
 const ProfilePage = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { quizProfile } = useQuizProfile();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"journey" | "stats" | "settings">("journey");
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [editedNickname, setEditedNickname] = useState(user?.nickname || "");
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarEmoji || "🦊");
+  const [isSaving, setIsSaving] = useState(false);
+  const [fullProfile, setFullProfile] = useState<UserFullProfile | null>(null);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
+
+  const userId = localStorage.getItem(config.storageKeys.quizUserId) || "";
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/login");
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchUserFullProfile(userId)
+      .then(setFullProfile)
+      .catch(() => {});
+    fetchUserActivities(userId)
+      .then(setActivities)
+      .catch(() => {});
+  }, [userId]);
 
   if (!user) {
-    navigate("/login");
     return null;
   }
 
+  const handleSaveAvatar = async () => {
+    if (!userId || selectedAvatar === user.avatarEmoji) return;
+    setIsSaving(true);
+    try {
+      const res = await updateUserProfile(userId, undefined, selectedAvatar);
+      updateUser({ avatarEmoji: res.avatar_emoji });
+      await Promise.all([
+        syncProfileToQuiz(user.nickname, res.avatar_emoji),
+        syncAuthorToCommunity(userId, user.nickname, res.avatar_emoji),
+      ]);
+      toast.success("아바타가 저장되었습니다!");
+    } catch {
+      toast.error("저장에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveNickname = async () => {
+    if (!userId || !editedNickname.trim()) return;
+    setIsSaving(true);
+    try {
+      const res = await updateUserProfile(userId, editedNickname.trim(), undefined);
+      updateUser({ nickname: res.nickname });
+      await Promise.all([
+        syncProfileToQuiz(res.nickname, user.avatarEmoji || '🥚'),
+        syncAuthorToCommunity(userId, res.nickname, user.avatarEmoji || '🥚'),
+      ]);
+      setIsEditingNickname(false);
+      toast.success("닉네임이 저장되었습니다!");
+    } catch {
+      toast.error("저장에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const avatarOptions = ["🦊", "🐶", "🐱", "🐰", "🐻", "🐼", "🦝", "🐨", "🐯", "🦁", "🐮", "🐷"];
-  
-  const recentActivities = [
-    { id: 1, icon: "🎮", title: "딥페이크 퀴즈 완료", time: "2시간 전", xp: 50 },
-    { id: 2, icon: "📜", title: "커뮤니티 게시글 작성", time: "5시간 전", xp: 30 },
-    { id: 3, icon: "🔮", title: "영상 분석 완료", time: "1일 전", xp: 100 },
-    { id: 4, icon: "💬", title: "댓글 작성", time: "2일 전", xp: 10 },
-  ];
 
   const achievements = [
-    { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: true },
-    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: true },
-    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: true },
-    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: false },
+    { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: (fullProfile?.total_quizzes ?? 0) >= 1 },
+    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: (fullProfile?.current_streak ?? 0) >= 3 },
+    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: (fullProfile?.total_quizzes ?? 0) >= 5 },
+    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: (fullProfile?.correct_rate ?? 0) >= 90 },
     { id: 5, icon: "💎", title: "수집가", desc: "모든 배지 획득", unlocked: false },
-    { id: 6, icon: "🌟", title: "레벨 마스터", desc: "레벨 10 달성", unlocked: false },
+    { id: 6, icon: "🌟", title: "레벨 마스터", desc: "레벨 10 달성", unlocked: (fullProfile?.level ?? 0) >= 10 },
   ];
 
   const stats = {
-    totalQuizzes: 42,
-    correctRate: 78,
-    totalAnalysis: 15,
-    communityPosts: 8,
-    currentStreak: 3,
-    bestStreak: 7,
+    totalQuizzes: fullProfile?.total_quizzes ?? 0,
+    correctRate: Math.round(fullProfile?.correct_rate ?? 0),
+    totalAnalysis: fullProfile?.total_analysis ?? 0,
+    communityPosts: fullProfile?.community_posts ?? 0,
+    currentStreak: fullProfile?.current_streak ?? 0,
+    bestStreak: fullProfile?.best_streak ?? 0,
   };
+
+  const currentExp = quizProfile?.totalExp ?? 0;
+  const currentTier = quizProfile?.tierName ?? '알 Lv.1';
+  const expMaxXP = (() => {
+    if (currentTier.startsWith('불사조')) {
+      if (currentExp >= 8000) return 10000;
+      if (currentExp >= 6000) return 8000;
+      if (currentExp >= 4000) return 6000;
+      if (currentExp >= 2000) return 4000;
+      return 2000;
+    }
+    if (currentTier.startsWith('맹금닭')) {
+      if (currentExp >= 3200) return 4000;
+      if (currentExp >= 2400) return 3200;
+      if (currentExp >= 1600) return 2400;
+      if (currentExp >= 800) return 1600;
+      return 800;
+    }
+    if (currentTier.startsWith('삐약이')) {
+      if (currentExp >= 1600) return 2000;
+      if (currentExp >= 1200) return 1600;
+      if (currentExp >= 800) return 1200;
+      if (currentExp >= 400) return 800;
+      return 400;
+    }
+    // 알
+    if (currentExp >= 800) return 1000;
+    if (currentExp >= 600) return 800;
+    if (currentExp >= 400) return 600;
+    if (currentExp >= 200) return 400;
+    return 200;
+  })();
 
   return (
     <div className="h-[calc(100vh-5rem)] w-full overflow-hidden">
@@ -123,73 +208,13 @@ const ProfilePage = () => {
                     <Star className="w-3 h-3 text-amber-500" />
                     경험치
                   </span>
-                  <span className="text-xs">{quizProfile?.totalExp ?? user.xp} / {(() => {
-                    const tierName = quizProfile?.tierName ?? '알 Lv.1';
-                    const exp = quizProfile?.totalExp ?? 0;
-                    if (tierName.startsWith('불사조')) {
-                      if (exp >= 4000) return 5000;
-                      if (exp >= 3000) return 4000;
-                      if (exp >= 2000) return 3000;
-                      if (exp >= 1000) return 2000;
-                      return 1000;
-                    }
-                    if (tierName.startsWith('맹금닭')) {
-                      if (exp >= 1600) return 2000;
-                      if (exp >= 1200) return 1600;
-                      if (exp >= 800) return 1200;
-                      if (exp >= 400) return 800;
-                      return 400;
-                    }
-                    if (tierName.startsWith('삐약이')) {
-                      if (exp >= 800) return 1000;
-                      if (exp >= 600) return 800;
-                      if (exp >= 400) return 600;
-                      if (exp >= 200) return 400;
-                      return 200;
-                    }
-                    // 알
-                    if (exp >= 400) return 500;
-                    if (exp >= 300) return 400;
-                    if (exp >= 200) return 300;
-                    if (exp >= 100) return 200;
-                    return 100;
-                  })()} XP</span>
+                  <span className="text-xs">{currentExp} / {expMaxXP} XP</span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-amber-100 border border-amber-300">
                   <motion.div
                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
                     initial={{ width: 0 }}
-                    animate={{ width: `${(() => {
-                      const tierName = quizProfile?.tierName ?? '알 Lv.1';
-                      const exp = quizProfile?.totalExp ?? 0;
-                      let maxXP = 100;
-                      if (tierName.startsWith('불사조')) {
-                        if (exp >= 4000) maxXP = 5000;
-                        else if (exp >= 3000) maxXP = 4000;
-                        else if (exp >= 2000) maxXP = 3000;
-                        else if (exp >= 1000) maxXP = 2000;
-                        else maxXP = 1000;
-                      } else if (tierName.startsWith('맹금닭')) {
-                        if (exp >= 1600) maxXP = 2000;
-                        else if (exp >= 1200) maxXP = 1600;
-                        else if (exp >= 800) maxXP = 1200;
-                        else if (exp >= 400) maxXP = 800;
-                        else maxXP = 400;
-                      } else if (tierName.startsWith('삐약이')) {
-                        if (exp >= 800) maxXP = 1000;
-                        else if (exp >= 600) maxXP = 800;
-                        else if (exp >= 400) maxXP = 600;
-                        else if (exp >= 200) maxXP = 400;
-                        else maxXP = 200;
-                      } else {
-                        if (exp >= 400) maxXP = 500;
-                        else if (exp >= 300) maxXP = 400;
-                        else if (exp >= 200) maxXP = 300;
-                        else if (exp >= 100) maxXP = 200;
-                        else maxXP = 100;
-                      }
-                      return Math.min(100, (exp / maxXP) * 100);
-                    })()}%` }}
+                    animate={{ width: `${Math.min(100, (currentExp / expMaxXP) * 100)}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                   />
                 </div>
@@ -326,9 +351,9 @@ const ProfilePage = () => {
                       최근 활동
                     </h4>
                     <div className="space-y-2">
-                      {recentActivities.slice(0, 3).map((activity) => (
+                      {activities.slice(0, 3).map((activity, idx) => (
                         <div
-                          key={activity.id}
+                          key={idx}
                           className="flex items-center justify-between p-2 rounded-lg bg-white border border-parchment-border"
                         >
                           <div className="flex items-center gap-2">
@@ -486,28 +511,28 @@ const ProfilePage = () => {
                     <div className="space-y-2">
                       <div>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-wood-dark">현재 레벨</span>
-                          <span className="font-jua">Lv. {user.level}</span>
+                          <span className="text-wood-dark">현재 티어</span>
+                          <span className="font-jua">{currentTier}</span>
                         </div>
                         <div className="h-2 rounded-full bg-gray-200">
-                          <div 
+                          <div
                             className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
-                            style={{ width: `${(user.xp / ((user.level + 1) * 1000)) * 100}%` }}
+                            style={{ width: `${Math.min(100, (currentExp / expMaxXP) * 100)}%` }}
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
                         <div>
                           <p className="text-wood-dark">현재 XP</p>
-                          <p className="font-jua text-sm">{user.xp}</p>
+                          <p className="font-jua text-sm">{currentExp.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-wood-dark">필요 XP</p>
-                          <p className="font-jua text-sm">{(user.level + 1) * 1000 - user.xp}</p>
+                          <p className="text-wood-dark">다음까지</p>
+                          <p className="font-jua text-sm">{(expMaxXP - currentExp).toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-wood-dark">다음 레벨</p>
-                          <p className="font-jua text-sm">Lv. {user.level + 1}</p>
+                          <p className="text-wood-dark">목표 XP</p>
+                          <p className="font-jua text-sm">{expMaxXP.toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
@@ -541,15 +566,16 @@ const ProfilePage = () => {
                         </button>
                       ))}
                     </div>
-                    <Button 
-                      disabled={selectedAvatar === user.avatarEmoji}
+                    <Button
+                      onClick={handleSaveAvatar}
+                      disabled={selectedAvatar === user.avatarEmoji || isSaving}
                       className={`w-full mt-2 font-jua text-sm py-2 ${
                         selectedAvatar === user.avatarEmoji
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-orange-500 hover:bg-orange-600 text-white'
                       }`}
                     >
-                      아바타 저장
+                      {isSaving ? "저장 중..." : "아바타 저장"}
                     </Button>
                   </div>
 
@@ -571,10 +597,8 @@ const ProfilePage = () => {
                       ) : (
                         <div className="flex gap-1">
                           <Button
-                            onClick={() => {
-                              // TODO: API call
-                              setIsEditingNickname(false);
-                            }}
+                            onClick={handleSaveNickname}
+                            disabled={isSaving}
                             className="font-jua text-xs bg-green-500 hover:bg-green-600 text-white py-1 px-2 h-auto"
                           >
                             <Save className="w-3 h-3 mr-1" />

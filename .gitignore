@@ -17,8 +17,8 @@ dist-ssr
 .env.local
 .env.*.local
 .env.production
-!.env.example
-!.env.development
+.env.development
+.env.example
 
 # Editor directories and files
 .vscode/*
@@ -38,7 +38,7 @@ go*.linux-amd64.tar.gz
 # Environment files
 .env
 .env.*
-!.env.example
+.env.example
 
 # Binaries
 community-service
