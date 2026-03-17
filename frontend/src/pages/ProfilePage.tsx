@@ -92,11 +92,11 @@ const ProfilePage = () => {
 
   const achievements = [
     { id: 1, icon: "🏆", title: "첫 걸음", desc: "첫 퀴즈 완료", unlocked: (fullProfile?.totalQuizzes ?? fullProfile?.total_quizzes ?? 0) >= 1 },
-    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 접속", unlocked: (fullProfile?.currentStreak ?? fullProfile?.current_streak ?? 0) >= 3 },
-    { id: 3, icon: "⚡", title: "스피드 러너", desc: "10초 안에 정답", unlocked: (fullProfile?.totalQuizzes ?? fullProfile?.total_quizzes ?? 0) >= 5 },
-    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 90% 달성", unlocked: (fullProfile?.correctRate ?? fullProfile?.correct_rate ?? 0) >= 90 },
-    { id: 5, icon: "💎", title: "수집가", desc: "모든 배지 획득", unlocked: false },
-    { id: 6, icon: "🌟", title: "레벨 마스터", desc: "레벨 10 달성", unlocked: (fullProfile?.level ?? 0) >= 10 },
+    { id: 2, icon: "🔥", title: "연속 달성", desc: "3일 연속 퀴즈", unlocked: (fullProfile?.currentStreak ?? fullProfile?.current_streak ?? 0) >= 3 },
+    { id: 3, icon: "⭐", title: "퀴즈 마니아", desc: "퀴즈 50개 완료", unlocked: (fullProfile?.totalQuizzes ?? fullProfile?.total_quizzes ?? 0) >= 50 },
+    { id: 4, icon: "🎯", title: "명중률 달인", desc: "정답률 80% 달성", unlocked: (fullProfile?.correctRate ?? fullProfile?.correct_rate ?? 0) >= 80 },
+    { id: 5, icon: "📜", title: "탐정 블로거", desc: "게시글 3개 작성", unlocked: (fullProfile?.communityPosts ?? fullProfile?.community_posts ?? 0) >= 3 },
+    { id: 6, icon: "🔍", title: "딥페이크 헌터", desc: "영상 5회 분석", unlocked: (fullProfile?.totalAnalysis ?? fullProfile?.total_analysis ?? 0) >= 5 },
   ];
 
   const stats = {
@@ -667,7 +667,7 @@ const ProfilePage = () => {
                       <Input
                         value={editedNickname}
                         onChange={(e) => setEditedNickname(e.target.value)}
-                        className="font-jua text-base py-3 rounded-xl border-2 border-blue-300 focus:border-blue-500"
+                        className="font-jua text-base py-3 rounded-xl border-2 border-blue-300 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-400"
                         placeholder="새 닉네임 입력"
                       />
                     ) : (
