@@ -51,9 +51,6 @@ func main() {
 	shopRepo := repository.NewShopRepository(db)
 	shopHandler := handler.NewShopAdminHandler(shopRepo)
 
-	userRepo := repository.NewUserRepository(db)
-	userHandler := handler.NewUserAdminHandler(userRepo)
-
 	// Setup router
 	router := mux.NewRouter()
 
@@ -87,12 +84,6 @@ func main() {
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.DeletePost).Methods("DELETE")
 	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")
 	communityRouter.HandleFunc("/comments/{id}", communityHandler.DeleteComment).Methods("DELETE")
-
-	// Admin User routes
-	userRouter := router.PathPrefix("/admin/users").Subrouter()
-	userRouter.HandleFunc("", userHandler.ListUsers).Methods("GET")
-	userRouter.HandleFunc("/{id}", userHandler.DeleteUser).Methods("DELETE")
-	userRouter.HandleFunc("/{id}/subscription", userHandler.UpdateSubscription).Methods("PUT")
 
 	// CORS
 	c := cors.New(cors.Options{

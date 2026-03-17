@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
-import { BookOpen, Users, ShoppingBag, UserCircle } from "lucide-react";
+import { BookOpen, Users, ShoppingBag } from "lucide-react";
 
 const cards = [
-  { title: "회원 관리", desc: "회원 조회/구독 변경/삭제", to: "/admin/users", icon: UserCircle },
   { title: "퀴즈 관리", desc: "문제 등록/수정, 통계 확인", to: "/admin/quiz", icon: BookOpen },
   { title: "커뮤니티", desc: "게시글 검색/수정/삭제", to: "/admin/community", icon: Users },
   { title: "상점 관리", desc: "아이템 등록/수정/삭제", to: "/admin/shop", icon: ShoppingBag },
