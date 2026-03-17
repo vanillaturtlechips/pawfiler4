@@ -1,6 +1,6 @@
 export const fixImageUrl = (url: string): string => {
   if (!url) return url;
-  
+
   const cfDomain = (import.meta.env.VITE_MEDIA_CLOUDFRONT_DOMAIN || 'https://dx0x4vrja13f5.cloudfront.net')
     .replace('https://', '').replace('http://', '');
 

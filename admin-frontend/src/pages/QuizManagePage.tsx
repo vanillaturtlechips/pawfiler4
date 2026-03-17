@@ -137,15 +137,7 @@ export default function QuizManagePage() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            onClick={() => window.location.href = '/'}
-          >
-            ← 메인으로
-          </Button>
-          <h1 className="text-3xl font-bold">퀴즈 관리</h1>
-        </div>
+        <h1 className="text-3xl font-bold">퀴즈 관리</h1>
         <Button onClick={handleCreate}>
           <Plus className="mr-2 h-4 w-4" />
           문제 추가

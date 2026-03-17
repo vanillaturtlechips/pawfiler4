@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
@@ -7,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/
 import { Textarea } from "../components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
-import { Loader2, Search, Eye, Edit, Trash2, Home } from "lucide-react";
+import { Loader2, Search, Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Post = {
@@ -119,15 +118,7 @@ export default function AdminCommunityPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <Link to="/admin">
-            <Button variant="outline" size="sm">
-              <Home className="h-4 w-4 mr-2" />
-              메인으로
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold">커뮤니티 관리</h1>
-        </div>
+        <h1 className="text-3xl font-bold">커뮤니티 관리</h1>
         <div className="text-sm text-muted-foreground">
           총 {feed.totalCount}개 게시글
         </div>
