@@ -158,6 +158,8 @@ jobs:
 
       - name: Build
         working-directory: admin-frontend
+        env:
+          VITE_ADMIN_API_URL: http://k8s-admin-adminser-3c357749a0-5162d22eb2ae0f3a.elb.ap-northeast-2.amazonaws.com
         run: |
           npm ci
           npm run build
