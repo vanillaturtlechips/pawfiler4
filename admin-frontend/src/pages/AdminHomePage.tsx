@@ -1,25 +1,27 @@
 import { Link } from "react-router-dom";
-import { Button } from "../components/ui/button";
+import { BookOpen, Users, ShoppingBag, UserCircle } from "lucide-react";
 
-const Card = ({ title, desc, to }: { title: string; desc: string; to: string }) => (
-  <div className="border rounded-xl p-6 flex flex-col gap-3">
-    <div className="text-xl font-bold">{title}</div>
-    <div className="text-sm text-muted-foreground">{desc}</div>
-    <div>
-      <Link to={to}><Button>열기</Button></Link>
-    </div>
-  </div>
-);
+const cards = [
+  { title: "회원 관리", desc: "회원 조회/구독 변경/삭제", to: "/admin/users", icon: UserCircle },
+  { title: "퀴즈 관리", desc: "문제 등록/수정, 통계 확인", to: "/admin/quiz", icon: BookOpen },
+  { title: "커뮤니티", desc: "게시글 검색/수정/삭제", to: "/admin/community", icon: Users },
+  { title: "상점 관리", desc: "아이템 등록/수정/삭제", to: "/admin/shop", icon: ShoppingBag },
+];
 
 export default function AdminHomePage() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">어드민 메인</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card title="퀴즈 관리" desc="문제 등록/수정, 통계 확인" to="/admin/quiz" />
-        <Card title="커뮤니티 관리" desc="게시글 검색/수정/삭제" to="/admin/community" />
-        <Card title="상점 관리" desc="아이템 등록/수정/삭제, 이미지 업로드" to="/admin/shop" />
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {cards.map(({ title, desc, to, icon: Icon }) => (
+        <Link key={to} to={to} className="border rounded-xl p-6 bg-white hover:shadow-md transition-shadow flex items-start gap-4">
+          <div className="p-2 bg-gray-100 rounded-lg">
+            <Icon className="h-5 w-5 text-gray-700" />
+          </div>
+          <div>
+            <div className="font-semibold">{title}</div>
+            <div className="text-sm text-muted-foreground mt-1">{desc}</div>
+          </div>
+        </Link>
+      ))}
     </div>
   );
 }
