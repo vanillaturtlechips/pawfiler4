@@ -180,12 +180,15 @@ export default function QuestionForm({ question, onClose }: QuestionFormProps) {
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     const rect = img.getBoundingClientRect();
-    const x = Math.round(e.clientX - rect.left);
-    const y = Math.round(e.clientY - rect.top);
-    
+    // 원본 이미지 픽셀 기준으로 정규화 (display 크기와 무관하게 일관된 좌표)
+    const scaleX = img.naturalWidth / rect.width;
+    const scaleY = img.naturalHeight / rect.height;
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+
     setRsRegionX(x);
     setRsRegionY(y);
-    toast.success(`좌표 설정: (${x}, ${y})`);
+    toast.success(`좌표 설정: (${x}, ${y}) [원본 이미지 픽셀 기준]`);
   };
 
   const handleEnhanceExplanation = async (questionType: string, currentExplanation: string, setExplanation: (text: string) => void) => {
@@ -1132,26 +1135,26 @@ ${aiSide} 이미지가 AI 생성물인 이유를 1-2문장으로 설명해주세
               />
             </div>
             <div className="space-y-2">
-              <Label>반지름 (픽셀)</Label>
+              <Label>반지름 (원본 이미지 픽셀)</Label>
               <Input
                 type="number"
                 value={rsRegionRadius}
                 onChange={(e) => setRsRegionRadius(Number(e.target.value))}
-                placeholder="50"
-                min="10"
-                max="200"
+                placeholder="200"
+                min="50"
+                max="2000"
               />
             </div>
             <div className="space-y-2">
-              <Label>허용 오차 (픽셀)</Label>
+              <Label>허용 오차 (원본 이미지 픽셀)</Label>
               <Input
                 type="number"
                 step="1"
                 value={rsTolerance}
                 onChange={(e) => setRsTolerance(Number(e.target.value))}
-                placeholder="50"
+                placeholder="200"
                 min="0"
-                max="200"
+                max="2000"
               />
             </div>
           </div>
