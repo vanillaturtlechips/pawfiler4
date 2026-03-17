@@ -457,111 +457,112 @@ const ProfilePage = () => {
 
               {/* Stats Tab */}
               {activeTab === "stats" && (
-                <div className="h-full overflow-y-auto">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-2xl">📊</span>
-                    <h3 className="font-jua text-xl text-wood-darkest">상세 통계</h3>
-                  </div>
+                <div className="h-full overflow-y-auto pr-1">
 
-                  {/* Stats Grid - Compact */}
-                  <div className="grid grid-cols-4 gap-2 mb-3">
-                    <div className="p-3 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 text-center">
-                      <div className="text-2xl mb-1">🎮</div>
-                      <p className="text-xs text-blue-700 font-semibold mb-0.5">총 퀴즈</p>
-                      <p className="font-jua text-lg text-blue-900">{stats.totalQuizzes}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-gradient-to-br from-green-50 to-green-100 border border-green-300 text-center">
-                      <div className="text-2xl mb-1">✅</div>
-                      <p className="text-xs text-green-700 font-semibold mb-0.5">정답률</p>
-                      <p className="font-jua text-lg text-green-900">{stats.correctRate}%</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-300 text-center">
-                      <div className="text-2xl mb-1">🔮</div>
-                      <p className="text-xs text-purple-700 font-semibold mb-0.5">영상 분석</p>
-                      <p className="font-jua text-lg text-purple-900">{stats.totalAnalysis}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-300 text-center">
-                      <div className="text-2xl mb-1">📜</div>
-                      <p className="text-xs text-amber-700 font-semibold mb-0.5">게시글</p>
-                      <p className="font-jua text-lg text-amber-900">{stats.communityPosts}</p>
+                  {/* 타이틀 */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <span className="text-4xl drop-shadow-md">📊</span>
+                    <div>
+                      <h3 className="font-jua text-2xl text-wood-darkest leading-tight">나의 탐정 기록</h3>
+                      <p className="font-jua text-sm text-blue-600">얼마나 많이 성장했는지 확인해봐요!</p>
                     </div>
                   </div>
 
-                  {/* Detailed Stats - Compact */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="p-3 rounded-lg bg-white border border-parchment-border">
-                      <h4 className="font-jua text-sm text-wood-darkest mb-2 flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-red-500" />
-                        커뮤니티
-                      </h4>
-                      <div className="space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-xs text-wood-dark">게시글</span>
-                          <span className="font-jua text-xs">{stats.communityPosts}개</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-xs text-wood-dark">좋아요</span>
-                          <span className="font-jua text-xs">124개</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-xs text-wood-dark">댓글</span>
-                          <span className="font-jua text-xs">56개</span>
-                        </div>
+                  {/* 핵심 통계 카드 */}
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    {[
+                      { emoji: "🎮", label: "총 퀴즈 도전", value: stats.totalQuizzes, unit: "회", from: "from-blue-100", to: "to-sky-100", border: "border-blue-300", text: "text-blue-600" },
+                      { emoji: "✅", label: "정답률", value: `${stats.correctRate}`, unit: "%", from: "from-green-100", to: "to-emerald-100", border: "border-green-300", text: "text-green-600" },
+                      { emoji: "🔮", label: "영상 분석", value: stats.totalAnalysis, unit: "회", from: "from-purple-100", to: "to-violet-100", border: "border-purple-300", text: "text-purple-600" },
+                      { emoji: "📜", label: "커뮤니티 게시글", value: stats.communityPosts, unit: "개", from: "from-amber-100", to: "to-yellow-100", border: "border-amber-300", text: "text-amber-600" },
+                    ].map((item, idx) => (
+                      <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.07 }}
+                        whileHover={{ scale: 1.03 }}
+                        className={`p-4 rounded-2xl bg-gradient-to-br ${item.from} ${item.to} border-2 ${item.border} text-center shadow-md`}
+                      >
+                        <div className="text-4xl mb-1">{item.emoji}</div>
+                        <p className={`font-jua text-base ${item.text} mb-1`}>{item.label}</p>
+                        <p className={`font-jua text-4xl ${item.text} leading-none`}>
+                          {item.value}<span className="text-xl">{item.unit}</span>
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* 커뮤니티 & 분석 상세 */}
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-rose-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Heart className="w-5 h-5 text-red-500" fill="currentColor" />
+                        <h4 className="font-jua text-lg text-wood-darkest">커뮤니티</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {[
+                          { label: "게시글", value: `${stats.communityPosts}개` },
+                          { label: "받은 좋아요", value: "124개" },
+                          { label: "댓글", value: "56개" },
+                        ].map((row, i) => (
+                          <div key={i} className="flex justify-between items-center py-1 border-b border-rose-100 last:border-0">
+                            <span className="font-jua text-sm text-wood-dark">{row.label}</span>
+                            <span className="font-jua text-base text-wood-darkest">{row.value}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-white border border-parchment-border">
-                      <h4 className="font-jua text-sm text-wood-darkest mb-2 flex items-center gap-1">
-                        <Eye className="w-3 h-3 text-blue-500" />
-                        분석
-                      </h4>
-                      <div className="space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-xs text-wood-dark">총 분석</span>
-                          <span className="font-jua text-xs">{stats.totalAnalysis}회</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-xs text-wood-dark">발견</span>
-                          <span className="font-jua text-xs">8개</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-xs text-wood-dark">정확도</span>
-                          <span className="font-jua text-xs">85%</span>
-                        </div>
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50 border-2 border-sky-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="w-5 h-5 text-blue-500" />
+                        <h4 className="font-jua text-lg text-wood-darkest">분석 활동</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {[
+                          { label: "총 분석", value: `${stats.totalAnalysis}회` },
+                          { label: "단서 발견", value: "8개" },
+                          { label: "분석 정확도", value: "85%" },
+                        ].map((row, i) => (
+                          <div key={i} className="flex justify-between items-center py-1 border-b border-sky-100 last:border-0">
+                            <span className="font-jua text-sm text-wood-dark">{row.label}</span>
+                            <span className="font-jua text-base text-wood-darkest">{row.value}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {/* Progress Chart - Compact */}
-                  <div className="p-3 rounded-lg bg-white border border-parchment-border">
-                    <h4 className="font-jua text-sm text-wood-darkest mb-2">레벨 진행도</h4>
-                    <div className="space-y-2">
-                      <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-wood-dark">현재 티어</span>
-                          <span className="font-jua">{currentTier}</span>
+                  {/* XP 진행도 */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">⭐</span>
+                      <h4 className="font-jua text-lg text-wood-darkest">레벨 진행도</h4>
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-jua text-base text-amber-700">현재 티어</span>
+                      <span className="px-3 py-0.5 rounded-full bg-amber-200 border border-amber-400 font-jua text-base text-amber-900">{currentTier}</span>
+                    </div>
+                    <div className="h-4 rounded-full overflow-hidden bg-amber-100 border-2 border-amber-300 mb-3">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, (currentExp / expMaxXP) * 100)}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {[
+                        { label: "현재 XP", value: currentExp.toLocaleString() },
+                        { label: "다음까지", value: (expMaxXP - currentExp).toLocaleString() },
+                        { label: "목표 XP", value: expMaxXP.toLocaleString() },
+                      ].map((item, i) => (
+                        <div key={i} className="p-2 rounded-xl bg-white border border-amber-200">
+                          <p className="font-jua text-sm text-amber-700">{item.label}</p>
+                          <p className="font-jua text-lg text-amber-900">{item.value}</p>
                         </div>
-                        <div className="h-2 rounded-full bg-gray-200">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
-                            style={{ width: `${Math.min(100, (currentExp / expMaxXP) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div>
-                          <p className="text-wood-dark">현재 XP</p>
-                          <p className="font-jua text-sm">{currentExp.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-wood-dark">다음까지</p>
-                          <p className="font-jua text-sm">{(expMaxXP - currentExp).toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-wood-dark">목표 XP</p>
-                          <p className="font-jua text-sm">{expMaxXP.toLocaleString()}</p>
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -569,66 +570,79 @@ const ProfilePage = () => {
 
               {/* Settings Tab */}
               {activeTab === "settings" && (
-                <div className="h-full overflow-y-auto">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-2xl">⚙️</span>
-                    <h3 className="font-jua text-xl text-wood-darkest">설정</h3>
+                <div className="h-full overflow-y-auto pr-1">
+
+                  {/* 타이틀 */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <span className="text-4xl drop-shadow-md">⚙️</span>
+                    <div>
+                      <h3 className="font-jua text-2xl text-wood-darkest leading-tight">나의 탐정 설정</h3>
+                      <p className="font-jua text-sm text-green-600">나만의 탐정 캐릭터를 꾸며봐요!</p>
+                    </div>
                   </div>
 
-                  {/* Avatar Selection - Compact */}
-                  <div className="p-3 rounded-lg bg-white border border-parchment-border mb-3">
-                    <h4 className="font-jua text-sm text-wood-darkest mb-2">아바타 변경</h4>
-                    <div className="grid grid-cols-6 gap-2">
+                  {/* 아바타 변경 */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 mb-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">🎭</span>
+                      <h4 className="font-jua text-lg text-wood-darkest">아바타 변경</h4>
+                    </div>
+                    <div className="grid grid-cols-6 gap-2 mb-3">
                       {avatarOptions.map((emoji, index) => (
-                        <button
+                        <motion.button
                           key={index}
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.95 }}
                           onClick={() => setSelectedAvatar(emoji)}
-                          className={`aspect-square rounded-lg flex items-center justify-center text-2xl border-2 transition-colors ${
+                          className={`aspect-square rounded-2xl flex items-center justify-center text-3xl border-3 transition-colors shadow-sm ${
                             selectedAvatar === emoji
-                              ? "border-orange-500 bg-orange-50"
-                              : "border-parchment-border bg-white hover:border-orange-300"
+                              ? "border-orange-500 bg-orange-100 shadow-md"
+                              : "border-parchment-border bg-white hover:border-orange-300 hover:bg-orange-50"
                           }`}
                         >
                           {emoji}
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
                     <Button
                       onClick={handleSaveAvatar}
                       disabled={selectedAvatar === user.avatarEmoji || isSaving}
-                      className={`w-full mt-2 font-jua text-sm py-2 ${
+                      className={`w-full font-jua text-base py-3 rounded-xl ${
                         selectedAvatar === user.avatarEmoji
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-orange-500 hover:bg-orange-600 text-white'
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
                       }`}
                     >
-                      {isSaving ? "저장 중..." : "아바타 저장"}
+                      {isSaving ? "저장 중... 🌀" : "✨ 아바타 저장하기"}
                     </Button>
                   </div>
 
-                  {/* Nickname Edit - Compact */}
-                  <div className="p-3 rounded-lg bg-white border border-parchment-border mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-jua text-sm text-wood-darkest">닉네임</h4>
+                  {/* 닉네임 변경 */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200 mb-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">✏️</span>
+                        <h4 className="font-jua text-lg text-wood-darkest">닉네임</h4>
+                      </div>
                       {!isEditingNickname ? (
                         <Button
                           onClick={() => {
                             setIsEditingNickname(true);
                             setEditedNickname(user.nickname);
                           }}
-                          className="font-jua text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 h-auto"
+                          className="font-jua text-sm bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 h-auto rounded-xl"
                         >
-                          <Edit2 className="w-3 h-3 mr-1" />
+                          <Edit2 className="w-4 h-4 mr-1" />
                           수정
                         </Button>
                       ) : (
-                        <div className="flex gap-1">
+                        <div className="flex gap-2">
                           <Button
                             onClick={handleSaveNickname}
                             disabled={isSaving}
-                            className="font-jua text-xs bg-green-500 hover:bg-green-600 text-white py-1 px-2 h-auto"
+                            className="font-jua text-sm bg-green-500 hover:bg-green-600 text-white py-2 px-3 h-auto rounded-xl"
                           >
-                            <Save className="w-3 h-3 mr-1" />
+                            <Save className="w-4 h-4 mr-1" />
                             저장
                           </Button>
                           <Button
@@ -636,9 +650,9 @@ const ProfilePage = () => {
                               setIsEditingNickname(false);
                               setEditedNickname(user.nickname);
                             }}
-                            className="font-jua text-xs bg-gray-500 hover:bg-gray-600 text-white py-1 px-2 h-auto"
+                            className="font-jua text-sm bg-gray-400 hover:bg-gray-500 text-white py-2 px-3 h-auto rounded-xl"
                           >
-                            <X className="w-3 h-3 mr-1" />
+                            <X className="w-4 h-4 mr-1" />
                             취소
                           </Button>
                         </div>
@@ -648,73 +662,77 @@ const ProfilePage = () => {
                       <Input
                         value={editedNickname}
                         onChange={(e) => setEditedNickname(e.target.value)}
-                        className="font-jua text-sm py-2 rounded-lg border border-parchment-border"
+                        className="font-jua text-base py-3 rounded-xl border-2 border-blue-300 focus:border-blue-500"
                         placeholder="새 닉네임 입력"
                       />
                     ) : (
-                      <p className="font-jua text-base text-wood-dark">{user.nickname}</p>
+                      <p className="font-jua text-xl text-blue-800 bg-white rounded-xl px-4 py-3 border-2 border-blue-100">{user.nickname}</p>
                     )}
                   </div>
 
-                  {/* Account Info - Compact */}
-                  <div className="p-3 rounded-lg bg-white border border-parchment-border mb-3">
-                    <h4 className="font-jua text-sm text-wood-darkest mb-2">계정 정보</h4>
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-wood-dark">이메일</span>
-                        <span className="font-jua text-xs text-wood-darkest">{user.email}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-wood-dark">가입일</span>
-                        <span className="font-jua text-xs text-wood-darkest">
-                          {new Date(user.createdAt).toLocaleDateString("ko-KR")}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-wood-dark">구독 상태</span>
-                        <Badge className={`font-jua text-xs ${
+                  {/* 계정 정보 */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 mb-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">🪪</span>
+                      <h4 className="font-jua text-lg text-wood-darkest">계정 정보</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { label: "이메일", value: user.email },
+                        { label: "가입일", value: new Date(user.createdAt).toLocaleDateString("ko-KR") },
+                      ].map((row, i) => (
+                        <div key={i} className="flex justify-between items-center py-2 border-b border-green-100 last:border-0">
+                          <span className="font-jua text-base text-wood-dark">{row.label}</span>
+                          <span className="font-jua text-base text-wood-darkest">{row.value}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between items-center pt-1">
+                        <span className="font-jua text-base text-wood-dark">구독 상태</span>
+                        <Badge className={`font-jua text-sm px-3 py-1 ${
                           user.subscriptionType === "premium"
-                            ? "bg-gradient-to-r from-yellow-400 to-orange-400 text-white"
+                            ? "bg-gradient-to-r from-yellow-400 to-orange-400 text-white border-0"
                             : "bg-gray-200 text-gray-700"
                         }`}>
-                          {user.subscriptionType === "premium" ? "⭐ 프리미엄" : "무료"}
+                          {user.subscriptionType === "premium" ? "⭐ 프리미엄" : "무료 회원"}
                         </Badge>
                       </div>
                     </div>
                   </div>
 
-                  {/* Premium Upgrade - Compact */}
+                  {/* 프리미엄 업그레이드 */}
                   {user.subscriptionType === "free" && (
-                    <div className="p-3 rounded-lg bg-gradient-to-br from-yellow-50 to-orange-50 border border-orange-300">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 rounded-2xl bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-orange-300 shadow-sm"
+                    >
                       <div className="flex items-center gap-2 mb-2">
-                        <Crown className="w-5 h-5 text-orange-600" />
-                        <h4 className="font-jua text-base text-orange-900">프리미엄 업그레이드</h4>
+                        <Crown className="w-6 h-6 text-orange-500" fill="currentColor" />
+                        <h4 className="font-jua text-xl text-orange-900">프리미엄 업그레이드</h4>
                       </div>
-                      <p className="text-xs text-wood-dark mb-2">
-                        프리미엄 회원이 되어 더 많은 혜택을 누리세요!
+                      <p className="font-jua text-base text-wood-dark mb-3">
+                        프리미엄 탐정이 되어 더 많은 모험을 즐겨봐요!
                       </p>
-                      <ul className="space-y-1 mb-2 text-xs text-wood-dark">
-                        <li className="flex items-center gap-1">
-                          <span className="text-green-600">✓</span>
-                          무제한 퀴즈 도전
-                        </li>
-                        <li className="flex items-center gap-1">
-                          <span className="text-green-600">✓</span>
-                          고급 영상 분석
-                        </li>
-                        <li className="flex items-center gap-1">
-                          <span className="text-green-600">✓</span>
-                          특별 아바타
-                        </li>
+                      <ul className="space-y-2 mb-4">
+                        {[
+                          { icon: "🎮", text: "무제한 퀴즈 도전" },
+                          { icon: "🔮", text: "고급 영상 분석" },
+                          { icon: "🦄", text: "특별 프리미엄 아바타" },
+                        ].map((item, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span className="text-lg">{item.icon}</span>
+                            <span className="font-jua text-base text-wood-dark">{item.text}</span>
+                          </li>
+                        ))}
                       </ul>
                       <Button
                         onClick={() => navigate("/shop")}
-                        className="w-full font-jua text-sm py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg"
+                        className="w-full font-jua text-base py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-md"
                       >
-                        <Crown className="w-4 h-4 mr-1" />
-                        프리미엄 구독하기
+                        <Crown className="w-5 h-5 mr-2" />
+                        프리미엄 탐정 되기! ✨
                       </Button>
-                    </div>
+                    </motion.div>
                   )}
                 </div>
               )}
