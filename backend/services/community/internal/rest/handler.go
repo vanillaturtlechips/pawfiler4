@@ -85,9 +85,6 @@ func NewMuxWithDB(svc CommunityService, db *sql.DB) http.Handler {
 		mux.HandleFunc(prefix+"/community.CommunityService/GetRanking", withCORS(handleGetRanking(db)))
 		mux.HandleFunc(prefix+"/community.CommunityService/SyncAuthorNickname", handleSyncAuthorNickname(db))
 	}
-	// 파일 업로드 (multipart) - 이미지/영상
-	mux.HandleFunc("/community/upload-media", withCORS(handleUploadMedia()))
-	mux.HandleFunc("/api/community/upload-media", withCORS(handleUploadMedia()))
 	return mux
 }
 
@@ -470,87 +467,4 @@ func deleteMediaFromS3(mediaURL string) error {
 	return nil
 }
 
-func handleUploadMedia() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
 
-		// 100MB 제한
-		r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
-		if err := r.ParseMultipartForm(100 << 20); err != nil {
-			writeError(w, http.StatusBadRequest, "file too large (max 100MB)")
-			return
-		}
-
-		file, header, err := r.FormFile("file")
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "file is required")
-			return
-		}
-		defer file.Close()
-
-		// 허용 타입 체크
-		contentType := header.Header.Get("Content-Type")
-		ext := strings.ToLower(filepath.Ext(header.Filename))
-		allowedExts := map[string]string{
-			".jpg": "image", ".jpeg": "image", ".png": "image", ".gif": "image", ".webp": "image",
-			".mp4": "video", ".mov": "video", ".avi": "video", ".webm": "video",
-		}
-		mediaType, ok := allowedExts[ext]
-		if !ok {
-			writeError(w, http.StatusBadRequest, "unsupported file type")
-			return
-		}
-
-		// S3 업로드
-		bucket := os.Getenv("S3_COMMUNITY_BUCKET")
-		if bucket == "" {
-			bucket = "pawfiler-community-media"
-		}
-		region := os.Getenv("AWS_REGION")
-		if region == "" {
-			region = "ap-northeast-2"
-		}
-		cloudfrontDomain := os.Getenv("CLOUDFRONT_COMMUNITY_DOMAIN")
-
-		key := fmt.Sprintf("community/%s/%s%s", mediaType, uuid.New().String(), ext)
-
-		cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
-		if err != nil {
-			log.Printf("AWS config error: %v", err)
-			writeError(w, http.StatusInternalServerError, "storage configuration error")
-			return
-		}
-
-		client := s3.NewFromConfig(cfg)
-		_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
-			Bucket:      aws.String(bucket),
-			Key:         aws.String(key),
-			Body:        file,
-			ContentType: aws.String(contentType),
-		})
-		if err != nil {
-			log.Printf("S3 upload error: %v", err)
-			writeError(w, http.StatusInternalServerError, "upload failed")
-			return
-		}
-
-		var mediaUrl string
-		if cloudfrontDomain != "" {
-			mediaUrl = fmt.Sprintf("%s/%s", strings.TrimRight(cloudfrontDomain, "/"), key)
-		} else {
-			mediaUrl = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
-			"media_url":  mediaUrl,
-			"media_type": mediaType,
-		})
-
-		_ = time.Now() // suppress unused import
-	}
-}
