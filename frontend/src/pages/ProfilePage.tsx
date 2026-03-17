@@ -55,10 +55,11 @@ const ProfilePage = () => {
     setIsSaving(true);
     try {
       const res = await updateUserProfile(userId, undefined, selectedAvatar);
-      updateUser({ avatarEmoji: res.avatar_emoji });
+      const newAvatar = res.avatarEmoji ?? res.avatar_emoji ?? selectedAvatar;
+      updateUser({ avatarEmoji: newAvatar });
       await Promise.all([
-        syncProfileToQuiz(user.nickname, res.avatar_emoji),
-        syncAuthorToCommunity(userId, user.nickname, res.avatar_emoji),
+        syncProfileToQuiz(user.nickname, newAvatar),
+        syncAuthorToCommunity(userId, user.nickname, newAvatar),
       ]);
       toast.success("아바타가 저장되었습니다!");
     } catch {

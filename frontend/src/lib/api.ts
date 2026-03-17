@@ -710,9 +710,12 @@ export interface ShopCatalog {
 
 export interface PurchaseResult {
   success: boolean;
-  item_name: string;
-  coins_paid: number;
-  total_coins: number;
+  itemName?: string;
+  item_name?: string;
+  coinsPaid?: number;
+  coins_paid?: number;
+  totalCoins?: number;
+  total_coins?: number;
 }
 
 const userServicePost = async <T>(path: string, body: object): Promise<T> => {
@@ -736,7 +739,7 @@ export const updateUserProfile = async (
   userId: string,
   nickname?: string,
   avatarEmoji?: string
-): Promise<{ success: boolean; nickname: string; avatar_emoji: string }> => {
+): Promise<{ success: boolean; nickname: string; avatarEmoji?: string; avatar_emoji?: string }> => {
   return userServicePost("UpdateProfile", {
     user_id: userId,
     ...(nickname && { nickname }),

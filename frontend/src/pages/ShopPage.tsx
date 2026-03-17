@@ -13,17 +13,6 @@ import { config } from "@/lib/config";
 
 type ShopTab = "subscription" | "coins" | "packages";
 
-interface ShopItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  icon: string;
-  badge?: string;
-  type: "subscription" | "coins" | "avatar" | "item";
-  quantity?: number;
-  bonus?: number;
-}
 
 const ShopPage = () => {
   const { user, updateUser } = useAuth();
@@ -50,7 +39,7 @@ const ShopPage = () => {
       .catch(() => {});
   }, []);
 
-  const handlePurchase = async (item: ShopItem) => {
+  const handlePurchase = async (item: ShopCatalog["subscriptions"][number]) => {
     if (!user) {
       toast.error("로그인이 필요합니다.");
       return;
@@ -70,7 +59,7 @@ const ShopPage = () => {
     setPurchasing(item.id);
     try {
       const result = await purchaseItem(userId, item.id);
-      toast.success(`${result.item_name}을(를) 구매했습니다!`);
+      toast.success(`${result.itemName ?? result.item_name}을(를) 구매했습니다!`);
       updateUser({ coins: result.totalCoins ?? result.total_coins });
       if (quizProfile) {
         updateQuizProfile({ ...quizProfile, totalCoins: result.totalCoins ?? result.total_coins });
@@ -83,7 +72,7 @@ const ShopPage = () => {
     }
   };
 
-  const getCurrentItems = (): ShopItem[] => {
+  const getCurrentItems = (): ShopCatalog["subscriptions"] => {
     switch (activeTab) {
       case "subscription":
         return catalog.subscriptions;
