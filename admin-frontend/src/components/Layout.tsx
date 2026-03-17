@@ -1,10 +1,9 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Users, ShoppingBag, UserCircle, Menu, X } from "lucide-react";
+import { LayoutDashboard, BookOpen, Users, ShoppingBag, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
   { to: "/admin", label: "대시보드", icon: LayoutDashboard, exact: true },
-  { to: "/admin/users", label: "회원 관리", icon: UserCircle },
   { to: "/admin/quiz", label: "퀴즈 관리", icon: BookOpen },
   { to: "/admin/community", label: "커뮤니티", icon: Users },
   { to: "/admin/shop", label: "상점 관리", icon: ShoppingBag },
@@ -12,7 +11,6 @@ const navItems = [
 
 const pageTitles: Record<string, string> = {
   "/admin": "대시보드",
-  "/admin/users": "회원 관리",
   "/admin/quiz": "퀴즈 관리",
   "/admin/community": "커뮤니티 관리",
   "/admin/shop": "상점 관리",
