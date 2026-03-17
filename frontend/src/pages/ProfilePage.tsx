@@ -55,10 +55,10 @@ const ProfilePage = () => {
     setIsSaving(true);
     try {
       const res = await updateUserProfile(userId, undefined, selectedAvatar);
-      updateUser({ avatarEmoji: res.avatarEmoji ?? res.avatar_emoji });
+      updateUser({ avatarEmoji: res.avatar_emoji });
       await Promise.all([
-        syncProfileToQuiz(user.nickname, res.avatarEmoji ?? res.avatar_emoji),
-        syncAuthorToCommunity(userId, user.nickname, res.avatarEmoji ?? res.avatar_emoji),
+        syncProfileToQuiz(user.nickname, res.avatar_emoji),
+        syncAuthorToCommunity(userId, user.nickname, res.avatar_emoji),
       ]);
       toast.success("아바타가 저장되었습니다!");
     } catch {
@@ -105,6 +105,10 @@ const ProfilePage = () => {
     communityPosts: fullProfile?.communityPosts ?? fullProfile?.community_posts ?? 0,
     currentStreak: fullProfile?.currentStreak ?? fullProfile?.current_streak ?? 0,
     bestStreak: fullProfile?.bestStreak ?? fullProfile?.best_streak ?? 0,
+    totalLikesReceived: fullProfile?.totalLikesReceived ?? fullProfile?.total_likes_received ?? 0,
+    totalCommentsWritten: fullProfile?.totalCommentsWritten ?? fullProfile?.total_comments_written ?? 0,
+    suspiciousVideos: fullProfile?.suspiciousVideos ?? fullProfile?.suspicious_videos ?? 0,
+    avgConfidence: Math.round(fullProfile?.avgConfidence ?? fullProfile?.avg_confidence ?? 0),
   };
 
   const currentExp = quizProfile?.totalExp ?? 0;
@@ -503,8 +507,8 @@ const ProfilePage = () => {
                       <div className="space-y-2">
                         {[
                           { label: "게시글", value: `${stats.communityPosts}개` },
-                          { label: "받은 좋아요", value: "124개" },
-                          { label: "댓글", value: "56개" },
+                          { label: "받은 좋아요", value: `${stats.totalLikesReceived}개` },
+                          { label: "작성한 댓글", value: `${stats.totalCommentsWritten}개` },
                         ].map((row, i) => (
                           <div key={i} className="flex justify-between items-center py-1 border-b border-rose-100 last:border-0">
                             <span className="font-jua text-sm text-wood-dark">{row.label}</span>
@@ -522,8 +526,8 @@ const ProfilePage = () => {
                       <div className="space-y-2">
                         {[
                           { label: "총 분석", value: `${stats.totalAnalysis}회` },
-                          { label: "단서 발견", value: "8개" },
-                          { label: "분석 정확도", value: "85%" },
+                          { label: "조작 의심 영상", value: `${stats.suspiciousVideos}개` },
+                          { label: "평균 신뢰도", value: `${stats.avgConfidence}%` },
                         ].map((row, i) => (
                           <div key={i} className="flex justify-between items-center py-1 border-b border-sky-100 last:border-0">
                             <span className="font-jua text-sm text-wood-dark">{row.label}</span>

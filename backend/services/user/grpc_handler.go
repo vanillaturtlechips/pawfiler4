@@ -52,23 +52,40 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM community.posts WHERE author_id = $1`, req.UserId).Scan(&communityPosts)
 	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM video_analysis.tasks WHERE user_id = $1`, req.UserId).Scan(&totalAnalysis)
 
+	var totalLikesReceived, totalCommentsWritten, suspiciousVideos int
+	var avgConfidence float64
+	s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(likes), 0) FROM community.posts WHERE author_id = $1`, req.UserId).Scan(&totalLikesReceived)
+	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM community.comments WHERE author_id = $1`, req.UserId).Scan(&totalCommentsWritten)
+	s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM video_analysis.tasks t
+		JOIN video_analysis.results r ON t.id = r.task_id
+		WHERE t.user_id = $1 AND r.verdict != 'REAL'`, req.UserId).Scan(&suspiciousVideos)
+	s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(AVG(r.confidence_score) * 100, 0) FROM video_analysis.tasks t
+		JOIN video_analysis.results r ON t.id = r.task_id
+		WHERE t.user_id = $1`, req.UserId).Scan(&avgConfidence)
+
 	level := levelFromExp(int(totalExp))
 	return &pb.UserProfile{
-		UserId:         req.UserId,
-		Nickname:       nickname,
-		AvatarEmoji:    avatarEmoji,
-		Level:          int32(level),
-		TierName:       tierNameFromLevel(level),
-		TotalExp:       int32(totalExp),
-		TotalCoins:     int32(totalCoins),
-		Energy:         int32(energy),
-		MaxEnergy:      int32(maxEnergy),
-		TotalQuizzes:   int32(totalAnswered),
-		CorrectRate:    correctRate,
-		TotalAnalysis:  int32(totalAnalysis),
-		CommunityPosts: int32(communityPosts),
-		CurrentStreak:  int32(currentStreak),
-		BestStreak:     int32(bestStreak),
+		UserId:                req.UserId,
+		Nickname:              nickname,
+		AvatarEmoji:           avatarEmoji,
+		Level:                 int32(level),
+		TierName:              tierNameFromLevel(level),
+		TotalExp:              int32(totalExp),
+		TotalCoins:            int32(totalCoins),
+		Energy:                int32(energy),
+		MaxEnergy:             int32(maxEnergy),
+		TotalQuizzes:          int32(totalAnswered),
+		CorrectRate:           correctRate,
+		TotalAnalysis:         int32(totalAnalysis),
+		CommunityPosts:        int32(communityPosts),
+		CurrentStreak:         int32(currentStreak),
+		BestStreak:            int32(bestStreak),
+		TotalLikesReceived:    int32(totalLikesReceived),
+		TotalCommentsWritten:  int32(totalCommentsWritten),
+		SuspiciousVideos:      int32(suspiciousVideos),
+		AvgConfidence:         avgConfidence,
 	}, nil
 }
 

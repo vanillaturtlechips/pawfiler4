@@ -673,6 +673,14 @@ export interface UserFullProfile {
   current_streak?: number;
   bestStreak: number;
   best_streak?: number;
+  totalLikesReceived?: number;
+  total_likes_received?: number;
+  totalCommentsWritten?: number;
+  total_comments_written?: number;
+  suspiciousVideos?: number;
+  suspicious_videos?: number;
+  avgConfidence?: number;
+  avg_confidence?: number;
 }
 
 export interface UserActivity {

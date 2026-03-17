@@ -48,6 +48,10 @@ message UserProfile {
   int32 community_posts = 13;
   int32 current_streak = 14;
   int32 best_streak = 15;
+  int32 total_likes_received = 16;
+  int32 total_comments_written = 17;
+  int32 suspicious_videos = 18;
+  double avg_confidence = 19;
 }
 
 message UpdateProfileRequest {
