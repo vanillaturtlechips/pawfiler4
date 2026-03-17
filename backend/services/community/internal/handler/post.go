@@ -251,8 +251,7 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 
 	if mediaURL != "" {
 		if err := deleteMediaFromS3(mediaURL); err != nil {
-			log.Printf("S3 delete failed: %v", err)
-			return nil, status.Error(codes.Internal, "Failed to delete media")
+			log.Printf("S3 delete failed (non-blocking): %v", err)
 		}
 	}
 
