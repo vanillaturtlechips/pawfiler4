@@ -52,14 +52,17 @@ service CommunityService {
   rpc UploadMedia(UploadMediaRequest) returns (UploadMediaResponse) {
     option (google.api.http) = { post: "/community.CommunityService/UploadMedia" body: "*" };
   }
+  rpc SyncAuthorNickname(SyncAuthorNicknameRequest) returns (SyncAuthorNicknameResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/SyncAuthorNickname" body: "*" };
+  }
   rpc GetNotices(GetNoticesRequest) returns (NoticesResponse) {
     option (google.api.http) = { post: "/community.CommunityService/GetNotices" body: "*" };
   }
   rpc GetTopDetective(GetTopDetectiveRequest) returns (TopDetectiveResponse) {
     option (google.api.http) = { post: "/community.CommunityService/GetTopDetective" body: "*" };
   }
-  rpc GetHotTopic(GetHotTopicRequest) returns (HotTopicResponse) {
-    option (google.api.http) = { post: "/community.CommunityService/GetHotTopic" body: "*" };
+  rpc GetRanking(GetRankingRequest) returns (GetRankingResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetRanking" body: "*" };
   }
 }
 
@@ -168,6 +171,13 @@ message GetUserVoteResponse { bool voted = 1; bool vote = 2; }
 message UploadMediaRequest { string file_name = 1; bytes content = 2; string content_type = 3; }
 message UploadMediaResponse { string media_url = 1; string media_type = 2; }
 
+message SyncAuthorNicknameRequest {
+  string user_id = 1;
+  string nickname = 2;
+  string avatar_emoji = 3;
+}
+message SyncAuthorNicknameResponse { bool success = 1; }
+
 message GetNoticesRequest {}
 message Notice {
   string id = 1;
@@ -188,3 +198,16 @@ message TopDetectiveResponse {
 
 message GetHotTopicRequest {}
 message HotTopicResponse { string tag = 1; int32 count = 2; }
+
+message GetRankingRequest { string sort_by = 1; }
+message RankingEntry {
+  int32 rank = 1;
+  string user_id = 2;
+  string nickname = 3;
+  string emoji = 4;
+  string tier_name = 5;
+  int32 total_answered = 6;
+  int32 correct_answers = 7;
+  int32 total_coins = 8;
+}
+message GetRankingResponse { repeated RankingEntry entries = 1; }
