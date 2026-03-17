@@ -10,9 +10,9 @@ import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ArrowLeft, Star, Coins, Calendar, TrendingUp, 
-  Heart, Eye, Award, Zap, Crown,
+import {
+  ArrowLeft, Star, Coins, TrendingUp,
+  Heart, Eye, Zap, Crown,
   Edit2, Save, X, BookOpen, BarChart3, Settings
 } from "lucide-react";
 
@@ -338,93 +338,120 @@ const ProfilePage = () => {
             <ParchmentPanel className="rounded-2xl border-4 p-4 flex-1 min-h-0 overflow-hidden shadow-xl">
               {/* Journey Tab */}
               {activeTab === "journey" && (
-                <div className="h-full overflow-y-auto">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-2xl">📚</span>
-                    <h3 className="font-jua text-xl text-wood-darkest">나의 모험 이야기</h3>
+                <div className="h-full overflow-y-auto pr-1">
+
+                  {/* 타이틀 */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <span className="text-4xl drop-shadow-md">📚</span>
+                    <div>
+                      <h3 className="font-jua text-2xl text-wood-darkest leading-tight">나의 모험 이야기</h3>
+                      <p className="font-jua text-sm text-amber-600">오늘도 열심히 탐정 활동을 했어요!</p>
+                    </div>
                   </div>
 
-                  {/* Recent Activities - Compact */}
-                  <div className="mb-3">
-                    <h4 className="font-jua text-sm text-wood-darkest mb-2 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-blue-600" />
-                      최근 활동
-                    </h4>
-                    <div className="space-y-2">
-                      {activities.slice(0, 3).map((activity, idx) => (
-                        <div
+                  {/* 연속 기록 - 상단 강조 */}
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    <motion.div
+                      className="p-4 rounded-2xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-300 text-center shadow-md"
+                      whileHover={{ scale: 1.03 }}
+                    >
+                      <div className="text-4xl mb-1">🔥</div>
+                      <p className="font-jua text-base text-orange-800 mb-1">지금 연속 기록</p>
+                      <p className="font-jua text-4xl text-orange-600 leading-none">{stats.currentStreak}<span className="text-xl">일</span></p>
+                    </motion.div>
+                    <motion.div
+                      className="p-4 rounded-2xl bg-gradient-to-br from-yellow-100 to-amber-100 border-2 border-yellow-300 text-center shadow-md"
+                      whileHover={{ scale: 1.03 }}
+                    >
+                      <div className="text-4xl mb-1">⭐</div>
+                      <p className="font-jua text-base text-yellow-800 mb-1">최고 기록</p>
+                      <p className="font-jua text-4xl text-yellow-600 leading-none">{stats.bestStreak}<span className="text-xl">일</span></p>
+                    </motion.div>
+                  </div>
+
+                  {/* 최근 활동 */}
+                  <div className="mb-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">📅</span>
+                      <h4 className="font-jua text-lg text-wood-darkest">최근 활동</h4>
+                    </div>
+                    <div className="space-y-3">
+                      {activities.length === 0 && (
+                        <div className="text-center py-6">
+                          <span className="text-5xl">🌱</span>
+                          <p className="font-jua text-base text-wood-dark mt-2">아직 활동 기록이 없어요</p>
+                          <p className="font-jua text-sm text-amber-600">퀴즈를 풀고 모험을 시작해봐요!</p>
+                        </div>
+                      )}
+                      {activities.slice(0, 4).map((activity, idx) => (
+                        <motion.div
                           key={idx}
-                          className="flex items-center justify-between p-2 rounded-lg bg-white border border-parchment-border"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.08 }}
+                          className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 shadow-sm"
                         >
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center text-lg border border-amber-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-orange-200 flex items-center justify-center text-2xl border-2 border-amber-300 shadow-sm flex-shrink-0">
                               {activity.icon}
                             </div>
                             <div>
-                              <p className="font-jua text-xs text-wood-darkest">
+                              <p className="font-jua text-base text-wood-darkest leading-tight">
                                 {activity.title}
                               </p>
-                              <p className="text-xs text-wood-dark">
+                              <p className="font-jua text-sm text-amber-700">
                                 {activity.time}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-green-100 border border-green-300">
-                            <Zap className="w-3 h-3 text-green-600" />
-                            <span className="font-jua text-xs text-green-700">
+                          <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-green-100 border-2 border-green-300 flex-shrink-0">
+                            <Zap className="w-4 h-4 text-green-600" />
+                            <span className="font-jua text-base text-green-700">
                               +{activity.xp}
                             </span>
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Achievements - Compact */}
-                  <div className="mb-3 pb-3 border-t border-parchment-border pt-3">
-                    <h4 className="font-jua text-sm text-wood-darkest mb-2 flex items-center gap-1">
-                      <Award className="w-3 h-3 text-amber-600" />
-                      달성한 업적
-                    </h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      {achievements.map((achievement) => (
-                        <div
+                  {/* 업적 */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">🏅</span>
+                      <h4 className="font-jua text-lg text-wood-darkest">달성한 업적</h4>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {achievements.map((achievement, idx) => (
+                        <motion.div
                           key={achievement.id}
-                          className={`p-2 rounded-lg border text-center ${
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: idx * 0.06 }}
+                          whileHover={achievement.unlocked ? { scale: 1.06 } : {}}
+                          className={`p-3 rounded-2xl border-2 text-center shadow-sm ${
                             achievement.unlocked
-                              ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300'
-                              : 'bg-gray-100 border-gray-300 opacity-50 grayscale'
+                              ? 'bg-gradient-to-br from-amber-50 to-yellow-100 border-amber-300'
+                              : 'bg-gray-100 border-gray-200 opacity-40 grayscale'
                           }`}
                         >
-                          <div className="text-2xl mb-1">{achievement.icon}</div>
-                          <h5 className="font-jua text-xs font-bold text-wood-darkest">
+                          <div className="text-3xl mb-1.5">{achievement.icon}</div>
+                          <h5 className="font-jua text-sm text-wood-darkest leading-tight">
                             {achievement.title}
                           </h5>
-                        </div>
+                          <p className="font-jua text-xs text-amber-700 mt-0.5 leading-tight">
+                            {achievement.desc}
+                          </p>
+                          {achievement.unlocked && (
+                            <div className="mt-1.5 px-2 py-0.5 rounded-full bg-amber-200 border border-amber-400 inline-block">
+                              <span className="font-jua text-xs text-amber-800">달성! ✨</span>
+                            </div>
+                          )}
+                        </motion.div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Streak - Compact */}
-                  <div className="border-t border-parchment-border pt-3">
-                    <h4 className="font-jua text-sm text-wood-darkest mb-2">연속 기록</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="p-3 rounded-lg bg-gradient-to-br from-orange-50 to-red-50 border border-orange-300">
-                        <div className="flex items-center gap-1 mb-1">
-                          <span className="text-xl">🔥</span>
-                          <span className="font-jua text-xs text-orange-900">현재</span>
-                        </div>
-                        <p className="font-jua text-2xl text-orange-600">{stats.currentStreak}일</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-300">
-                        <div className="flex items-center gap-1 mb-1">
-                          <span className="text-xl">⭐</span>
-                          <span className="font-jua text-xs text-yellow-900">최고</span>
-                        </div>
-                        <p className="font-jua text-2xl text-yellow-600">{stats.bestStreak}일</p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
 
