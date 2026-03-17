@@ -328,7 +328,17 @@ export const createCommunityComment = async (req: {
       throw new Error(`Failed to create comment: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      id: data.id,
+      postId: data.postId || data.post_id || req.postId,
+      authorNickname: data.authorNickname || data.author_nickname || req.authorNickname,
+      authorEmoji: data.authorEmoji || data.author_emoji || req.authorEmoji,
+      body: data.body || req.body,
+      likes: data.likes || 0,
+      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+      userId: data.authorId || data.author_id || req.userId,
+    };
   } catch (error) {
     return handleApiError(error, '댓글 작성');
   }
@@ -341,7 +351,7 @@ export const deleteCommunityComment = async (commentId: string): Promise<{ succe
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ commentId }),
+      body: JSON.stringify({ comment_id: commentId }),
     });
 
     if (!response.ok) {
@@ -362,14 +372,18 @@ export const likePost = async (postId: string, userId: string): Promise<{ succes
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId, userId }),
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
 
     if (!response.ok) {
       throw new Error(`Failed to like post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      success: data.success ?? true,
+      alreadyLiked: data.alreadyLiked ?? data.already_liked ?? false,
+    };
   } catch (error) {
     return handleApiError(error, '좋아요');
   }
@@ -382,14 +396,15 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ succ
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId, userId }),
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
 
     if (!response.ok) {
       throw new Error(`Failed to unlike post: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return { success: data.success ?? true };
   } catch (error) {
     return handleApiError(error, '좋아요 취소');
   }
@@ -402,7 +417,7 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId, userId }),
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
 
     if (!response.ok) {
@@ -410,7 +425,7 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
     }
 
     const data = await response.json();
-    return data.liked || false;
+    return data.liked ?? false;
   } catch (error) {
     console.error('Failed to check like:', error);
     return false;
@@ -432,7 +447,9 @@ export const fetchNotices = async (): Promise<Array<{ id: string; title: string 
       throw new Error(`Failed to fetch notices: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    const notices = data.notices || data.posts || (Array.isArray(data) ? data : []);
+    return notices.map((n: any) => ({ id: n.id, title: n.title }));
   } catch (error) {
     console.error('Failed to fetch notices:', error);
     return [];
@@ -497,7 +514,12 @@ export const votePost = async (postId: string, userId: string, vote: boolean): P
       body: JSON.stringify({ post_id: postId, user_id: userId, vote }),
     });
     if (!response.ok) throw new Error("투표 실패");
-    return await response.json();
+    const data = await response.json();
+    return {
+      success: data.success ?? true,
+      alreadyVoted: data.alreadyVoted ?? data.already_voted ?? false,
+      xpEarned: data.xpEarned ?? data.xp_earned ?? 0,
+    };
   } catch (error) {
     return handleApiError(error, "투표");
   }
@@ -530,7 +552,8 @@ export const getUserVote = async (postId: string, userId: string): Promise<{ vot
       body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
     if (!response.ok) throw new Error("투표 여부 조회 실패");
-    return await response.json();
+    const data = await response.json();
+    return { voted: data.voted ?? false, vote: data.vote };
   } catch (error) {
     console.error("Failed to get user vote:", error);
     return { voted: false };
