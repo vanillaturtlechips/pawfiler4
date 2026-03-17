@@ -103,8 +103,8 @@ func main() {
 		log.Fatalf("Failed to register gateway: %v", err)
 	}
 
-	// CORS 미들웨어
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// CORS + /api prefix strip 미들웨어
+	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -112,11 +112,15 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		// CloudFront → ALB는 /api/ prefix 유지하므로 제거
+		if len(r.URL.Path) > 4 && r.URL.Path[:5] == "/api/" {
+			r.URL.Path = r.URL.Path[4:]
+		}
 		mux.ServeHTTP(w, r)
 	})
 
 	log.Printf("grpc-gateway on :%s → gRPC :%s", httpPort, grpcPort)
-	if err := http.ListenAndServe(":"+httpPort, handler); err != nil {
+	if err := http.ListenAndServe(":"+httpPort, httpHandler); err != nil {
 		log.Fatalf("HTTP serve error: %v", err)
 	}
 }
