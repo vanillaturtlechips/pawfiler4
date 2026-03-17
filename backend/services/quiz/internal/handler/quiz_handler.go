@@ -446,3 +446,23 @@ func containsAny(s string, substrs []string) bool {
 	}
 	return false
 }
+
+// RefillEnergy handles the RefillEnergy RPC
+func (h *QuizHandler) RefillEnergy(ctx context.Context, req *pb.RefillEnergyRequest) (*pb.RefillEnergyResponse, error) {
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id required")
+	}
+	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get profile: %v", err)
+	}
+	profile.Energy = profile.MaxEnergy
+	if err := h.service.UpdateUserProfile(ctx, profile); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update energy: %v", err)
+	}
+	return &pb.RefillEnergyResponse{
+		Success:   true,
+		Energy:    int32(profile.Energy),
+		MaxEnergy: int32(profile.MaxEnergy),
+	}, nil
+}

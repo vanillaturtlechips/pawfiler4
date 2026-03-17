@@ -619,7 +619,8 @@ export const fetchRanking = async (sortBy: string = "correct") => {
       body: JSON.stringify({ sort_by: sortBy }),
     });
     if (!response.ok) return [];
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.entries ?? []);
   } catch {
     return [];
   }
@@ -741,7 +742,13 @@ export const fetchUserActivities = async (userId: string): Promise<UserActivity[
 };
 
 export const fetchShopItems = async (): Promise<ShopCatalog> => {
-  return userServicePost<ShopCatalog>("GetShopItems", {});
+  const res = await userServicePost<{ items: ShopItemData[] }>("GetShopItems", {});
+  const items = res.items ?? [];
+  return {
+    subscriptions: items.filter((i) => i.type === "subscription"),
+    coin_packages: items.filter((i) => i.type === "coin_package"),
+    packages: items.filter((i) => i.type !== "subscription" && i.type !== "coin_package"),
+  };
 };
 
 export const purchaseItem = async (userId: string, itemId: string): Promise<PurchaseResult> => {

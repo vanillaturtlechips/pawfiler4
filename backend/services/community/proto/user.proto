@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package user;
+
+import "google/api/annotations.proto";
+
+option go_package = "user-service/pb";
+
+service UserService {
+  rpc GetProfile(GetProfileRequest) returns (UserProfile) {
+    option (google.api.http) = { post: "/user.UserService/GetProfile" body: "*" };
+  }
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {
+    option (google.api.http) = { post: "/user.UserService/UpdateProfile" body: "*" };
+  }
+  rpc GetRecentActivities(GetRecentActivitiesRequest) returns (GetRecentActivitiesResponse) {
+    option (google.api.http) = { post: "/user.UserService/GetRecentActivities" body: "*" };
+  }
+  rpc GetShopItems(GetShopItemsRequest) returns (GetShopItemsResponse) {
+    option (google.api.http) = { post: "/user.UserService/GetShopItems" body: "*" };
+  }
+  rpc PurchaseItem(PurchaseItemRequest) returns (PurchaseItemResponse) {
+    option (google.api.http) = { post: "/user.UserService/PurchaseItem" body: "*" };
+  }
+  rpc GetPurchaseHistory(GetPurchaseHistoryRequest) returns (GetPurchaseHistoryResponse) {
+    option (google.api.http) = { post: "/user.UserService/GetPurchaseHistory" body: "*" };
+  }
+}
+
+message GetProfileRequest { string user_id = 1; }
+
+message UserProfile {
+  string user_id = 1;
+  string nickname = 2;
+  string avatar_emoji = 3;
+  int32 level = 4;
+  string tier_name = 5;
+  int32 total_exp = 6;
+  int32 total_coins = 7;
+  int32 energy = 8;
+  int32 max_energy = 9;
+  int32 total_quizzes = 10;
+  double correct_rate = 11;
+  int32 total_analysis = 12;
+  int32 community_posts = 13;
+  int32 current_streak = 14;
+  int32 best_streak = 15;
+}
+
+message UpdateProfileRequest {
+  string user_id = 1;
+  optional string nickname = 2;
+  optional string avatar_emoji = 3;
+}
+
+message UpdateProfileResponse {
+  bool success = 1;
+  string nickname = 2;
+  string avatar_emoji = 3;
+}
+
+message GetRecentActivitiesRequest { string user_id = 1; }
+
+message Activity {
+  string icon = 1;
+  string title = 2;
+  string time = 3;
+  int32 xp = 4;
+}
+
+message GetRecentActivitiesResponse { repeated Activity activities = 1; }
+
+message GetShopItemsRequest {}
+
+message ShopItem {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 price = 4;
+  string icon = 5;
+  string badge = 6;
+  string type = 7;
+  int32 quantity = 8;
+  int32 bonus = 9;
+}
+
+message GetShopItemsResponse { repeated ShopItem items = 1; }
+
+message PurchaseItemRequest { string user_id = 1; string item_id = 2; }
+
+message PurchaseItemResponse {
+  bool success = 1;
+  string item_name = 2;
+  int32 coins_paid = 3;
+  int32 total_coins = 4;
+  string error = 5;
+}
+
+message GetPurchaseHistoryRequest { string user_id = 1; }
+
+message Purchase {
+  string id = 1;
+  string item_id = 2;
+  string item_name = 3;
+  string item_type = 4;
+  int32 coins_paid = 5;
+  string purchased_at = 6;
+}
+
+message GetPurchaseHistoryResponse { repeated Purchase purchases = 1; }

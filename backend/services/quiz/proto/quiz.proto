@@ -55,6 +55,22 @@ service QuizService {
       body: "*"
     };
   }
+  rpc RefillEnergy(RefillEnergyRequest) returns (RefillEnergyResponse) {
+    option (google.api.http) = {
+      post: "/quiz.QuizService/RefillEnergy"
+      body: "*"
+    };
+  }
+}
+
+message RefillEnergyRequest {
+  string user_id = 1;
+}
+
+message RefillEnergyResponse {
+  bool success = 1;
+  int32 energy = 2;
+  int32 max_energy = 3;
 }
 
 enum QuestionType {

@@ -27,6 +27,7 @@ const (
 	QuizService_UpdateUserProfile_FullMethodName = "/quiz.QuizService/UpdateUserProfile"
 	QuizService_GetRanking_FullMethodName        = "/quiz.QuizService/GetRanking"
 	QuizService_GetQuestionStats_FullMethodName  = "/quiz.QuizService/GetQuestionStats"
+	QuizService_RefillEnergy_FullMethodName      = "/quiz.QuizService/RefillEnergy"
 )
 
 // QuizServiceClient is the client API for QuizService service.
@@ -41,6 +42,7 @@ type QuizServiceClient interface {
 	UpdateUserProfile(ctx context.Context, in *UpdateUserProfileRequest, opts ...grpc.CallOption) (*UserProfile, error)
 	GetRanking(ctx context.Context, in *GetRankingRequest, opts ...grpc.CallOption) (*GetRankingResponse, error)
 	GetQuestionStats(ctx context.Context, in *GetQuestionStatsRequest, opts ...grpc.CallOption) (*GetQuestionStatsResponse, error)
+	RefillEnergy(ctx context.Context, in *RefillEnergyRequest, opts ...grpc.CallOption) (*RefillEnergyResponse, error)
 }
 
 type quizServiceClient struct {
@@ -131,6 +133,16 @@ func (c *quizServiceClient) GetQuestionStats(ctx context.Context, in *GetQuestio
 	return out, nil
 }
 
+func (c *quizServiceClient) RefillEnergy(ctx context.Context, in *RefillEnergyRequest, opts ...grpc.CallOption) (*RefillEnergyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefillEnergyResponse)
+	err := c.cc.Invoke(ctx, QuizService_RefillEnergy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuizServiceServer is the server API for QuizService service.
 // All implementations must embed UnimplementedQuizServiceServer
 // for forward compatibility.
@@ -143,6 +155,7 @@ type QuizServiceServer interface {
 	UpdateUserProfile(context.Context, *UpdateUserProfileRequest) (*UserProfile, error)
 	GetRanking(context.Context, *GetRankingRequest) (*GetRankingResponse, error)
 	GetQuestionStats(context.Context, *GetQuestionStatsRequest) (*GetQuestionStatsResponse, error)
+	RefillEnergy(context.Context, *RefillEnergyRequest) (*RefillEnergyResponse, error)
 	mustEmbedUnimplementedQuizServiceServer()
 }
 
@@ -176,6 +189,9 @@ func (UnimplementedQuizServiceServer) GetRanking(context.Context, *GetRankingReq
 }
 func (UnimplementedQuizServiceServer) GetQuestionStats(context.Context, *GetQuestionStatsRequest) (*GetQuestionStatsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetQuestionStats not implemented")
+}
+func (UnimplementedQuizServiceServer) RefillEnergy(context.Context, *RefillEnergyRequest) (*RefillEnergyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefillEnergy not implemented")
 }
 func (UnimplementedQuizServiceServer) mustEmbedUnimplementedQuizServiceServer() {}
 func (UnimplementedQuizServiceServer) testEmbeddedByValue()                     {}
@@ -342,6 +358,24 @@ func _QuizService_GetQuestionStats_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuizService_RefillEnergy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefillEnergyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuizServiceServer).RefillEnergy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuizService_RefillEnergy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuizServiceServer).RefillEnergy(ctx, req.(*RefillEnergyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuizService_ServiceDesc is the grpc.ServiceDesc for QuizService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -380,6 +414,10 @@ var QuizService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetQuestionStats",
 			Handler:    _QuizService_GetQuestionStats_Handler,
+		},
+		{
+			MethodName: "RefillEnergy",
+			Handler:    _QuizService_RefillEnergy_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
