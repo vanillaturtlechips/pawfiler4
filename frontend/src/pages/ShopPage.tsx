@@ -72,19 +72,12 @@ const ShopPage = () => {
     }
   };
 
-  const FALLBACK_COIN_PACKAGES: ShopCatalog["coin_packages"] = [
-    { id: "energy-sm", name: "에너지 소충전", description: "에너지 20 회복", price: 50, icon: "⚡", badge: undefined, type: "coin_package", quantity: 20 },
-    { id: "energy-md", name: "에너지 중충전", description: "에너지 50 회복", price: 100, icon: "🔋", badge: "인기", type: "coin_package", quantity: 50 },
-    { id: "energy-lg", name: "에너지 대충전", description: "에너지 100 회복", price: 180, icon: "💥", badge: "추천", type: "coin_package", quantity: 100 },
-    { id: "energy-xl", name: "에너지 풀충전", description: "에너지 완전 충전", price: 300, icon: "🌟", badge: "베스트", type: "coin_package", quantity: 200 },
-  ];
-
   const getCurrentItems = (): ShopCatalog["subscriptions"] => {
     switch (activeTab) {
       case "subscription":
         return catalog.subscriptions;
       case "coins":
-        return catalog.coin_packages.length > 0 ? catalog.coin_packages : FALLBACK_COIN_PACKAGES;
+        return catalog.coin_packages;
       case "packages":
         return catalog.packages;
       default:
@@ -355,7 +348,7 @@ const ShopPage = () => {
                 key={activeTab}
                 className="grid grid-cols-4 gap-3 h-full content-start"
               >
-                {getCurrentItems().map((item, index) => (
+                {getCurrentItems().map((item) => (
                   <div
                     key={item.id}
                     className="relative"

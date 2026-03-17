@@ -757,8 +757,8 @@ export const fetchShopItems = async (): Promise<ShopCatalog> => {
   const items = res.items ?? [];
   return {
     subscriptions: items.filter((i) => i.type === "subscription"),
-    coin_packages: items.filter((i) => i.type === "coin_package"),
-    packages: items.filter((i) => i.type !== "subscription" && i.type !== "coin_package"),
+    coin_packages: items.filter((i) => i.type === "coin_package" || i.type === "coins"),
+    packages: items.filter((i) => i.type !== "subscription" && i.type !== "coin_package" && i.type !== "coins"),
   };
 };
 
