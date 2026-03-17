@@ -64,6 +64,9 @@ service CommunityService {
   rpc GetRanking(GetRankingRequest) returns (GetRankingResponse) {
     option (google.api.http) = { post: "/community.CommunityService/GetRanking" body: "*" };
   }
+  rpc GetHotTopic(GetHotTopicRequest) returns (HotTopicResponse) {
+    option (google.api.http) = { post: "/community.CommunityService/GetHotTopic" body: "*" };
+  }
 }
 
 message Post {

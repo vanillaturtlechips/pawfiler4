@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v7.34.0
-// source: proto/community.proto
+// source: community.proto
 
 package pb
 
@@ -38,6 +38,7 @@ const (
 	CommunityService_GetNotices_FullMethodName         = "/community.CommunityService/GetNotices"
 	CommunityService_GetTopDetective_FullMethodName    = "/community.CommunityService/GetTopDetective"
 	CommunityService_GetRanking_FullMethodName         = "/community.CommunityService/GetRanking"
+	CommunityService_GetHotTopic_FullMethodName        = "/community.CommunityService/GetHotTopic"
 )
 
 // CommunityServiceClient is the client API for CommunityService service.
@@ -63,6 +64,7 @@ type CommunityServiceClient interface {
 	GetNotices(ctx context.Context, in *GetNoticesRequest, opts ...grpc.CallOption) (*NoticesResponse, error)
 	GetTopDetective(ctx context.Context, in *GetTopDetectiveRequest, opts ...grpc.CallOption) (*TopDetectiveResponse, error)
 	GetRanking(ctx context.Context, in *GetRankingRequest, opts ...grpc.CallOption) (*GetRankingResponse, error)
+	GetHotTopic(ctx context.Context, in *GetHotTopicRequest, opts ...grpc.CallOption) (*HotTopicResponse, error)
 }
 
 type communityServiceClient struct {
@@ -263,6 +265,16 @@ func (c *communityServiceClient) GetRanking(ctx context.Context, in *GetRankingR
 	return out, nil
 }
 
+func (c *communityServiceClient) GetHotTopic(ctx context.Context, in *GetHotTopicRequest, opts ...grpc.CallOption) (*HotTopicResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HotTopicResponse)
+	err := c.cc.Invoke(ctx, CommunityService_GetHotTopic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommunityServiceServer is the server API for CommunityService service.
 // All implementations must embed UnimplementedCommunityServiceServer
 // for forward compatibility.
@@ -286,6 +298,7 @@ type CommunityServiceServer interface {
 	GetNotices(context.Context, *GetNoticesRequest) (*NoticesResponse, error)
 	GetTopDetective(context.Context, *GetTopDetectiveRequest) (*TopDetectiveResponse, error)
 	GetRanking(context.Context, *GetRankingRequest) (*GetRankingResponse, error)
+	GetHotTopic(context.Context, *GetHotTopicRequest) (*HotTopicResponse, error)
 	mustEmbedUnimplementedCommunityServiceServer()
 }
 
@@ -352,6 +365,9 @@ func (UnimplementedCommunityServiceServer) GetTopDetective(context.Context, *Get
 }
 func (UnimplementedCommunityServiceServer) GetRanking(context.Context, *GetRankingRequest) (*GetRankingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRanking not implemented")
+}
+func (UnimplementedCommunityServiceServer) GetHotTopic(context.Context, *GetHotTopicRequest) (*HotTopicResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHotTopic not implemented")
 }
 func (UnimplementedCommunityServiceServer) mustEmbedUnimplementedCommunityServiceServer() {}
 func (UnimplementedCommunityServiceServer) testEmbeddedByValue()                          {}
@@ -716,6 +732,24 @@ func _CommunityService_GetRanking_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommunityService_GetHotTopic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHotTopicRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommunityServiceServer).GetHotTopic(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommunityService_GetHotTopic_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommunityServiceServer).GetHotTopic(ctx, req.(*GetHotTopicRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CommunityService_ServiceDesc is the grpc.ServiceDesc for CommunityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -799,7 +833,11 @@ var CommunityService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetRanking",
 			Handler:    _CommunityService_GetRanking_Handler,
 		},
+		{
+			MethodName: "GetHotTopic",
+			Handler:    _CommunityService_GetHotTopic_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/community.proto",
+	Metadata: "community.proto",
 }
