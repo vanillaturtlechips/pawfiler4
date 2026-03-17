@@ -116,22 +116,26 @@ const CommunityPostPage = () => {
 
   const handleVote = async (vote: boolean) => {
     if (!user) { toast.error("로그인이 필요합니다."); return; }
-    if (hasVoted) { toast.info("이미 투표하셨습니다."); return; }
+    if (votingLoading) return;
     if (!postId) return;
+    // 같은 값 재클릭 무시
+    if (userVote === vote) return;
 
     setVotingLoading(true);
     try {
       const result = await votePost(postId, user.id, vote);
-      if (result.alreadyVoted) {
-        toast.info("이미 투표하셨습니다.");
-        setHasVoted(true);
-      } else {
+      if (result.success) {
+        // 이전 투표 카운트 차감 후 새 투표 카운트 증가
+        if (hasVoted && userVote !== null) {
+          if (userVote) setTrueVotes(v => v - 1);
+          else setFalseVotes(v => v - 1);
+        }
         if (vote) setTrueVotes(v => v + 1);
         else setFalseVotes(v => v + 1);
         setHasVoted(true);
         setUserVote(vote);
-        if (result.xpEarned > 0) toast.success(`투표 완료! +${result.xpEarned} XP`);
-        else toast.success("투표가 완료되었습니다.");
+        if (!hasVoted && result.xpEarned > 0) toast.success(`투표 완료! +${result.xpEarned} XP`);
+        else toast.success("투표가 변경되었습니다.");
       }
     } catch {
       toast.error("투표에 실패했습니다.");
@@ -346,20 +350,18 @@ const CommunityPostPage = () => {
                     <div className="flex gap-4">
                       <button
                         onClick={() => handleVote(true)}
-                        disabled={hasVoted || votingLoading}
+                        disabled={votingLoading}
                         className={`flex-1 py-4 rounded-2xl border-4 font-jua text-xl transition-all
                           ${userVote === true ? 'border-green-500 bg-green-100 text-green-700 shadow-md' :
-                            hasVoted ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' :
                             'border-parchment-border bg-white text-wood-dark hover:border-green-400 hover:bg-green-50 hover:scale-[1.02]'}`}
                       >
                         ✅ 정답 {hasVoted && `(${trueVotes})`}
                       </button>
                       <button
                         onClick={() => handleVote(false)}
-                        disabled={hasVoted || votingLoading}
+                        disabled={votingLoading}
                         className={`flex-1 py-4 rounded-2xl border-4 font-jua text-xl transition-all
                           ${userVote === false ? 'border-red-500 bg-red-100 text-red-700 shadow-md' :
-                            hasVoted ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' :
                             'border-parchment-border bg-white text-wood-dark hover:border-red-400 hover:bg-red-50 hover:scale-[1.02]'}`}
                       >
                         ❌ 오답 {hasVoted && `(${falseVotes})`}
