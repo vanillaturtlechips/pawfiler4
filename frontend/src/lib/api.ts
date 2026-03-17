@@ -287,19 +287,19 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
     
     return {
       correct: data.correct ?? false,
-      xpEarned: data.xp_earned ?? 0,
-      coinsEarned: data.coins_earned ?? 0,
+      xpEarned: data.xpEarned ?? data.xp_earned ?? 0,
+      coinsEarned: data.coinsEarned ?? data.coins_earned ?? 0,
       explanation: explanation,
-      streakCount: data.streak_count ?? 0,
-      streakBonus: data.streak_bonus ?? 0,
-      tierPromoted: data.tier_promoted ?? false,
+      streakCount: data.streakCount ?? data.streak_count ?? 0,
+      streakBonus: data.streakBonus ?? data.streak_bonus ?? 0,
+      tierPromoted: data.tierPromoted ?? data.tier_promoted ?? false,
       correctIndex: correctIndex,
       level: data.level,
-      tierName: data.tier_name,
-      totalExp: data.total_exp,
-      totalCoins: data.total_coins,
+      tierName: data.tierName ?? data.tier_name,
+      totalExp: data.totalExp ?? data.total_exp,
+      totalCoins: data.totalCoins ?? data.total_coins,
       energy: data.energy,
-      maxEnergy: data.max_energy,
+      maxEnergy: data.maxEnergy ?? data.max_energy,
     };
   } catch (error) {
     return handleApiError(error, '답안 제출');
@@ -332,17 +332,17 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
     const data = await response.json();
     
     return {
-      totalAnswered: data.total_answered ?? 0,
-      correctRate: data.correct_rate ?? 0,
-      currentStreak: data.current_streak ?? 0,
-      bestStreak: data.best_streak ?? 0,
+      totalAnswered: data.totalAnswered ?? data.total_answered ?? 0,
+      correctRate: data.correctRate ?? data.correct_rate ?? 0,
+      currentStreak: data.currentStreak ?? data.current_streak ?? 0,
+      bestStreak: data.bestStreak ?? data.best_streak ?? 0,
       lives: data.lives ?? 3,
       level: data.level,
-      tierName: data.tier_name,
-      totalExp: data.total_exp,
-      totalCoins: data.total_coins,
+      tierName: data.tierName ?? data.tier_name,
+      totalExp: data.totalExp ?? data.total_exp,
+      totalCoins: data.totalCoins ?? data.total_coins,
       energy: data.energy,
-      maxEnergy: data.max_energy,
+      maxEnergy: data.maxEnergy ?? data.max_energy,
     };
   } catch (error) {
     return handleApiError(error, '통계 로드');
@@ -361,11 +361,11 @@ export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
     const data = await response.json();
     return {
       level: data.level ?? 1,
-      tierName: data.tier_name ?? '알 껍데기 병아리',
-      totalExp: data.total_exp ?? 0,
-      totalCoins: data.total_coins ?? 0,
+      tierName: data.tierName ?? data.tier_name ?? '알 껍데기 병아리',
+      totalExp: data.totalExp ?? data.total_exp ?? 0,
+      totalCoins: data.totalCoins ?? data.total_coins ?? 0,
       energy: data.energy ?? 100,
-      maxEnergy: data.max_energy ?? 100,
+      maxEnergy: data.maxEnergy ?? data.max_energy ?? 100,
     };
   } catch (error) {
     return handleApiError(error, '프로필 로드');
