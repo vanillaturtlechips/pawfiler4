@@ -15,12 +15,11 @@ import {
 } from "@/lib/communityApi";
 import { ArrowLeft, Heart, Share2, Send, Trash2, Calendar, Copy, Check, Maximize2, MessageCircle, Users } from "lucide-react";
 
-// 메인 게시판과 동일한 카드 스타일 — ParchmentPanel 자체 border/shadow/animation 없이 직접 적용
 const card = {
   background: "hsl(var(--parchment))",
   border: "2px solid hsl(var(--parchment-border))",
   borderRadius: "1rem",
-  boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+  boxShadow: "0 4px 20px rgba(0,0,0,0.28)",
 } as const;
 
 const CommunityPostPage = () => {
@@ -145,32 +144,32 @@ const CommunityPostPage = () => {
 
   return (
     <div className="w-full">
-      <div className="max-w-[1200px] mx-auto px-4 py-5 pb-20 flex flex-col gap-4">
+      <div className="max-w-[1200px] mx-auto px-4 py-4 pb-20 flex flex-col gap-3">
 
         {/* 목록으로 */}
         <button
           onClick={() => navigate('/community')}
-          className="flex items-center gap-1.5 text-foreground/50 hover:text-foreground transition-colors text-sm font-jua w-fit"
+          className="flex items-center gap-1.5 text-foreground/40 hover:text-foreground/70 transition-colors text-xs font-jua w-fit"
         >
-          <ArrowLeft size={13} />
+          <ArrowLeft size={12} />
           목록으로
         </button>
 
         {/* 게시글 헤더 */}
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-jua text-2xl md:text-3xl leading-snug text-foreground break-words">{post.title}</h1>
-          <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-jua text-2xl md:text-[1.65rem] leading-snug text-foreground break-words">{post.title}</h1>
+          <div className="flex items-center gap-2 flex-wrap mt-0.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-lg">{post.authorEmoji}</span>
-              <span className="text-sm font-semibold text-foreground/70">{post.authorNickname}</span>
+              <span className="text-base leading-none">{post.authorEmoji}</span>
+              <span className="text-sm font-semibold" style={{ color: "hsl(var(--foreground) / 0.65)" }}>{post.authorNickname}</span>
             </div>
-            <span className="text-foreground/25">·</span>
-            <span className="text-xs text-foreground/45 flex items-center gap-1">
+            <span style={{ color: "hsl(var(--foreground) / 0.2)" }}>·</span>
+            <span className="text-xs flex items-center gap-1" style={{ color: "hsl(var(--foreground) / 0.4)" }}>
               <Calendar size={10} />
               {new Date(post.createdAt).toLocaleDateString("ko-KR", { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </span>
-            <span className="text-foreground/25">·</span>
-            <span className="text-xs text-foreground/45 flex items-center gap-1">
+            <span style={{ color: "hsl(var(--foreground) / 0.2)" }}>·</span>
+            <span className="text-xs flex items-center gap-1" style={{ color: "hsl(var(--foreground) / 0.4)" }}>
               <MessageCircle size={10} />
               댓글 {comments.length}
             </span>
@@ -180,29 +179,28 @@ const CommunityPostPage = () => {
           </div>
         </div>
 
-        {/* 메인: 미디어 + 참여 카드 */}
-        <div className="grid grid-cols-1 md:grid-cols-[58%_42%] gap-4 items-start">
+        {/* 메인: 미디어 + 참여 카드 — items-stretch로 좌우 시작선 맞춤 */}
+        <div className="grid grid-cols-1 md:grid-cols-[58%_42%] gap-3 items-stretch">
 
-          {/* 미디어 — 깔끔한 카드, 배경판 없음 */}
+          {/* 미디어 카드 */}
           <div
             className="relative overflow-hidden flex items-center justify-center"
             style={{
               ...card,
-              minHeight: isPortrait ? "65vh" : "42vh",
-              maxHeight: isPortrait ? "82vh" : "58vh",
-              background: "hsl(var(--parchment))",
+              minHeight: isPortrait ? "60vh" : "40vh",
+              maxHeight: isPortrait ? "80vh" : "56vh",
               padding: "4px",
             }}
           >
             {post.mediaUrl ? (
               <>
                 {post.mediaType === "video" ? (
-                  <video src={post.mediaUrl} controls className="w-full h-full object-contain" style={{ maxHeight: isPortrait ? "82vh" : "58vh" }} />
+                  <video src={post.mediaUrl} controls className="w-full h-full object-contain" style={{ maxHeight: isPortrait ? "80vh" : "56vh" }} />
                 ) : (
                   <img
                     src={post.mediaUrl} alt={post.title}
                     className="w-full h-full object-contain"
-                    style={{ maxHeight: isPortrait ? "82vh" : "58vh" }}
+                    style={{ maxHeight: isPortrait ? "80vh" : "56vh" }}
                     onLoad={(e) => { const img = e.currentTarget; setIsPortrait(img.naturalHeight > img.naturalWidth * 1.2); }}
                   />
                 )}
@@ -222,20 +220,32 @@ const CommunityPostPage = () => {
             )}
           </div>
 
-          {/* 참여 카드 — 같은 카드 시스템, 내부만 약간 구분 */}
-          <div style={card} className="p-6 flex flex-col gap-4">
-            <div>
-              <span className="text-xs text-orange-500 font-jua uppercase tracking-widest">참여하기</span>
-              <p className="font-jua text-lg text-wood-darkest leading-snug mt-1">이 장면, 어떻게 생각하세요?</p>
-              {!hasVoted && <p className="text-xs text-wood-light mt-1">선택 후 다른 사람들의 의견을 볼 수 있어요</p>}
+          {/* 참여 카드 */}
+          <div style={card} className="p-5 flex flex-col gap-3">
+            {/* 헤더 위계: 라벨 → 핵심 질문 → 보조 설명 */}
+            <div className="pb-3" style={{ borderBottom: "1px solid hsl(var(--parchment-border))" }}>
+              <span
+                className="text-[10px] font-jua uppercase tracking-widest"
+                style={{ color: "hsl(var(--orange-500, 249 115 22))", opacity: 0.8 }}
+              >
+                참여하기
+              </span>
+              <p className="font-jua text-base text-wood-darkest leading-snug mt-1">
+                이 장면, 어떻게 생각하세요?
+              </p>
+              {!hasVoted && (
+                <p className="text-xs mt-1" style={{ color: "hsl(var(--wood-light))" }}>
+                  선택 후 다른 사람들의 의견을 볼 수 있어요
+                </p>
+              )}
             </div>
 
-            <div className="flex flex-col gap-2">
-              {/* 선택지 버튼 — 평소엔 중립, 선택 후만 약한 색 */}
+            {/* 선택지 버튼 */}
+            <div className="flex flex-col gap-1.5">
               <button
                 onClick={() => handleVote(true)}
                 disabled={votingLoading || (hasVoted && userVote !== true)}
-                className={`w-full py-3 px-4 rounded-xl text-sm font-jua text-left transition-all focus:outline-none
+                className={`w-full py-2.5 px-3.5 rounded-xl text-sm font-jua text-left transition-all focus:outline-none
                   ${!hasVoted
                     ? 'text-wood-darkest hover:bg-orange-50 active:scale-[0.99]'
                     : userVote === true
@@ -249,14 +259,18 @@ const CommunityPostPage = () => {
               >
                 <span className="flex items-center justify-between">
                   <span>✅ 정답인 것 같아요</span>
-                  {hasVoted && <span className="text-xs text-wood-light flex items-center gap-1"><Users size={10} />{trueVotes}명</span>}
+                  {hasVoted && (
+                    <span className="text-xs flex items-center gap-1" style={{ color: "hsl(var(--wood-light))" }}>
+                      <Users size={10} />{trueVotes}명
+                    </span>
+                  )}
                 </span>
               </button>
 
               <button
                 onClick={() => handleVote(false)}
                 disabled={votingLoading || (hasVoted && userVote !== false)}
-                className={`w-full py-3 px-4 rounded-xl text-sm font-jua text-left transition-all focus:outline-none
+                className={`w-full py-2.5 px-3.5 rounded-xl text-sm font-jua text-left transition-all focus:outline-none
                   ${!hasVoted
                     ? 'text-wood-darkest hover:bg-orange-50 active:scale-[0.99]'
                     : userVote === false
@@ -270,38 +284,54 @@ const CommunityPostPage = () => {
               >
                 <span className="flex items-center justify-between">
                   <span>❌ 오답인 것 같아요</span>
-                  {hasVoted && <span className="text-xs text-wood-light flex items-center gap-1"><Users size={10} />{falseVotes}명</span>}
+                  {hasVoted && (
+                    <span className="text-xs flex items-center gap-1" style={{ color: "hsl(var(--wood-light))" }}>
+                      <Users size={10} />{falseVotes}명
+                    </span>
+                  )}
                 </span>
               </button>
             </div>
 
-            {/* 결과 바 — 절제된 표현 */}
+            {/* 결과 바 */}
             {hasVoted && total > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between text-xs text-wood-light font-jua">
+              <div className="flex flex-col gap-1.5 pt-1">
+                <div className="flex justify-between text-xs font-jua" style={{ color: "hsl(var(--wood-light))" }}>
                   <span>{trueRatio}%</span>
                   <span className="flex items-center gap-1"><Users size={9} />총 {total}명</span>
                   <span>{falseRatio}%</span>
                 </div>
                 <div className="h-1.5 rounded-full overflow-hidden flex" style={{ background: "hsl(var(--parchment-border))" }}>
                   <div className="bg-orange-400 transition-all duration-700" style={{ width: `${trueRatio}%` }} />
-                  <div className="bg-wood-light/60 transition-all duration-700 flex-1" />
+                  <div className="transition-all duration-700 flex-1" style={{ background: "hsl(var(--parchment-border))" }} />
                 </div>
               </div>
             )}
-            {!hasVoted && <p className="text-xs text-wood-light font-jua text-center">투표 후 결과를 확인할 수 있습니다</p>}
+
+            {/* 하단 안내 — 보조 정보로 약하게 */}
+            {!hasVoted && (
+              <p className="text-[11px] font-jua text-center mt-auto pt-1" style={{ color: "hsl(var(--wood-light))", opacity: 0.7 }}>
+                투표 후 결과를 확인할 수 있습니다
+              </p>
+            )}
           </div>
         </div>
 
-        {/* 본문 설명 */}
+        {/* 작성자의 설명 — 이미지 아래 자연스럽게 이어지는 섹션 */}
         {post.body && (
-          <div style={card} className="px-4 py-3">
-            <p className="text-xs text-orange-600 font-jua mb-1 uppercase tracking-wide">작성자의 설명</p>
+          <div
+            style={{ ...card, boxShadow: "0 2px 12px rgba(0,0,0,0.18)" }}
+            className="px-4 py-3"
+          >
+            <div className="flex items-center gap-1.5 mb-2" style={{ borderBottom: "1px solid hsl(var(--parchment-border))", paddingBottom: "0.5rem" }}>
+              <span className="text-orange-500 text-xs">✏️</span>
+              <p className="text-xs text-orange-600 font-jua uppercase tracking-wide">작성자의 설명</p>
+            </div>
             <p className="text-sm leading-relaxed text-wood-dark whitespace-pre-wrap break-words">{post.body}</p>
           </div>
         )}
 
-        {/* 반응 */}
+        {/* 반응 버튼 */}
         <div className="flex items-center gap-2">
           <button
             onClick={async () => {
@@ -331,9 +361,9 @@ const CommunityPostPage = () => {
         {/* 댓글 섹션 */}
         <div style={card} className="px-5 py-3 flex flex-col gap-3">
           <div className="flex items-center gap-2 pb-2" style={{ borderBottom: "1px solid hsl(var(--parchment-border))" }}>
-            <MessageCircle size={14} className="text-orange-500" />
+            <MessageCircle size={13} className="text-orange-500" />
             <span className="font-jua text-sm text-wood-darkest">댓글 {comments.length}개</span>
-            <span className="text-xs text-wood-light ml-1">· 왜 그렇게 생각했는지 남겨보세요</span>
+            <span className="text-xs ml-1" style={{ color: "hsl(var(--wood-light))" }}>· 왜 그렇게 생각했는지 남겨보세요</span>
           </div>
 
           {user ? (
@@ -357,21 +387,29 @@ const CommunityPostPage = () => {
               </Button>
             </div>
           ) : (
-            <p className="text-xs text-wood-light font-jua py-1">댓글을 남기려면 로그인이 필요합니다</p>
+            <p className="text-xs font-jua py-1" style={{ color: "hsl(var(--wood-light))" }}>댓글을 남기려면 로그인이 필요합니다</p>
           )}
 
           {comments.length === 0 ? (
-            <p className="text-xs text-wood-dark font-jua py-1">아직 댓글이 없습니다. 첫 의견을 남겨보세요!</p>
+            <p className="text-xs font-jua py-1 text-wood-dark">아직 댓글이 없습니다. 첫 의견을 남겨보세요!</p>
           ) : (
             <div className="flex flex-col divide-y" style={{ borderColor: "hsl(var(--parchment-border))" }}>
               {comments.map((comment, index) => (
-                <motion.div key={comment.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.03 }} className="flex gap-3 py-2.5 first:pt-0">
+                <motion.div
+                  key={comment.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="flex gap-3 py-2.5 first:pt-0"
+                >
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0 mt-0.5" style={{ background: "hsl(var(--parchment-border))" }}>{comment.authorEmoji}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-wood-darkest">{comment.authorNickname}</span>
-                        <span className="text-xs text-wood-light">{new Date(comment.createdAt).toLocaleDateString("ko-KR", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-xs" style={{ color: "hsl(var(--wood-light))" }}>
+                          {new Date(comment.createdAt).toLocaleDateString("ko-KR", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                       {user && comment.userId === user.id && (
                         <Button variant="ghost" size="icon" className="h-6 w-6 rounded text-wood-light hover:text-red-500 hover:bg-red-50" onClick={() => handleDeleteComment(comment.id)}>
