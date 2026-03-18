@@ -368,53 +368,53 @@ resource "helm_release" "metrics_server" {
 }
 
 # ---------------------------------------------------------------------------
-# Cluster Autoscaler
-resource "helm_release" "cluster_autoscaler" {
-  name             = "cluster-autoscaler"
-  repository       = "https://kubernetes.github.io/autoscaler"
-  chart            = "cluster-autoscaler"
-  namespace        = "kube-system"
-  create_namespace = false
-  version          = "9.37.0"
-  timeout          = 600
-  wait             = false
+# Cluster Autoscaler (Karpenter로 전환, 비활성화)
+# resource "helm_release" "cluster_autoscaler" {
+#   name             = "cluster-autoscaler"
+#   repository       = "https://kubernetes.github.io/autoscaler"
+#   chart            = "cluster-autoscaler"
+#   namespace        = "kube-system"
+#   create_namespace = false
+#   version          = "9.37.0"
+#   timeout          = 600
+#   wait             = false
+#
+#   set {
+#     name  = "autoDiscovery.clusterName"
+#     value = var.cluster_name
+#   }
+#
+#   set {
+#     name  = "awsRegion"
+#     value = var.aws_region
+#   }
+#
+#   set {
+#     name  = "rbac.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+#     value = aws_iam_role.cluster_autoscaler.arn
+#   }
+#
+#   set {
+#     name  = "rbac.serviceAccount.name"
+#     value = "cluster-autoscaler"
+#   }
+#
+#   set {
+#     name  = "extraArgs.balance-similar-node-groups"
+#     value = "true"
+#   }
+#
+#   set {
+#     name  = "extraArgs.skip-nodes-with-system-pods"
+#     value = "false"
+#   }
+#
+#   depends_on = [
+#     helm_release.metrics_server
+#   ]
+# }
 
-  set {
-    name  = "autoDiscovery.clusterName"
-    value = var.cluster_name
-  }
-
-  set {
-    name  = "awsRegion"
-    value = var.aws_region
-  }
-
-  set {
-    name  = "rbac.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.cluster_autoscaler.arn
-  }
-
-  set {
-    name  = "rbac.serviceAccount.name"
-    value = "cluster-autoscaler"
-  }
-
-  set {
-    name  = "extraArgs.balance-similar-node-groups"
-    value = "true"
-  }
-
-  set {
-    name  = "extraArgs.skip-nodes-with-system-pods"
-    value = "false"
-  }
-
-  depends_on = [
-    helm_release.metrics_server
-  ]
-}
-
-# IAM Role for Cluster Autoscaler
+# IAM Role for Cluster Autoscaler (유지 - 삭제 시 terraform destroy 필요)
 resource "aws_iam_role" "cluster_autoscaler" {
   name = "${var.project_name}-cluster-autoscaler"
 
@@ -472,53 +472,54 @@ resource "aws_iam_role_policy" "cluster_autoscaler" {
 }
 
 # Karpenter (자동 스케일링)
-# resource "helm_release" "karpenter" {
-#   count            = var.enable_karpenter ? 1 : 0
-#   name             = "karpenter"
-#   repository       = "oci://public.ecr.aws/karpenter"
-#   chart            = "karpenter"
-#   namespace        = "karpenter"
-#   create_namespace = true
-#   version          = "1.9.0"
-#
-#   set {
-#     name  = "settings.clusterName"
-#     value = var.cluster_name
-#   }
-#
-#   set {
-#     name  = "settings.clusterEndpoint"
-#     value = var.cluster_endpoint
-#   }
-#
-#   set {
-#     name  = "settings.interruptionQueue"
-#     value = var.karpenter_queue_name
-#   }
-#
-#   set {
-#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-#     value = var.karpenter_controller_role_arn
-#   }
-#
-#   set {
-#     name  = "controller.resources.requests.cpu"
-#     value = "1"
-#   }
-#
-#   set {
-#     name  = "controller.resources.requests.memory"
-#     value = "1Gi"
-#   }
-#
-#   set {
-#     name  = "controller.resources.limits.cpu"
-#     value = "1"
-#   }
-#
-#   set {
-#     name  = "controller.resources.limits.memory"
-#     value = "1Gi"
-#   }
-#
-# }
+resource "helm_release" "karpenter" {
+  count            = var.enable_karpenter ? 1 : 0
+  name             = "karpenter"
+  repository       = "oci://public.ecr.aws/karpenter"
+  chart            = "karpenter"
+  namespace        = "karpenter"
+  create_namespace = true
+  version          = "1.3.3"
+
+  set {
+    name  = "settings.clusterName"
+    value = var.cluster_name
+  }
+
+  set {
+    name  = "settings.clusterEndpoint"
+    value = var.cluster_endpoint
+  }
+
+  set {
+    name  = "settings.interruptionQueue"
+    value = var.karpenter_queue_name
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = var.karpenter_controller_role_arn
+  }
+
+  set {
+    name  = "controller.resources.requests.cpu"
+    value = "100m"
+  }
+
+  set {
+    name  = "controller.resources.requests.memory"
+    value = "256Mi"
+  }
+
+  set {
+    name  = "controller.resources.limits.cpu"
+    value = "500m"
+  }
+
+  set {
+    name  = "controller.resources.limits.memory"
+    value = "512Mi"
+  }
+
+  depends_on = [helm_release.metrics_server]
+}

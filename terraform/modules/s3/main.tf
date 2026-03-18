@@ -147,6 +147,10 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   tags = { Name = "${var.project_name}-frontend-cdn" }
+
+  lifecycle {
+    ignore_changes = [origin]
+  }
 }
 
 # ===========================================================================
@@ -395,13 +399,7 @@ resource "aws_s3_bucket_cors_configuration" "community_media" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD", "PUT", "POST"]
-    allowed_origins = [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:3000",
-      "https://pawfiler.site",
-      "https://www.pawfiler.site"
-    ]
+    allowed_origins = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
   }

@@ -56,14 +56,18 @@ resource "aws_eks_node_group" "main" {
   capacity_type   = "ON_DEMAND"
 
   scaling_config {
-    desired_size = 1
-    max_size     = 3
-    min_size     = 1
+    desired_size = 2
+    max_size     = 4
+    min_size     = 2
   }
 
   # Note: implicit dependency via node_role_arn ensures IAM policies are attached first
   tags = {
     Name = "${var.project_name}-eks-node-group-ondemand"
+  }
+
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
   }
 }
 
@@ -76,14 +80,18 @@ resource "aws_eks_node_group" "spot" {
   capacity_type   = "SPOT"
 
   scaling_config {
-    desired_size = 2
+    desired_size = 0
     max_size     = 5
-    min_size     = 2
+    min_size     = 0
   }
 
   # Note: implicit dependency via node_role_arn ensures IAM policies are attached first
   tags = {
     Name = "${var.project_name}-eks-node-group-spot"
+  }
+
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
   }
 }
 

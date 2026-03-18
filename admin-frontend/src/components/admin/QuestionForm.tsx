@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   createQuestion,
@@ -77,6 +77,7 @@ export default function QuestionForm({ question, onClose }: QuestionFormProps) {
   const [rsRegionRadius, setRsRegionRadius] = useState<number>(question?.correct_regions?.[0]?.radius || 50);
   const [rsTolerance, setRsTolerance] = useState<number>(question?.tolerance || 50);
   const [rsImagePreview, setRsImagePreview] = useState<string>("");
+  const rsImgRef = useRef<HTMLImageElement>(null);
   
   // Comparison fields
   const [compExplanation, setCompExplanation] = useState<string>(
@@ -1093,25 +1094,34 @@ ${aiSide} 이미지가 AI 생성물인 이유를 1-2문장으로 설명해주세
             <Label>틀린 부분을 클릭하세요</Label>
             <div className="relative inline-block border-2 border-gray-300 rounded-lg overflow-hidden">
               <img
+                ref={rsImgRef}
                 src={rsImagePreview}
                 alt="Preview"
                 className="max-w-full h-auto cursor-crosshair"
                 onClick={handleImageClick}
                 style={{ maxHeight: "500px" }}
               />
-              {rsRegionX > 0 && rsRegionY > 0 && (
-                <div
-                  className="absolute border-4 border-red-500 rounded-full pointer-events-none"
-                  style={{
-                    left: `${rsRegionX}px`,
-                    top: `${rsRegionY}px`,
-                    width: `${rsRegionRadius * 2}px`,
-                    height: `${rsRegionRadius * 2}px`,
-                    transform: "translate(-50%, -50%)",
-                    backgroundColor: "rgba(255, 0, 0, 0.1)",
-                  }}
-                />
-              )}
+              {rsRegionX > 0 && rsRegionY > 0 && (() => {
+                const img = rsImgRef.current;
+                if (!img || !img.naturalWidth) return null;
+                // natural pixels → display CSS pixels
+                const dX = (rsRegionX / img.naturalWidth) * img.offsetWidth;
+                const dY = (rsRegionY / img.naturalHeight) * img.offsetHeight;
+                const dR = (rsRegionRadius / img.naturalWidth) * img.offsetWidth;
+                return (
+                  <div
+                    className="absolute border-4 border-red-500 rounded-full pointer-events-none"
+                    style={{
+                      left: `${dX}px`,
+                      top: `${dY}px`,
+                      width: `${dR * 2}px`,
+                      height: `${dR * 2}px`,
+                      transform: "translate(-50%, -50%)",
+                      backgroundColor: "rgba(255, 0, 0, 0.1)",
+                    }}
+                  />
+                );
+              })()}
             </div>
           </div>
           
