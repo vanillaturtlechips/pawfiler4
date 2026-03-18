@@ -3,20 +3,66 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
+	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gorilla/mux"
 
 	"github.com/pawfiler/backend/services/admin/internal/repository"
 )
 
 type CommunityAdminHandler struct {
-	repo     *repository.CommunityRepository
-	quizRepo *repository.QuizRepository
+	repo             *repository.CommunityRepository
+	quizRepo         *repository.QuizRepository
+	s3Client         *s3.S3
+	s3Bucket         string
+	cloudfrontDomain string
 }
 
 func NewCommunityAdminHandler(repo *repository.CommunityRepository, quizRepo *repository.QuizRepository) *CommunityAdminHandler {
-	return &CommunityAdminHandler{repo: repo, quizRepo: quizRepo}
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "ap-northeast-2"
+	}
+	bucket := os.Getenv("COMMUNITY_S3_BUCKET")
+	if bucket == "" {
+		bucket = os.Getenv("S3_BUCKET")
+	}
+	if bucket == "" {
+		bucket = "pawfiler-quiz-media"
+	}
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String(region),
+	}))
+	return &CommunityAdminHandler{
+		repo:             repo,
+		quizRepo:         quizRepo,
+		s3Client:         s3.New(sess),
+		s3Bucket:         bucket,
+		cloudfrontDomain: os.Getenv("CLOUDFRONT_DOMAIN"),
+	}
+}
+
+func (h *CommunityAdminHandler) extractS3Key(mediaURL string) string {
+	if mediaURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(mediaURL)
+	if err != nil {
+		return ""
+	}
+	if h.cloudfrontDomain != "" && parsed.Host == h.cloudfrontDomain {
+		return strings.TrimPrefix(parsed.Path, "/")
+	}
+	if strings.HasSuffix(parsed.Host, ".amazonaws.com") {
+		return strings.TrimPrefix(parsed.Path, "/")
+	}
+	return ""
 }
 
 type ListPostsResponse struct {
@@ -178,13 +224,32 @@ func (h *CommunityAdminHandler) UpdatePost(w http.ResponseWriter, r *http.Reques
 func (h *CommunityAdminHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	if err := h.repo.DeletePost(id); err != nil {
+	// media_url 먼저 조회해서 S3 키 추출
+	post, err := h.repo.GetPostByID(id)
+	if err != nil {
 		if err.Error() == "post not found" {
 			respondError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// DB 레코드 삭제
+	if err := h.repo.DeletePost(id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// S3 미디어 삭제
+	if key := h.extractS3Key(post.MediaURL); key != "" {
+		if _, err := h.s3Client.DeleteObject(&s3.DeleteObjectInput{
+			Bucket: aws.String(h.s3Bucket),
+			Key:    aws.String(key),
+		}); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to delete media from S3")
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
