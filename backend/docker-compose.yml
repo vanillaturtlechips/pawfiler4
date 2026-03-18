@@ -120,6 +120,22 @@ services:
     networks:
       - pawfiler-network
 
+  # Report Service (개인별 PDF 리포트 생성)
+  report-service:
+    build:
+      context: ./services/report
+      dockerfile: Dockerfile
+    container_name: pawfiler-report
+    environment:
+      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pawfiler-network
+
   # Proto Descriptor Generator
   proto-generator:
     image: namely/protoc:1.51_1

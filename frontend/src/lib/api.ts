@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { fixImageUrl } from "../utils/imageUrl";
 
 // 사용자 ID 생성 또는 가져오기 (UUID v4 형식)
-const getUserId = (): string => {
+export const getUserId = (): string => {
   let userId = localStorage.getItem(config.storageKeys.quizUserId);
   if (!userId) {
     // UUID v4 생성
@@ -912,3 +912,34 @@ export const adminUpdateShopItem = async (id: string, input: Partial<AdminShopIt
 
 export const adminDeleteShopItem = async (id: string): Promise<void> =>
   adminFetch("DELETE", `/items/${id}`);
+
+// Report Service
+const REPORT_BASE_URL = import.meta.env.VITE_REPORT_BASE_URL || '';
+
+export const generateReport = async (days?: number | null): Promise<{ report_url: string }> => {
+  const userId = getUserId();
+  const savedUser = localStorage.getItem('auth_user');
+  const user = savedUser ? JSON.parse(savedUser) : null;
+
+  const response = await fetch(`${REPORT_BASE_URL}/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      days: days ?? null,
+      nickname: user?.nickname || null,
+      avatar_emoji: user?.avatarEmoji || null,
+      email: user?.email || null,
+      subscription_type: user?.subscriptionType || "free",
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || "리포트 생성에 실패했어요.");
+  }
+  return response.json();
+};
+
+export const downloadReport = (userId: string) => {
+  window.open(`${REPORT_BASE_URL}/download/${userId}`, '_blank');
+};

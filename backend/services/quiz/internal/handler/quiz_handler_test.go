@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	pb "github.com/pawfiler/backend/services/quiz/proto"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
+	pb "github.com/pawfiler/backend/services/quiz/proto"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,6 +20,7 @@ type MockQuizService struct {
 	SubmitAnswerFunc      func(ctx context.Context, userID string, questionID string, answer repository.Answer) (*service.SubmitResult, error)
 	GetUserStatsFunc      func(ctx context.Context, userID string) (*repository.UserStats, error)
 	GetUserProfileFunc    func(ctx context.Context, userID string) (*repository.UserProfile, error)
+	UpdateUserProfileFunc func(ctx context.Context, profile *repository.UserProfile) error
 }
 
 func (m *MockQuizService) GetRandomQuestion(ctx context.Context, userID string, difficulty *string, questionType *pb.QuestionType) (*repository.Question, error) {
@@ -55,6 +56,13 @@ func (m *MockQuizService) GetUserProfile(ctx context.Context, userID string) (*r
 		return m.GetUserProfileFunc(ctx, userID)
 	}
 	return &repository.UserProfile{UserID: userID, Energy: 100, MaxEnergy: 100}, nil
+}
+
+func (m *MockQuizService) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
+	if m.UpdateUserProfileFunc != nil {
+		return m.UpdateUserProfileFunc(ctx, profile)
+	}
+	return nil
 }
 
 // TestGetRandomQuestion_Success tests successful random question retrieval

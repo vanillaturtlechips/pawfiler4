@@ -153,11 +153,28 @@ module "helm" {
 module "irsa" {
   source = "./modules/irsa"
 
-  project_name          = var.project_name
-  oidc_provider_arn     = module.eks.oidc_provider_arn
-  oidc_provider_url     = module.eks.oidc_provider_url
+  project_name               = var.project_name
+  oidc_provider_arn          = module.eks.oidc_provider_arn
+  oidc_provider_url          = module.eks.oidc_provider_url
   quiz_media_bucket_arn      = module.s3.quiz_media_bucket_arn
   community_media_bucket_arn = module.s3.community_media_bucket_arn
+}
+
+# ---------------------------------------------------------------------------
+# Lambda Report: S3 + SQS + ECR + Lambda (EDA 방식 리포트 생성)
+# ---------------------------------------------------------------------------
+module "lambda_report" {
+  source = "./modules/lambda_report"
+
+  project_name          = var.project_name
+  aws_region            = var.aws_region
+  account_id            = data.aws_caller_identity.current.account_id
+  database_url          = "postgresql://${var.database_username}:${var.database_password}@${module.rds.rds_proxy_endpoint}:5432/${replace(var.project_name, "-", "_")}_db"
+  vpc_id                = module.networking.vpc_id
+  private_subnet_ids    = module.networking.private_subnet_ids
+  rds_security_group_id = module.rds.rds_security_group_id
+
+  depends_on = [module.rds]
 }
 
 # ---------------------------------------------------------------------------
