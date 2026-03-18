@@ -50,7 +50,7 @@ export const getUserId = (): string => {
 }
 
 // 에러 처리 헬퍼
-const handleApiError = (error: unknown, context: string): never => {
+export const handleApiError = (error: unknown, context: string): never => {
   console.error(`[API Error - ${context}]:`, error);
   
   if (error instanceof TypeError && error.message === 'Failed to fetch') {
