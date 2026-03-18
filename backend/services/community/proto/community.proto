@@ -67,6 +67,9 @@ service CommunityService {
   rpc GetHotTopic(GetHotTopicRequest) returns (HotTopicResponse) {
     option (google.api.http) = { post: "/community.CommunityService/GetHotTopic" body: "*" };
   }
+  rpc CreateAdminPost(CreateAdminPostRequest) returns (Post) {
+    option (google.api.http) = { post: "/community.CommunityService/CreateAdminPost" body: "*" };
+  }
 }
 
 message Post {
@@ -214,3 +217,11 @@ message RankingEntry {
   int32 total_coins = 8;
 }
 message GetRankingResponse { repeated RankingEntry entries = 1; }
+
+message CreateAdminPostRequest {
+  string user_id = 1;
+  string title = 2;
+  string body = 3;
+  repeated string tags = 4;
+  optional bool is_correct = 5;
+}

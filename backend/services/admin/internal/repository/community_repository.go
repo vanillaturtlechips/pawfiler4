@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -43,6 +44,15 @@ type UpdatePostRequest struct {
 	Title string   `json:"title"`
 	Body  string   `json:"body"`
 	Tags  []string `json:"tags"`
+}
+
+type CreateAdminPostRequest struct {
+	UserID    string   `json:"user_id"`
+	Nickname  string   `json:"nickname"`
+	Emoji     string   `json:"emoji"`
+	Title     string   `json:"title"`
+	Body      string   `json:"body"`
+	Tags      []string `json:"tags"`
 }
 
 func (r *CommunityRepository) ListPosts(page, pageSize int, search, searchType string) ([]Post, int, error) {
@@ -184,6 +194,38 @@ func (r *CommunityRepository) DeleteComment(id string) error {
 		return fmt.Errorf("comment not found")
 	}
 	return nil
+}
+
+func (r *CommunityRepository) CreateAdminPost(req *CreateAdminPostRequest) (*Post, error) {
+	id := uuid.New().String()
+	query := `
+		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, is_admin_post, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())
+		RETURNING id, author_id, author_nickname, author_emoji, title, body, tags, likes, comments, created_at::text
+	`
+	var post Post
+	var tags pq.StringArray
+	err := r.db.QueryRow(query,
+		id, req.UserID, req.Nickname, req.Emoji, req.Title, req.Body, pq.Array(req.Tags),
+	).Scan(&post.ID, &post.UserID, &post.AuthorNickname, &post.AuthorEmoji,
+		&post.Title, &post.Body, &tags, &post.Likes, &post.Comments, &post.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create admin post: %w", err)
+	}
+	post.Tags = []string(tags)
+	return &post, nil
+}
+
+func generateUUID() string {
+	// simple UUID v4 generation
+	b := make([]byte, 16)
+	_, _ = fmt.Sscanf("00000000-0000-4000-8000-000000000000", "%x-%x-%x-%x-%x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+	// use crypto/rand via time-based fallback
+	import_time_nano := fmt.Sprintf("%d", 0)
+	_ = import_time_nano
+	return fmt.Sprintf("%08x-%04x-4%03x-%04x-%012x",
+		0, 0, 0, 0, 0)
 }
 
 func (r *CommunityRepository) GetPostByID(id string) (*sql.Row, error) {

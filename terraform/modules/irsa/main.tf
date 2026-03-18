@@ -62,7 +62,7 @@ resource "aws_iam_role" "community_service" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:pawfiler:community-service-sa"
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:${var.project_name}:community-service-sa"
           "${replace(var.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
         }
       }
