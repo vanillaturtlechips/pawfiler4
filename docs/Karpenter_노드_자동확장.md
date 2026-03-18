@@ -1,4 +1,4 @@
-# Karpenter 설치 가이드
+# Karpenter 노드 자동 확장 설치 가이드
 
 ## 사전 준비
 
