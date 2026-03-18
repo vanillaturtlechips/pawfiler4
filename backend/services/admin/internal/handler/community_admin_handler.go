@@ -29,12 +29,9 @@ func NewCommunityAdminHandler(repo *repository.CommunityRepository, quizRepo *re
 	if region == "" {
 		region = "ap-northeast-2"
 	}
-	bucket := os.Getenv("COMMUNITY_S3_BUCKET")
+	bucket := os.Getenv("S3_COMMUNITY_BUCKET")
 	if bucket == "" {
-		bucket = os.Getenv("S3_BUCKET")
-	}
-	if bucket == "" {
-		bucket = "pawfiler-quiz-media"
+		bucket = "pawfiler-community-media"
 	}
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(region),
