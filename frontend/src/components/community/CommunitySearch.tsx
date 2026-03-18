@@ -1,5 +1,4 @@
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
 
 type SearchProps = {
@@ -9,74 +8,71 @@ type SearchProps = {
   setSearchType: (type: "title" | "body" | "all") => void;
 };
 
-export default function CommunitySearch({ 
-  query, 
-  setQuery, 
-  searchType, 
-  setSearchType 
-}: SearchProps) {
+const TYPES: { value: "title" | "body" | "all"; label: string }[] = [
+  { value: "title", label: "제목" },
+  { value: "body", label: "내용" },
+  { value: "all", label: "전체" },
+];
+
+export default function CommunitySearch({ query, setQuery, searchType, setSearchType }: SearchProps) {
   return (
-    <div className="flex gap-4">
-      <div className="relative group flex-1">
+    <div
+      className="flex items-stretch rounded-xl overflow-hidden"
+      style={{
+        border: "2px solid hsl(var(--parchment-border))",
+        background: "hsl(var(--parchment))",
+      }}
+    >
+      {/* 검색 아이콘 + 입력창 */}
+      <div className="relative group flex-1 flex items-center">
         <Search
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-orange-500 transition-colors"
-          size={22}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors pointer-events-none"
+          size={14}
+          style={{ color: "hsl(var(--wood-light))" }}
         />
         <Input
           placeholder={
-            searchType === "title"
-              ? "제목으로 검색..."
-              : searchType === "body"
-              ? "내용으로 검색..."
-              : "제목 + 내용으로 검색..."
+            searchType === "title" ? "제목으로 검색..." :
+            searchType === "body" ? "내용으로 검색..." :
+            "제목 + 내용으로 검색..."
           }
-          className="pl-12 py-6 text-lg rounded-2xl border-4 border-parchment-border bg-white text-gray-900 placeholder:text-gray-400 backdrop-blur-sm focus-visible:ring-orange-500/50 font-jua"
+          className="pl-9 pr-9 h-10 text-sm border-0 bg-transparent text-wood-darkest placeholder:text-wood-light focus-visible:ring-0 focus-visible:ring-offset-0 font-jua rounded-none"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         {query && (
           <button
             onClick={() => setQuery("")}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-black/5 rounded-full transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors rounded-full p-0.5 hover:bg-orange-100"
+            style={{ color: "hsl(var(--wood-light))" }}
           >
-            <X size={20} />
+            <X size={12} />
           </button>
         )}
       </div>
-      <div className="flex gap-2">
-        <Button
-          onClick={() => setSearchType("title")}
-          variant={searchType === "title" ? "default" : "outline"}
-          className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
-            searchType === "title"
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-white hover:bg-orange-50 text-wood-darkest"
-          }`}
-        >
-          제목
-        </Button>
-        <Button
-          onClick={() => setSearchType("body")}
-          variant={searchType === "body" ? "default" : "outline"}
-          className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
-            searchType === "body"
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-white hover:bg-orange-50 text-wood-darkest"
-          }`}
-        >
-          내용
-        </Button>
-        <Button
-          onClick={() => setSearchType("all")}
-          variant={searchType === "all" ? "default" : "outline"}
-          className={`font-jua text-lg rounded-2xl px-6 py-6 border-4 border-wood-darkest transition-all ${
-            searchType === "all"
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-white hover:bg-orange-50 text-wood-darkest"
-          }`}
-        >
-          전체
-        </Button>
+
+      {/* 구분선 */}
+      <div
+        className="w-px self-stretch my-2 shrink-0"
+        style={{ background: "hsl(var(--parchment-border))" }}
+      />
+
+      {/* 세그먼트 탭 */}
+      <div className="flex items-stretch shrink-0">
+        {TYPES.map((t, i) => (
+          <button
+            key={t.value}
+            onClick={() => setSearchType(t.value)}
+            className={`px-4 text-xs font-jua transition-all duration-150 ${
+              searchType === t.value
+                ? "bg-orange-500 text-white"
+                : "text-wood-base hover:bg-orange-50 hover:text-orange-500"
+            } ${i < TYPES.length - 1 ? "border-r" : ""}`}
+            style={i < TYPES.length - 1 ? { borderColor: "hsl(var(--parchment-border))" } : {}}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
     </div>
   );
