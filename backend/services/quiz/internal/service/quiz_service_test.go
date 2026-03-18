@@ -85,7 +85,7 @@ func TestGetRandomQuestion_Success(t *testing.T) {
 		UpdatedAt:      time.Now(),
 	}
 
-	mockRepo.On("GetRandomQuestion", ctx, userID, (*string)(nil), (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
+	mockRepo.On("GetRandomQuestion", ctx, (*string)(nil), (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
 	mockRepo.On("DeductEnergy", ctx, userID, int32(2)).Return(&repository.UserProfile{UserID: userID, Energy: 98}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
@@ -115,7 +115,7 @@ func TestGetRandomQuestion_WithDifficulty(t *testing.T) {
 		Difficulty: repository.DifficultyEasy,
 	}
 
-	mockRepo.On("GetRandomQuestion", ctx, userID, &difficulty, (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
+	mockRepo.On("GetRandomQuestion", ctx, &difficulty, (*repository.QuestionType)(nil)).Return(expectedQuestion, nil)
 	mockRepo.On("DeductEnergy", ctx, userID, int32(2)).Return(&repository.UserProfile{UserID: userID, Energy: 98}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)
@@ -144,7 +144,7 @@ func TestGetRandomQuestion_WithType(t *testing.T) {
 		Type: repository.QuestionTypeTrueFalse,
 	}
 
-	mockRepo.On("GetRandomQuestion", ctx, userID, (*string)(nil), &repoQuestionType).Return(expectedQuestion, nil)
+	mockRepo.On("GetRandomQuestion", ctx, (*string)(nil), &repoQuestionType).Return(expectedQuestion, nil)
 	mockRepo.On("DeductEnergy", ctx, userID, int32(2)).Return(&repository.UserProfile{UserID: userID, Energy: 98}, nil)
 
 	service := NewQuizService(mockRepo, mockStatsTracker, mockValidator)

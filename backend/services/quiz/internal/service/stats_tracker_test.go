@@ -17,8 +17,8 @@ type MockQuizRepository struct {
 	mock.Mock
 }
 
-func (m *MockQuizRepository) GetRandomQuestion(ctx context.Context, userID string, difficulty *string, questionType *repository.QuestionType) (*repository.Question, error) {
-	args := m.Called(ctx, userID, difficulty, questionType)
+func (m *MockQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *string, questionType *repository.QuestionType) (*repository.Question, error) {
+	args := m.Called(ctx, difficulty, questionType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
