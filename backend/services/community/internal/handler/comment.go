@@ -16,7 +16,7 @@ import (
 // GetComments - 댓글 목록 조회
 func (h *Handler) GetComments(ctx context.Context, req *pb.GetCommentsRequest) (*pb.CommentsResponse, error) {
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT id, post_id, author_id, author_nickname, author_emoji, content, created_at::text
+		SELECT id, post_id, author_id, author_nickname, author_emoji, content, created_at
 		FROM community.comments
 		WHERE post_id = $1
 		ORDER BY created_at ASC
@@ -29,12 +29,14 @@ func (h *Handler) GetComments(ctx context.Context, req *pb.GetCommentsRequest) (
 	comments := []*pb.Comment{}
 	for rows.Next() {
 		var comment pb.Comment
+		var createdAt time.Time
 		err := rows.Scan(&comment.Id, &comment.PostId, &comment.AuthorId, &comment.AuthorNickname,
-			&comment.AuthorEmoji, &comment.Body, &comment.CreatedAt)
+			&comment.AuthorEmoji, &comment.Body, &createdAt)
 		if err != nil {
 			log.Printf("Error scanning comment: %v", err)
 			continue
 		}
+		comment.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 		comments = append(comments, &comment)
 	}
 

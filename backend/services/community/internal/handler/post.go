@@ -44,7 +44,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 
 	if searchQuery != "" {
 		searchPattern := "%" + searchQuery + "%"
-		
+
 		var whereClause string
 		switch searchType {
 		case "body":
@@ -55,11 +55,11 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 			whereClause = "title ILIKE $1"
 		}
 		whereClause += " OR $2 = ANY(tags)"
-		
+
 		rows, err = h.db.QueryContext(ctx, fmt.Sprintf(`
-			SELECT 
-				id, author_id, author_nickname, author_emoji, title, body, 
-				likes, comments, created_at::text, tags,
+			SELECT
+				id, author_id, author_nickname, author_emoji, title, body,
+				likes, comments, created_at, tags,
 				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
 			FROM community.posts
 			WHERE %s
@@ -68,9 +68,9 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		`, whereClause), searchPattern, searchQuery, pageSize, offset)
 	} else {
 		rows, err = h.db.QueryContext(ctx, `
-			SELECT 
-				id, author_id, author_nickname, author_emoji, title, body, 
-				likes, comments, created_at::text, tags,
+			SELECT
+				id, author_id, author_nickname, author_emoji, title, body,
+				likes, comments, created_at, tags,
 				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
 			FROM community.posts
 			ORDER BY is_admin_post DESC, created_at DESC
@@ -89,9 +89,13 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		var tags []string
 		var mediaUrl, mediaType sql.NullString
 		var count int
+		var createdAt time.Time
 		err := rows.Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
+			&post.Title, &post.Body, &post.Likes, &post.Comments, &createdAt,
 			(*pq.StringArray)(&tags), &count, &mediaUrl, &mediaType, &post.IsAdminPost)
+		if err == nil {
+			post.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		}
 		if err != nil {
 			log.Printf("Error scanning post: %v", err)
 			continue
@@ -115,14 +119,15 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	var post pb.Post
 	var tags []string
 	var mediaUrl, mediaType sql.NullString
+	var createdAt time.Time
 
 	err := h.db.QueryRowContext(ctx, `
-		SELECT id, author_id, author_nickname, author_emoji, title, body, 
-		       likes, comments, created_at::text, tags, media_url, media_type, is_admin_post
+		SELECT id, author_id, author_nickname, author_emoji, title, body,
+		       likes, comments, created_at, tags, media_url, media_type, is_admin_post
 		FROM community.posts
 		WHERE id = $1
 	`, req.PostId).Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &createdAt,
 		(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost)
 
 	if err == sql.ErrNoRows {
@@ -133,6 +138,7 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 		return nil, status.Error(codes.Internal, "Failed to fetch post")
 	}
 
+	post.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	post.Tags = tags
 	post.MediaUrl = mediaUrl.String
 	post.MediaType = mediaType.String
@@ -208,15 +214,16 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 
 	var post pb.Post
 	var tags []string
+	var updatedCreatedAt time.Time
 	err = tx.QueryRowContext(ctx, `
 		UPDATE community.posts
 		SET title = $1, body = $2, tags = $3, updated_at = NOW()
 		WHERE id = $4
-		RETURNING id, author_id, author_nickname, author_emoji, title, body, 
-		          likes, comments, created_at::text, tags
+		RETURNING id, author_id, author_nickname, author_emoji, title, body,
+		          likes, comments, created_at, tags
 	`, req.Title, req.Body, pq.Array(req.Tags), req.PostId).Scan(
 		&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, 
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &updatedCreatedAt,
 		(*pq.StringArray)(&tags))
 
 	if err != nil {
@@ -227,6 +234,7 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to commit transaction")
 	}
 
+	post.CreatedAt = updatedCreatedAt.UTC().Format(time.RFC3339)
 	post.Tags = tags
 	return &post, nil
 }
