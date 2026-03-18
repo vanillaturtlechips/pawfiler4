@@ -63,6 +63,12 @@ output "rds_instance_endpoint" {
   sensitive   = true
 }
 
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint (Lambda DATABASE_URL에 사용)"
+  value       = module.rds.rds_proxy_endpoint
+  sensitive   = true
+}
+
 # ECR
 output "ecr_repository_urls" {
   description = "Map of ECR repository URLs for application services"
@@ -118,6 +124,22 @@ output "community_media_cloudfront_domain" {
 output "community_media_cloudfront_url" {
   description = "Full CloudFront URL for community media"
   value       = module.s3.community_media_cloudfront_url
+}
+
+# Lambda Report
+output "report_function_url" {
+  description = "Lambda Function URL for report service (set as VITE_REPORT_BASE_URL)"
+  value       = module.lambda_report.report_function_url
+}
+
+output "report_ecr_repository_url" {
+  description = "ECR repository URL for report Lambda image"
+  value       = module.lambda_report.report_ecr_repository_url
+}
+
+output "report_bucket_name" {
+  description = "S3 bucket name for report HTML files"
+  value       = module.lambda_report.report_bucket_name
 }
 
 # Bastion

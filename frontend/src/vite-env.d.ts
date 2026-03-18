@@ -2,7 +2,9 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string
+  readonly VITE_COMMUNITY_BASE_URL?: string
   readonly VITE_ADMIN_API_URL?: string
+  readonly VITE_REPORT_BASE_URL?: string
 }
 
 interface ImportMeta {
