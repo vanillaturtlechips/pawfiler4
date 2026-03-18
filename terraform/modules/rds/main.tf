@@ -46,6 +46,57 @@ resource "aws_security_group_rule" "rds_allow_bastion" {
   description              = "Allow PostgreSQL from Bastion"
 }
 
+resource "aws_db_parameter_group" "main" {
+  name        = "${var.project_name}-pg16"
+  family      = "postgres16"
+  description = "Custom parameter group for ${var.project_name}"
+
+  # 시간대 (재시작 필요)
+  parameter {
+    name         = "TimeZone"
+    value        = "Asia/Seoul"
+    apply_method = "pending-reboot"
+  }
+  # 쿼리 통계 수집 (재시작 필요)
+  parameter {
+    name         = "shared_preload_libraries"
+    value        = "pg_stat_statements"
+    apply_method = "pending-reboot"
+  }
+
+  # 슬로우 쿼리 로깅 (1초 이상)
+  parameter {
+    name         = "log_min_duration_statement"
+    value        = "1000"
+    apply_method = "immediate"
+  }
+
+  # 락 대기 로깅
+  parameter {
+    name         = "log_lock_waits"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  # idle transaction 30초 후 종료 (커넥션 누수 방지)
+  parameter {
+    name         = "idle_in_transaction_session_timeout"
+    value        = "30000"
+    apply_method = "immediate"
+  }
+
+  # 60초 초과 쿼리 강제 종료
+  parameter {
+    name         = "statement_timeout"
+    value        = "60000"
+    apply_method = "immediate"
+  }
+
+  tags = {
+    Name = "${var.project_name}-pg16"
+  }
+}
+
 resource "aws_db_instance" "main" {
   allocated_storage      = var.database_allocated_storage
   engine                 = "postgres"
@@ -56,6 +107,7 @@ resource "aws_db_instance" "main" {
   password               = var.database_password
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
+  parameter_group_name   = aws_db_parameter_group.main.name
   skip_final_snapshot    = true
   publicly_accessible    = false
   multi_az               = false
