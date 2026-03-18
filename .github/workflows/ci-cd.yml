@@ -125,6 +125,9 @@ jobs:
 
       - name: Build
         working-directory: frontend
+        env:
+          VITE_MEDIA_CLOUDFRONT_DOMAIN: ${{ secrets.VITE_MEDIA_CLOUDFRONT_DOMAIN }}
+          VITE_USE_MOCK_AUTH: "false"
         run: |
           npm ci
           npm run build
@@ -159,7 +162,8 @@ jobs:
       - name: Build
         working-directory: admin-frontend
         env:
-          VITE_ADMIN_API_URL: http://k8s-admin-adminser-3c357749a0-5162d22eb2ae0f3a.elb.ap-northeast-2.amazonaws.com
+          VITE_ADMIN_API_URL: ${{ secrets.VITE_ADMIN_API_URL }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
         run: |
           npm ci
           npm run build
