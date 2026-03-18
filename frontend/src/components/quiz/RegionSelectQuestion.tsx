@@ -32,19 +32,54 @@ export default function RegionSelectQuestion({
   coinsEarned,
   accuracy,
 }: Props) {
-  const imageRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  // object-contain 렌더링 기준으로 실제 이미지 영역 계산
+  function getImageBounds() {
+    const img = imgRef.current;
+    const container = containerRef.current;
+    if (!img || !container || !img.naturalWidth) return null;
+    const cW = container.clientWidth;
+    const cH = container.clientHeight;
+    const scale = Math.min(cW / img.naturalWidth, cH / img.naturalHeight);
+    const rW = img.naturalWidth * scale;
+    const rH = img.naturalHeight * scale;
+    return {
+      offsetX: (cW - rW) / 2,
+      offsetY: (cH - rH) / 2,
+      renderedW: rW,
+      renderedH: rH,
+      naturalW: img.naturalWidth,
+      naturalH: img.naturalHeight,
+    };
+  }
+
+  // 원본 이미지 픽셀 → 컨테이너 CSS 픽셀
+  function naturalToDisplay(nx: number, ny: number) {
+    const b = getImageBounds();
+    if (!b) return null;
+    return {
+      x: (nx / b.naturalW) * b.renderedW + b.offsetX,
+      y: (ny / b.naturalH) * b.renderedH + b.offsetY,
+    };
+  }
+
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (showResult || !imageRef.current || !imageLoaded) return;
-
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = Math.round(e.clientX - rect.left);
-    const y = Math.round(e.clientY - rect.top);
-
-    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
-
-    onSelect({ x, y });
+    if (showResult || !containerRef.current || !imgRef.current) return;
+    const b = getImageBounds();
+    if (!b) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const imgX = e.clientX - rect.left - b.offsetX;
+    const imgY = e.clientY - rect.top - b.offsetY;
+    // 이미지 영역 밖 클릭 무시
+    if (imgX < 0 || imgX > b.renderedW || imgY < 0 || imgY > b.renderedH) return;
+    // 원본 이미지 픽셀로 변환
+    onSelect({
+      x: Math.round((imgX / b.renderedW) * b.naturalW),
+      y: Math.round((imgY / b.renderedH) * b.naturalH),
+    });
   };
 
   return (
@@ -70,58 +105,58 @@ export default function RegionSelectQuestion({
       
       {/* 클릭 가능한 이미지 영역 */}
       <div
-        ref={imageRef}
+        ref={containerRef}
         className="relative flex-shrink-0 rounded-2xl overflow-hidden bg-black"
         onClick={handleClick}
-        style={{ 
+        style={{
           maxHeight: '400px',
           minHeight: '300px',
           cursor: showResult ? 'default' : 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 24 24\'><circle cx=\'10\' cy=\'10\' r=\'7\' fill=\'none\' stroke=\'white\' stroke-width=\'2\'/><line x1=\'15\' y1=\'15\' x2=\'21\' y2=\'21\' stroke=\'white\' stroke-width=\'2\' stroke-linecap=\'round\'/></svg>") 16 16, crosshair'
         }}
       >
         <img
+          ref={imgRef}
           src={question.mediaUrl}
           alt="Quiz"
           className="w-full h-full object-contain"
           onLoad={() => setImageLoaded(true)}
-          onError={(e) => console.error('[RegionSelect] 이미지 로드 실패:', question.mediaUrl, e)}
         />
 
         {/* Selected Point */}
-        {selectedRegion && imageLoaded && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute w-16 h-16 rounded-full border-4 pointer-events-none"
-            style={{
-              left: selectedRegion.x - 32,
-              top: selectedRegion.y - 32,
-              borderColor: showResult
-                ? isCorrect
-                  ? "#22c55e"
-                  : "#ef4444"
-                : "#fff",
-              background: showResult
-                ? isCorrect
-                  ? "rgba(34, 197, 94, 0.3)"
-                  : "rgba(239, 68, 68, 0.3)"
-                : "rgba(255, 255, 255, 0.3)",
-              boxShadow: showResult
-                ? isCorrect
-                  ? "0 0 30px rgba(34, 197, 94, 0.8)"
-                  : "0 0 30px rgba(239, 68, 68, 0.8)"
-                : "0 0 30px rgba(255, 255, 255, 0.8)",
-            }}
-          >
-            <div className="w-full h-full flex items-center justify-center text-3xl">
-              {showResult ? (isCorrect ? "✓" : "✗") : "📍"}
-            </div>
-          </motion.div>
-        )}
+        {selectedRegion && imageLoaded && (() => {
+          const dp = naturalToDisplay(selectedRegion.x, selectedRegion.y);
+          if (!dp) return null;
+          return (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute w-16 h-16 rounded-full border-4 pointer-events-none"
+              style={{
+                left: dp.x - 32,
+                top: dp.y - 32,
+                borderColor: showResult ? (isCorrect ? "#22c55e" : "#ef4444") : "#fff",
+                background: showResult
+                  ? isCorrect ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"
+                  : "rgba(255, 255, 255, 0.3)",
+                boxShadow: showResult
+                  ? isCorrect ? "0 0 30px rgba(34, 197, 94, 0.8)" : "0 0 30px rgba(239, 68, 68, 0.8)"
+                  : "0 0 30px rgba(255, 255, 255, 0.8)",
+              }}
+            >
+              <div className="w-full h-full flex items-center justify-center text-3xl">
+                {showResult ? (isCorrect ? "✓" : "✗") : "📍"}
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* Correct Regions (show after answer) */}
-        {showResult &&
-          question.correctRegions.map((region, i) => (
+        {showResult && question.correctRegions.map((region, i) => {
+          const dp = naturalToDisplay(region.x, region.y);
+          const b = getImageBounds();
+          if (!dp || !b) return null;
+          const displayRadius = (region.radius / b.naturalW) * b.renderedW;
+          return (
             <motion.div
               key={i}
               initial={{ scale: 0 }}
@@ -129,16 +164,17 @@ export default function RegionSelectQuestion({
               transition={{ delay: 0.2 }}
               className="absolute rounded-full border-4 pointer-events-none"
               style={{
-                left: region.x - region.radius,
-                top: region.y - region.radius,
-                width: region.radius * 2,
-                height: region.radius * 2,
+                left: dp.x - displayRadius,
+                top: dp.y - displayRadius,
+                width: displayRadius * 2,
+                height: displayRadius * 2,
                 borderColor: "#22c55e",
                 background: "rgba(34, 197, 94, 0.2)",
                 boxShadow: "0 0 30px rgba(34, 197, 94, 0.5)",
               }}
             />
-          ))}
+          );
+        })}
       </div>
 
       {/* 결과 표시 및 버튼 - flex-shrink-0으로 고정 */}
