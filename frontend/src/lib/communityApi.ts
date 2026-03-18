@@ -17,12 +17,12 @@ export const fetchCommunityFeed = async (
   try {
     const requestBody: any = {
       page,
-      pageSize,
+      page_size: pageSize,
     };
-    
+
     if (searchQuery && searchQuery.trim()) {
-      requestBody.searchQuery = searchQuery.trim();
-      requestBody.searchType = searchType;
+      requestBody.search_query = searchQuery.trim();
+      requestBody.search_type = searchType;
     }
     
     const response = await fetch(
@@ -284,7 +284,7 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId }),
+      body: JSON.stringify({ post_id: postId }),
     });
 
     if (!response.ok) {
@@ -296,9 +296,9 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
     // gRPC snake_case를 camelCase로 변환
     const transformedComments: CommunityComment[] = data.comments?.map((comment: any) => ({
       id: comment.id,
-      postId: comment.post_id,
+      postId: comment.postId || comment.post_id,
       authorNickname: comment.authorNickname || comment.author_nickname || "익명",
-      authorEmoji: comment.author_emoji || "👤",
+      authorEmoji: comment.authorEmoji || comment.author_emoji || "👤",
       body: comment.body,
       createdAt: comment.createdAt || comment.created_at || new Date().toISOString(),
       userId: comment.authorId || comment.author_id,
@@ -324,7 +324,13 @@ export const createCommunityComment = async (req: {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(req),
+      body: JSON.stringify({
+        post_id: req.postId,
+        user_id: req.userId,
+        author_nickname: req.authorNickname,
+        author_emoji: req.authorEmoji,
+        body: req.body,
+      }),
     });
 
     if (!response.ok) {
