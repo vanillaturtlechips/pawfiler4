@@ -107,3 +107,9 @@ generated/
 *.docx
 *.xlsx
 *.pptx
+
+# Claude Code internal files
+.claude/
+
+# ML datasets (large binary files, stored externally)
+dataset/

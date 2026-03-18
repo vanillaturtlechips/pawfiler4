@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	pb "user-service/pb"
@@ -23,7 +24,7 @@ var db *sql.DB
 func initDB() error {
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable"
+		log.Fatal("DATABASE_URL is required")
 	}
 	var err error
 	db, err = sql.Open("postgres", dbURL)
@@ -78,8 +79,26 @@ func main() {
 		log.Fatalf("failed to register gateway: %v", err)
 	}
 
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "https://pawfiler.site"
+	}
+	allowedOriginsList := strings.Split(corsOrigins, ",")
+
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		origin := r.Header.Get("Origin")
+		for _, o := range allowedOriginsList {
+			if strings.TrimSpace(o) == origin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {

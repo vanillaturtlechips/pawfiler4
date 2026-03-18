@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"community/internal/handler"
@@ -24,7 +26,7 @@ var db *sql.DB
 func initDB() error {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		databaseURL = "postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable"
+		return errors.New("DATABASE_URL environment variable is required")
 	}
 	var err error
 	db, err = sql.Open("postgres", databaseURL)
@@ -93,8 +95,31 @@ func main() {
 		log.Fatalf("failed to register gateway: %v", err)
 	}
 
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "https://pawfiler.site"
+	}
+	allowedOrigins := strings.Split(corsOrigins, ",")
+
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// ALB health check — must respond 200 before any CORS processing.
+		if r.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		origin := r.Header.Get("Origin")
+		allowed := false
+		for _, o := range allowedOrigins {
+			if strings.TrimSpace(o) == origin {
+				allowed = true
+				break
+			}
+		}
+		if allowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
