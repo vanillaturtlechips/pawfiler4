@@ -56,6 +56,9 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 		return nil, status.Error(codes.NotFound, "Post not found")
 	}
 
+	// Fetch authoritative profile from user service to prevent author spoofing.
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+
 	commentID := uuid.New().String()
 	createdAt := time.Now()
 
@@ -68,7 +71,7 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO community.comments (id, post_id, author_id, author_nickname, author_emoji, content, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, commentID, req.PostId, req.UserId, req.AuthorNickname, req.AuthorEmoji, req.Body, createdAt)
+	`, commentID, req.PostId, req.UserId, nickname, avatarEmoji, req.Body, createdAt)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to create comment")
@@ -87,8 +90,8 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 		Id:             commentID,
 		PostId:         req.PostId,
 		AuthorId:       req.UserId,
-		AuthorNickname: req.AuthorNickname,
-		AuthorEmoji:    req.AuthorEmoji,
+		AuthorNickname: nickname,
+		AuthorEmoji:    avatarEmoji,
 		Body:           req.Body,
 		CreatedAt:      createdAt.Format(time.RFC3339),
 	}, nil

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { mockLogin, mockSignup } from "@/lib/mockApi";
+import { login as apiLogin, signup as apiSignup } from "@/lib/api";
 
 const AVATARS = ["🦊", "🐱", "🐻", "🦉", "🐰", "🐸", "🐧", "🦁"];
 
@@ -25,8 +25,8 @@ const LoginPage = () => {
     try {
       const result =
         mode === "login"
-          ? await mockLogin({ email, password })
-          : await mockSignup({ email, password, nickname, avatarEmoji: avatar });
+          ? await apiLogin({ email, password })
+          : await apiSignup({ email, password, nickname, avatarEmoji: avatar });
       login(result.token, result.user);
       navigate("/");
     } catch (e: any) {

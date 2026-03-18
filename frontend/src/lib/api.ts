@@ -63,31 +63,77 @@ export const handleApiError = (error: unknown, context: string): never => {
   throw new Error(`Unknown error in ${context}`);
 };
 
+/**
+ * Attempt to refresh the access token using the stored refresh token.
+ * Returns the new access token on success, or null if refresh fails.
+ */
+const refreshAccessToken = async (): Promise<string | null> => {
+  const refreshToken = typeof window !== "undefined"
+    ? localStorage.getItem("refresh_token")
+    : null;
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${config.apiBaseUrl}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const newToken = data.token as string | undefined;
+    if (!newToken) return null;
+    localStorage.setItem(config.storageKeys.authToken, newToken);
+    if (data.refresh_token) {
+      localStorage.setItem("refresh_token", data.refresh_token);
+    }
+    return newToken;
+  } catch {
+    return null;
+  }
+};
+
 const request = async <T>(
   endpoint: string,
   options: RequestInit = {},
   retries = 2
 ): Promise<T> => {
-  const token = typeof window !== "undefined" ? localStorage.getItem(config.storageKeys.authToken) : null;
   const isGrpc = endpoint.includes("Service/");
-  
-  const headers: HeadersInit = {
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+
+  // buildHeaders is a closure that re-reads localStorage on every call so that
+  // a refreshed token is automatically picked up without restarting the loop.
+  const buildHeaders = (): HeadersInit => {
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem(config.storageKeys.authToken)
+      : null;
+    const h: HeadersInit = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    };
+    if (!h["Content-Type"] && !(options.body instanceof FormData)) {
+      h["Content-Type"] = isGrpc ? "application/grpc-web+json" : "application/json";
+    }
+    return h;
   };
 
-  if (!headers["Content-Type"] && !(options.body instanceof FormData)) {
-    headers["Content-Type"] = isGrpc ? "application/grpc-web+json" : "application/json";
-  }
-
   const url = endpoint.startsWith("http") ? endpoint : `${config.apiBaseUrl}${endpoint}`;
-  
+
+  let tokenRefreshed = false;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, {
         ...options,
-        headers,
+        headers: buildHeaders(),
       });
+
+      // Attempt a silent token refresh on the first 401 response.
+      if (res.status === 401 && !tokenRefreshed) {
+        tokenRefreshed = true;
+        const newToken = await refreshAccessToken();
+        if (newToken) { attempt--; continue; }
+        window.dispatchEvent(new Event("auth:logout"));
+        throw new Error("세션이 만료되었습니다. 다시 로그인해주세요.");
+      }
 
       if (!res.ok) {
         const error = await res.text();
@@ -103,7 +149,7 @@ const request = async <T>(
       await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
   }
-  
+
   throw new Error('Max retries exceeded');
 };
 
@@ -112,10 +158,28 @@ export const login = async (req: LoginRequest) => {
     return mockLogin(req);
   }
   try {
-    return await request<{ token: string; user: UserProfile }>("/auth/login", {
+    const data = await request<{ token: string; refresh_token: string; user: { id: string; email: string } }>("/auth/login", {
       method: "POST",
       body: JSON.stringify(req),
     });
+    if (data.refresh_token) {
+      localStorage.setItem("refresh_token", data.refresh_token);
+    }
+    // Build a UserProfile with defaults for fields not returned by auth service.
+    // The full profile (nickname, avatar, etc.) loads lazily from user-service.
+    const user: UserProfile = {
+      id: data.user.id,
+      email: data.user.email,
+      nickname: data.user.email.split("@")[0],
+      avatarEmoji: "🦊",
+      subscriptionType: "free",
+      coins: 0,
+      level: 1,
+      levelTitle: "초보 탐정",
+      xp: 0,
+      createdAt: new Date().toISOString(),
+    };
+    return { token: data.token, user };
   } catch (error) {
     return handleApiError(error, '로그인');
   }
@@ -126,10 +190,27 @@ export const signup = async (req: SignupRequest) => {
     return mockSignup(req);
   }
   try {
-    return await request<{ token: string; user: UserProfile }>("/auth/signup", {
+    // Auth service only needs email+password; nickname/avatarEmoji are stored in user-service.
+    const data = await request<{ token: string; refresh_token: string; user: { id: string; email: string } }>("/auth/signup", {
       method: "POST",
-      body: JSON.stringify(req),
+      body: JSON.stringify({ email: req.email, password: req.password }),
     });
+    if (data.refresh_token) {
+      localStorage.setItem("refresh_token", data.refresh_token);
+    }
+    const user: UserProfile = {
+      id: data.user.id,
+      email: data.user.email,
+      nickname: req.nickname || data.user.email.split("@")[0],
+      avatarEmoji: req.avatarEmoji || "🦊",
+      subscriptionType: "free",
+      coins: 0,
+      level: 1,
+      levelTitle: "초보 탐정",
+      xp: 0,
+      createdAt: new Date().toISOString(),
+    };
+    return { token: data.token, user };
   } catch (error) {
     return handleApiError(error, '회원가입');
   }

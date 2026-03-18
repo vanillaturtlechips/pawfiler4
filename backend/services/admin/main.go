@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -21,7 +22,10 @@ func main() {
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort := getEnv("DB_PORT", "5432")
 	dbUser := getEnv("DB_USER", "pawfiler")
-	dbPassword := getEnv("DB_PASSWORD", "pawfiler123")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		log.Fatal("DB_PASSWORD is required")
+	}
 	dbName := getEnv("DB_NAME", "pawfiler")
 	dbSSLMode := getEnv("DB_SSLMODE", "require")
 
@@ -91,9 +95,18 @@ func main() {
 		w.WriteHeader(http.StatusNoContent)
 	}).Methods("OPTIONS")
 
-	// CORS
+	// CORS - read allowed origins from env, split by comma for multiple origins.
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "https://pawfiler.site"
+	}
+	allowedOrigins := strings.Split(corsOrigins, ",")
+	for i, o := range allowedOrigins {
+		allowedOrigins[i] = strings.TrimSpace(o)
+	}
+
 	c := cors.New(cors.Options{
-		AllowOriginFunc:  func(origin string) bool { return true },
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: false,

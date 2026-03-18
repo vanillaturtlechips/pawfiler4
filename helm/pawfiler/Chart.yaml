@@ -1,6 +1,0 @@
-apiVersion: v2
-name: pawfiler
-description: PawFiler 딥페이크 탐지 교육 플랫폼
-type: application
-version: 0.1.0
-appVersion: "1.0.0"

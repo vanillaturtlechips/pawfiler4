@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { UserProfile } from "@/lib/types";
 import { config } from "@/lib/config";
 
@@ -15,6 +15,22 @@ interface AuthContextValue extends AuthState {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/**
+ * Returns true when the JWT access token is expired or lacks an exp claim.
+ * Used to gate silent refresh on app startup.
+ */
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return true;
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+};
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
@@ -75,6 +91,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       };
     });
   }, []);
+
+  // On startup, if the stored token is expired attempt a silent refresh.
+  useEffect(() => {
+    const savedToken = localStorage.getItem(config.storageKeys.authToken);
+    if (savedToken && isTokenExpired(savedToken)) {
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (refreshToken) {
+        fetch(`/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.token) {
+              localStorage.setItem(config.storageKeys.authToken, data.token);
+              if (data.refresh_token) {
+                localStorage.setItem("refresh_token", data.refresh_token);
+              }
+            } else {
+              logout();
+            }
+          })
+          .catch(() => logout());
+      } else {
+        logout();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for the auth:logout event dispatched by the API layer when a token
+  // refresh fails, and force a full logout so stale state is cleared.
+  useEffect(() => {
+    const handleForceLogout = () => logout();
+    window.addEventListener("auth:logout", handleForceLogout);
+    return () => window.removeEventListener("auth:logout", handleForceLogout);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout, updateUser }}>

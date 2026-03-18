@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -104,9 +105,29 @@ func main() {
 		log.Fatalf("Failed to register gateway: %v", err)
 	}
 
-	// CORS + /api prefix strip 미들웨어
+	// CORS origins from env (default: production domain).
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "https://pawfiler.site"
+	}
+	allowedOrigins := strings.Split(corsOrigins, ",")
+
+	// CORS + /health + /api prefix strip 미들웨어
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// ALB health check.
+		if r.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		origin := r.Header.Get("Origin")
+		for _, o := range allowedOrigins {
+			if strings.TrimSpace(o) == origin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
@@ -114,7 +135,7 @@ func main() {
 			return
 		}
 		// CloudFront → ALB는 /api/ prefix 유지하므로 제거
-		if len(r.URL.Path) > 4 && r.URL.Path[:5] == "/api/" {
+		if len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/" {
 			r.URL.Path = r.URL.Path[4:]
 		}
 		mux.ServeHTTP(w, r)
