@@ -146,8 +146,8 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	// user-service에 이메일 prefix 닉네임 설정 (비동기, 실패해도 가입은 정상 처리)
-	go func() {
+	// user-service에 이메일 prefix 닉네임 설정 (동기, 3초 타임아웃 — 실패해도 가입 응답은 반환)
+	func() {
 		nickname := strings.SplitN(req.Email, "@", 2)[0]
 		userSvcURL := os.Getenv("USER_SERVICE_HTTP_URL")
 		if userSvcURL == "" {
@@ -156,10 +156,19 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		body := strings.NewReader(`{"user_id":"` + id + `","nickname":"` + nickname + `"}`)
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		reqHTTP, _ := http.NewRequestWithContext(ctx, "POST", userSvcURL+"/user.UserService/UpdateProfile", body)
+		reqHTTP, err := http.NewRequestWithContext(ctx, "POST", userSvcURL+"/user.UserService/UpdateProfile", body)
+		if err != nil {
+			log.Printf("[auth] WARN: 초기 닉네임 요청 생성 실패 user=%s: %v", id, err)
+			return
+		}
 		reqHTTP.Header.Set("Content-Type", "application/json")
-		http.DefaultClient.Do(reqHTTP) //nolint:errcheck
-		log.Printf("[auth] set initial nickname %q for user %s", nickname, id)
+		resp, err := http.DefaultClient.Do(reqHTTP)
+		if err != nil {
+			log.Printf("[auth] WARN: 초기 닉네임 설정 실패 user=%s nickname=%q: %v", id, nickname, err)
+			return
+		}
+		resp.Body.Close()
+		log.Printf("[auth] 초기 닉네임 설정 완료 user=%s nickname=%q", id, nickname)
 	}()
 	writeJSON(w, http.StatusCreated, authResp{
 		Token:        access,

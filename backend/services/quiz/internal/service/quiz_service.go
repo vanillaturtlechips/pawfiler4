@@ -312,14 +312,23 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 		streakBonus = 20
 		xpEarned += streakBonus
 	}
-	// XP/코인 지급을 user 서비스 gRPC로 위임 (비동기, 실패해도 응답 블로킹 안 함)
+	// XP/코인 지급을 user 서비스 gRPC로 위임 (비동기, 최대 3회 재시도)
 	if s.userClient != nil && (xpEarned > 0 || coinsEarned > 0) {
 		go func() {
-			gCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			if err := s.userClient.AddRewards(gCtx, userID, xpEarned, coinsEarned); err != nil {
-				fmt.Printf("Warning: user AddRewards gRPC failed: %v\n", err)
+			const maxRetries = 3
+			for i := 0; i < maxRetries; i++ {
+				gCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				err := s.userClient.AddRewards(gCtx, userID, xpEarned, coinsEarned)
+				cancel()
+				if err == nil {
+					return
+				}
+				fmt.Printf("[quiz] AddRewards 시도 %d/%d 실패 user=%s: %v\n", i+1, maxRetries, userID, err)
+				if i < maxRetries-1 {
+					time.Sleep(time.Duration(i+1) * time.Second)
+				}
 			}
+			fmt.Printf("[quiz] WARN: AddRewards 최종 실패 — user=%s xp=%d coins=%d 보상 미지급\n", userID, xpEarned, coinsEarned)
 		}()
 	}
 
