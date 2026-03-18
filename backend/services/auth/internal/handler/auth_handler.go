@@ -146,6 +146,21 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
+	// user-service에 이메일 prefix 닉네임 설정 (비동기, 실패해도 가입은 정상 처리)
+	go func() {
+		nickname := strings.SplitN(req.Email, "@", 2)[0]
+		userSvcURL := os.Getenv("USER_SERVICE_HTTP_URL")
+		if userSvcURL == "" {
+			userSvcURL = "http://user-service:8083"
+		}
+		body := strings.NewReader(`{"user_id":"` + id + `","nickname":"` + nickname + `"}`)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		reqHTTP, _ := http.NewRequestWithContext(ctx, "POST", userSvcURL+"/user.UserService/UpdateProfile", body)
+		reqHTTP.Header.Set("Content-Type", "application/json")
+		http.DefaultClient.Do(reqHTTP) //nolint:errcheck
+		log.Printf("[auth] set initial nickname %q for user %s", nickname, id)
+	}()
 	writeJSON(w, http.StatusCreated, authResp{
 		Token:        access,
 		RefreshToken: refresh,
