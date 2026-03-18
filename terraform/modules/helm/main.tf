@@ -344,19 +344,19 @@ resource "helm_release" "grafana" {
   ]
 }
 
-# Envoy Gateway
-resource "helm_release" "envoy_gateway" {
-  name             = "envoy-gateway"
-  repository       = "oci://docker.io/envoyproxy"
-  chart            = "gateway-helm"
-  namespace        = "envoy-gateway-system"
-  create_namespace = true
-  version          = "v1.3.0"
-
-  depends_on = [
-    helm_release.aws_load_balancer_controller
-  ]
-}
+# Envoy Gateway - 미사용으로 제거
+# resource "helm_release" "envoy_gateway" {
+#   name             = "envoy-gateway"
+#   repository       = "oci://docker.io/envoyproxy"
+#   chart            = "gateway-helm"
+#   namespace        = "envoy-gateway-system"
+#   create_namespace = true
+#   version          = "v1.3.0"
+#
+#   depends_on = [
+#     helm_release.aws_load_balancer_controller
+#   ]
+# }
 
 # Metrics Server (HPA용)
 resource "helm_release" "metrics_server" {
