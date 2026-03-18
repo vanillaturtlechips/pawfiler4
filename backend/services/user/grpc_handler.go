@@ -22,6 +22,13 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
+	// 첫 조회 시 기본 row 자동 생성 - user_id 앞 8자리로 고유 닉네임 생성
+	s.db.ExecContext(ctx, `
+		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
+		VALUES ($1, '탐정_' || UPPER(SUBSTRING($1::text, 1, 8)), '🦊', NOW())
+		ON CONFLICT (user_id) DO NOTHING
+	`, req.UserId)
+
 	var nickname, avatarEmoji string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT nickname, avatar_emoji FROM user_svc.preferences WHERE user_id = $1`, req.UserId,

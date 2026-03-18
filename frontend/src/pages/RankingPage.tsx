@@ -5,7 +5,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchRanking } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft } from "lucide-react";
-import { config } from "@/lib/config";
 
 type RankEntry = {
   rank: number; userId: string; nickname: string; avatarEmoji: string;
@@ -32,7 +31,7 @@ const TIER_EMOJI: Record<string, string> = {
 export default function RankingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const myQuizId = localStorage.getItem(config.storageKeys.quizUserId);
+  const myQuizId = user?.id;
   const [sort, setSort] = useState("tier");
   const [search, setSearch] = useState("");
   const [data, setData] = useState<RankEntry[]>([]);

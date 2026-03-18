@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
 import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, syncProfileToQuiz, syncAuthorToCommunity, type UserFullProfile, type UserActivity } from "@/lib/api";
-import { config } from "@/lib/config";
 import { toast } from "sonner";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,7 @@ const ProfilePage = () => {
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportDays, setReportDays] = useState<string>("30");
 
-  const userId = localStorage.getItem(config.storageKeys.quizUserId) || "";
+  const userId = user?.id || "";
 
   useEffect(() => {
     if (!user) {

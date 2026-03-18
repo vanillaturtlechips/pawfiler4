@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { QuizGameProfile } from "@/lib/types";
-import { fetchUserStats, fetchUserProfile, syncProfileToQuiz } from "@/lib/api";
+import { fetchUserStats, fetchUserProfile, syncProfileToQuiz, syncAuthorToCommunity } from "@/lib/api";
 import { useAuth } from "./AuthContext";
 
 interface QuizProfileContextValue {
@@ -49,19 +49,22 @@ export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // 로그인/로그아웃 시 quizProfile 로드
   useEffect(() => {
     if (isLoggedIn) {
       refreshQuizProfile();
-      if (user?.nickname) {
-        // 프로필 생성 후 닉네임 동기화 (재시도 포함)
-        const sync = () => syncProfileToQuiz(user.nickname, user.avatarEmoji || '🥚');
-        setTimeout(sync, 500);
-        setTimeout(sync, 2000); // 실패 대비 재시도
-      }
     } else {
       setQuizProfile(null);
     }
   }, [isLoggedIn, refreshQuizProfile]);
+
+  // user.nickname이 확정된 후 quiz/community 서비스에 닉네임 동기화
+  // AuthContext가 user-service fetch 완료 후 user를 업데이트하면 이 effect가 재실행됨
+  useEffect(() => {
+    if (!isLoggedIn || !user?.id || !user?.nickname) return;
+    syncProfileToQuiz(user.nickname, user.avatarEmoji || '🥚');
+    syncAuthorToCommunity(user.id, user.nickname, user.avatarEmoji || '🥚');
+  }, [isLoggedIn, user?.id, user?.nickname, user?.avatarEmoji]);
 
   return (
     <QuizProfileContext.Provider value={{ quizProfile, updateQuizProfile, refreshQuizProfile, isPlaying, setIsPlaying, pendingNav, setPendingNav }}>
