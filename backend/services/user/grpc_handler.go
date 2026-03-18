@@ -22,10 +22,14 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
-	// 첫 조회 시 기본 row 자동 생성 (신규 유저 닉네임 "탐정" 고정 방지)
+	// 첫 조회 시 기본 row 자동 생성 - auth.users의 이메일 prefix를 nickname으로 사용
 	s.db.ExecContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1, '탐정', '🦊', NOW())
+		SELECT $1,
+			COALESCE(NULLIF(split_part(email, '@', 1), ''), '탐정'),
+			'🦊',
+			NOW()
+		FROM auth.users WHERE id = $1
 		ON CONFLICT (user_id) DO NOTHING
 	`, req.UserId)
 

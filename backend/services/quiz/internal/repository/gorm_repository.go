@@ -429,6 +429,22 @@ func (r *GormQuizRepository) UpdateUserProfile(ctx context.Context, profile *Use
 	return nil
 }
 
+// UpdateNicknameAvatar updates only nickname and avatar_emoji, leaving coins/exp/energy untouched.
+// This prevents stale Redis cache from clobbering coin values written by user-service AddRewards.
+func (r *GormQuizRepository) UpdateNicknameAvatar(ctx context.Context, userID, nickname, avatarEmoji string) error {
+	result := r.db.WithContext(ctx).Model(&GormUserProfile{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]interface{}{
+			"nickname":     nickname,
+			"avatar_emoji": avatarEmoji,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("failed to update nickname/avatar: %w", result.Error)
+	}
+	r.redis.Del(ctx, fmt.Sprintf("quiz:user_profile:%s", userID))
+	return nil
+}
+
 // GetRanking returns ranked users
 func (r *GormQuizRepository) GetRanking(ctx context.Context, sortBy string, limit int) ([]RankingEntry, error) {
 	if limit <= 0 {

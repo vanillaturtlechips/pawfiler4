@@ -136,12 +136,30 @@ const request = async <T>(
       }
 
       if (!res.ok) {
-        const error = await res.text();
-        throw new Error(error || `HTTP ${res.status}`);
+        const body = await res.text();
+        // 4xx는 클라이언트 에러이므로 재시도 없이 즉시 throw
+        let message: string;
+        try {
+          const parsed = JSON.parse(body);
+          message = parsed.error || parsed.message || body;
+        } catch {
+          message = body || `HTTP ${res.status}`;
+        }
+        // 409: 이미 가입된 이메일
+        if (res.status === 409) {
+          throw new Error("이미 사용 중인 이메일입니다.");
+        }
+        const err = new Error(message);
+        (err as any).status = res.status;
+        throw err;
       }
 
       return res.json();
     } catch (error) {
+      // 4xx 에러는 재시도하지 않음
+      if (error instanceof Error && (error as any).status >= 400 && (error as any).status < 500) {
+        throw error;
+      }
       if (attempt === retries) {
         throw error;
       }

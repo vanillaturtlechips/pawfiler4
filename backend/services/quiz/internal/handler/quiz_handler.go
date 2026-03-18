@@ -146,20 +146,25 @@ func (h *QuizHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfile
 	return profileToProto(profile), nil
 }
 
-// UpdateUserProfile implements QuizServiceServer
+// UpdateUserProfile implements QuizServiceServer.
+// Only nickname and avatar_emoji are updated; coins/exp/energy are never touched
+// to prevent stale Redis cache from clobbering values written by user-service.
 func (h *QuizHandler) UpdateUserProfile(ctx context.Context, req *pb.UpdateUserProfileRequest) (*pb.UserProfile, error) {
-	profile, err := h.service.GetUserProfile(ctx, req.UserId)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get user profile")
-	}
+	nickname := ""
+	avatarEmoji := ""
 	if req.Nickname != nil {
-		profile.Nickname = *req.Nickname
+		nickname = *req.Nickname
 	}
 	if req.AvatarEmoji != nil {
-		profile.AvatarEmoji = *req.AvatarEmoji
+		avatarEmoji = *req.AvatarEmoji
 	}
-	if err := h.service.UpdateUserProfile(ctx, profile); err != nil {
-		return nil, status.Error(codes.Internal, "failed to update user profile")
+	if err := h.service.UpdateNicknameAvatar(ctx, req.UserId, nickname, avatarEmoji); err != nil {
+		return nil, status.Error(codes.Internal, "failed to update profile")
+	}
+	// Return fresh profile from DB (cache was invalidated by UpdateNicknameAvatar)
+	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get profile")
 	}
 	return profileToProto(profile), nil
 }
