@@ -1,12 +1,19 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import MagicDoor from "@/components/MagicDoor";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { config } from "@/lib/config";
 
+const DOOR_HINTS: Record<string, string> = {
+  game:      "눈썰미를 키우고 코인과 경험치를 획득하세요",
+  analysis:  "의심되는 영상을 AI로 즉시 분석해드려요",
+  community: "다른 탐정들과 정보를 나누고 함께 성장하세요",
+};
+
 const HomePage = () => {
   const navigate = useNavigate();
   const [showTutorial, setShowTutorial] = useState(false);
+  const [hoveredDoor, setHoveredDoor] = useState<string | null>(null);
 
   useEffect(() => {
     // localStorage에서 첫 접속 여부 확인
@@ -45,7 +52,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="relative h-[calc(100vh-5rem)] w-full flex items-center justify-center" style={{ paddingTop: "0", marginTop: "-5vh" }}>
+    <div className="relative h-[calc(100vh-5rem)] w-full flex items-center justify-center">
       {/* Tutorial Overlay - Full Screen with Dashboard Background */}
       {showTutorial && (
         <motion.div
@@ -240,10 +247,10 @@ const HomePage = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex flex-col items-center justify-center gap-[1.5vh] w-full max-w-[90vw]">
+      <div className="flex flex-col items-center justify-center gap-[1.5vh] w-full max-w-[90vw] overflow-visible">
         {/* Tutorial hint (always visible) */}
         <motion.div
-          className="mb-1 px-3 py-1 rounded-full text-xs font-jua flex items-center gap-1"
+          className="mb-1 px-3 py-1 rounded-full text-xs font-jua flex items-center gap-1 shrink-0 whitespace-nowrap"
           style={{
             background: "rgba(255,213,79,0.1)",
             border: "1px solid rgba(255,213,79,0.3)",
@@ -268,43 +275,64 @@ const HomePage = () => {
         <div className="flex items-center justify-center gap-[1.5vw] w-full max-w-[1100px]">
           <MagicDoor
             icon="🎮"
+            label="퀴즈 게임"
             title="동물들의 놀이터"
+            tagline="가짜를 찾아라! 미니 퀴즈 게임"
             description="동물들이 숨겨놓은 가짜를 찾아라! 눈썰미를 키우는 미니 게임"
             color="green"
             to="/game"
             scenery="playground"
             backgroundImage="/playground.png"
+            onHoverChange={(h) => setHoveredDoor(h ? "game" : null)}
           />
           <MagicDoor
             icon="🔮"
+            label="영상 분석"
             title="동물들의 추리쇼"
+            tagline="AI가 진짜와 가짜를 판별해드려요"
             description="의심되는 영상 파일이나 주소를 주면 마법으로 진짜인지 분석해드려요"
             color="blue"
             to="/analysis"
             scenery="detective"
             backgroundImage="/detective.png"
+            onHoverChange={(h) => setHoveredDoor(h ? "analysis" : null)}
           />
           <MagicDoor
             icon="⛲"
+            label="커뮤니티"
             title="동물들의 광장"
+            tagline="탐정 친구들과 정보를 나눠요"
             description="다른 탐정 친구들을 만나 정보와 꿀팁을 나누는 커뮤니티"
             color="orange"
             to="/community"
             scenery="plaza"
             backgroundImage="/water.png"
+            onHoverChange={(h) => setHoveredDoor(h ? "community" : null)}
           />
         </div>
 
         {/* Bottom hint */}
         <motion.div
-          className="mt-1 text-center"
-          style={{ color: "#FFCC80", position: "relative", zIndex: 1 }}
+          className="mt-2 text-center flex flex-col items-center gap-1"
+          style={{ position: "relative", zIndex: 1 }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
         >
-          <p className="text-xs sm:text-sm">문을 클릭하여 모험을 시작하세요!</p>
-          <p className="text-[10px] sm:text-xs mt-0.5" style={{ color: "#BDBDBD" }}>
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={hoveredDoor ?? "default"}
+              className="text-sm font-jua"
+              style={{ color: "#FFCC80" }}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+            >
+              {hoveredDoor ? DOOR_HINTS[hoveredDoor] : "문을 클릭하여 모험을 시작하세요!"}
+            </motion.p>
+          </AnimatePresence>
+          <p className="text-[11px]" style={{ color: "rgba(189,189,189,0.55)" }}>
             각 모험에서는 코인과 경험치를 얻을 수 있습니다
           </p>
         </motion.div>

@@ -331,25 +331,24 @@ const CommunityPage = () => {
         animate={{ opacity: 1 }}
       >
         {/* Header Section */}
-        <header className="flex flex-col gap-4">
+        <header className="flex flex-col gap-2.5">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="text-6xl">📜</div>
-              <div className="flex flex-col">
-                <h1 className="font-jua text-5xl text-foreground text-shadow-glow tracking-tight">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl leading-none">📜</div>
+              <div className="flex flex-col gap-0.5">
+                <h1 className="font-jua text-3xl text-foreground text-shadow-glow tracking-tight leading-none">
                   동물들의 광장
                 </h1>
-                <p className="text-muted-foreground font-jua text-lg opacity-80">
+                <p className="font-jua text-xs opacity-60" style={{ color: "hsl(var(--muted-foreground))" }}>
                   탐정들의 비밀 정보 교환소
                 </p>
               </div>
             </div>
             <Button
               onClick={handleOpenCreate}
-              size="lg"
-              className="font-jua text-xl bg-orange-500 hover:bg-orange-600 text-white gap-3 shadow-lg hover:shadow-orange-500/20 transform hover:-translate-y-1 transition-all rounded-2xl px-8 py-6"
+              className="font-jua text-sm bg-orange-500 hover:bg-orange-600 text-white gap-1.5 shadow-md rounded-xl px-4 py-2 h-auto"
             >
-              <PlusCircle size={24} />
+              <PlusCircle size={15} />
               글쓰기
             </Button>
           </div>

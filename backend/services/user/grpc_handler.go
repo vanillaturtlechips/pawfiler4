@@ -266,23 +266,30 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
+	// Wrap the entire operation in a transaction with a row-level lock to prevent
+	// lost updates under concurrent requests (race condition fix).
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	// Ensure a profile row exists before locking.
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO quiz.user_profiles (user_id, total_exp, total_coins, energy, max_energy, last_energy_refill, updated_at)
+		VALUES ($1, 0, 0, 100, 100, NOW(), NOW())
+		ON CONFLICT (user_id) DO NOTHING`, req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to initialize profile")
+	}
+
+	// Lock the row to serialize concurrent reward grants for the same user.
 	var totalExp, totalCoins int32
 	var currentTier string
-	err := s.db.QueryRowContext(ctx,
-		`SELECT total_exp, total_coins, COALESCE(current_tier, '알') FROM quiz.user_profiles WHERE user_id = $1`,
+	err = tx.QueryRowContext(ctx,
+		`SELECT total_exp, total_coins, COALESCE(current_tier, '알') FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`,
 		req.UserId,
 	).Scan(&totalExp, &totalCoins, &currentTier)
-	if err == sql.ErrNoRows {
-		// 프로필 없으면 생성
-		_, err = s.db.ExecContext(ctx, `
-			INSERT INTO quiz.user_profiles (user_id, total_exp, total_coins, energy, max_energy, last_energy_refill, updated_at)
-			VALUES ($1, $2, $3, 100, 100, NOW(), NOW())`,
-			req.UserId, req.XpDelta, req.CoinDelta)
-		if err != nil {
-			return nil, status.Error(codes.Internal, "failed to create profile")
-		}
-		return &pb.AddRewardsResponse{Success: true, TotalExp: req.XpDelta, TotalCoins: req.CoinDelta, TierName: "알", Level: 1}, nil
-	}
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get profile")
 	}
@@ -307,11 +314,15 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 		}
 	}
 
-	_, err = s.db.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		`UPDATE quiz.user_profiles SET total_exp=$1, total_coins=$2, current_tier=$3, updated_at=NOW() WHERE user_id=$4`,
 		totalExp, totalCoins, currentTier, req.UserId)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to update profile")
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, status.Error(codes.Internal, "failed to commit")
 	}
 
 	level := levelFromExp(int(totalExp))

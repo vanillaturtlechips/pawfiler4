@@ -61,8 +61,8 @@ const AppContent = () => {
       >
         {/* 메인 페이지가 아니면 항상 헤더 표시 */}
         <Header isVisible={!isHomePage || showHeader} />
-        <main className="flex-1 overflow-hidden pt-20">
-          <div className="mx-auto h-full w-full max-w-[1800px] px-8">
+        <main className="absolute inset-0 top-20 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[1800px] px-8">
             <AnimatePresence mode="wait">
               <Routes>
                 <Route path="/" element={<HomePage />} />

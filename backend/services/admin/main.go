@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -21,7 +22,10 @@ func main() {
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort := getEnv("DB_PORT", "5432")
 	dbUser := getEnv("DB_USER", "pawfiler")
-	dbPassword := getEnv("DB_PASSWORD", "pawfiler123")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		log.Fatal("DB_PASSWORD is required")
+	}
 	dbName := getEnv("DB_NAME", "pawfiler")
 	dbSSLMode := getEnv("DB_SSLMODE", "require")
 
@@ -46,7 +50,7 @@ func main() {
 	quizHandler := handler.NewQuizAdminHandler(quizService)
 
 	communityRepo := repository.NewCommunityRepository(db)
-	communityHandler := handler.NewCommunityAdminHandler(communityRepo)
+	communityHandler := handler.NewCommunityAdminHandler(communityRepo, quizRepo)
 
 	shopRepo := repository.NewShopRepository(db)
 	shopHandler := handler.NewShopAdminHandler(shopRepo)
@@ -78,12 +82,15 @@ func main() {
 	shopRouter.HandleFunc("/items/{id}", shopHandler.DeleteItem).Methods("DELETE")
 
 	// Admin Community routes
+	// NOTE: /posts/review는 Subrouter의 /posts/{id}에 먹히므로 메인 라우터에 직접 등록
+	router.HandleFunc("/admin/community/posts/review", communityHandler.GetPostsPendingReview).Methods("GET")
 	communityRouter := router.PathPrefix("/admin/community").Subrouter()
 	communityRouter.HandleFunc("/posts", communityHandler.ListPosts).Methods("GET")
 	communityRouter.HandleFunc("/posts", communityHandler.CreateAdminPost).Methods("POST")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.UpdatePost).Methods("PUT")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.DeletePost).Methods("DELETE")
 	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")
+	communityRouter.HandleFunc("/posts/{id}/publish", communityHandler.PublishAsQuizQuestion).Methods("POST")
 	communityRouter.HandleFunc("/comments/{id}", communityHandler.DeleteComment).Methods("DELETE")
 
 	// gorilla/mux는 OPTIONS를 명시해야 preflight 통과
@@ -91,9 +98,18 @@ func main() {
 		w.WriteHeader(http.StatusNoContent)
 	}).Methods("OPTIONS")
 
-	// CORS
+	// CORS - read allowed origins from env, split by comma for multiple origins.
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "https://pawfiler.site"
+	}
+	allowedOrigins := strings.Split(corsOrigins, ",")
+	for i, o := range allowedOrigins {
+		allowedOrigins[i] = strings.TrimSpace(o)
+	}
+
 	c := cors.New(cors.Options{
-		AllowOriginFunc:  func(origin string) bool { return true },
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: false,

@@ -18,26 +18,27 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 	}
 	defer tx.Rollback()
 
-	var exists bool
-	err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM community.likes WHERE post_id = $1 AND user_id = $2)", req.PostId, req.UserId).Scan(&exists)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to check like status")
-	}
-
-	if exists {
-		return &pb.LikePostResponse{Success: true, AlreadyLiked: true}, nil
-	}
-
-	_, err = tx.ExecContext(ctx, `
+	// Use ON CONFLICT DO NOTHING to avoid race conditions between concurrent like requests.
+	result, err := tx.ExecContext(ctx, `
 		INSERT INTO community.likes (id, post_id, user_id, created_at)
 		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (post_id, user_id) DO NOTHING
 	`, uuid.New().String(), req.PostId, req.UserId)
-
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
 
-	_, err = tx.ExecContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1", req.PostId)
+	rowsAffected, _ := result.RowsAffected()
+	// No rows inserted means the user already liked this post.
+	if rowsAffected == 0 {
+		if err = tx.Commit(); err != nil {
+			return nil, status.Error(codes.Internal, "Failed to like post")
+		}
+		return &pb.LikePostResponse{Success: true, AlreadyLiked: true}, nil
+	}
+
+	var totalLikes int32
+	err = tx.QueryRowContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1 RETURNING likes", req.PostId).Scan(&totalLikes)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to update like count")
 	}
@@ -46,7 +47,7 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
 
-	return &pb.LikePostResponse{Success: true, AlreadyLiked: false}, nil
+	return &pb.LikePostResponse{Success: true, AlreadyLiked: false, TotalLikes: totalLikes}, nil
 }
 
 // UnlikePost - 게시글 좋아요 취소
