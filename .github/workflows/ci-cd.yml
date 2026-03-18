@@ -2,9 +2,9 @@ name: PawFiler CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   id-token: write
@@ -128,6 +128,7 @@ jobs:
         env:
           VITE_MEDIA_CLOUDFRONT_DOMAIN: ${{ secrets.VITE_MEDIA_CLOUDFRONT_DOMAIN }}
           VITE_USE_MOCK_AUTH: "false"
+          VITE_REPORT_BASE_URL: ${{ secrets.VITE_REPORT_BASE_URL }}
         run: |
           npm ci
           npm run build

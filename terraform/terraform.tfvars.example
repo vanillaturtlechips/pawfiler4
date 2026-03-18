@@ -14,6 +14,7 @@ database_password = "your-secure-password-here"
 # Get from: kubectl get ingress -n pawfiler envoy-ingress
 envoy_alb_domain = ""
 
+
 # Optional: Enable Karpenter (requires SCP exception from itcen)
 # Default: false (use Managed Node Groups)
 enable_karpenter = false
