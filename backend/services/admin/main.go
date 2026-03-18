@@ -85,13 +85,17 @@ func main() {
 	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")
 	communityRouter.HandleFunc("/comments/{id}", communityHandler.DeleteComment).Methods("DELETE")
 
+	// gorilla/mux는 OPTIONS를 명시해야 preflight 통과
+	router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}).Methods("OPTIONS")
+
 	// CORS
 	c := cors.New(cors.Options{
 		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: false,
-		Debug:            true,
 	})
 
 	handler := c.Handler(router)
