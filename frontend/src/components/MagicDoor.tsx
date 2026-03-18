@@ -206,14 +206,7 @@ const MagicDoor = ({
           />
         </motion.div>
 
-        {/* 기본 상태 아이콘 (문 닫혔을 때 중앙 상단에 은은하게) */}
-        <motion.div
-          className="absolute top-6 left-0 right-0 flex justify-center pointer-events-none"
-          animate={{ opacity: isHovered ? 0 : 0.65 }}
-          transition={{ duration: 0.3 }}
-        >
-          <span className="text-2xl">{icon}</span>
-        </motion.div>
+
       </motion.div>
 
       {/* 기본 상태 라벨 (문 아래) */}
