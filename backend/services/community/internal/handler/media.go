@@ -21,7 +21,10 @@ import (
 
 // UploadMedia - S3에 미디어 업로드 (이미지/영상)
 func (h *Handler) UploadMedia(ctx context.Context, req *pb.UploadMediaRequest) (*pb.UploadMediaResponse, error) {
+	log.Printf("🔄 UploadMedia called - FileName: %s, ContentSize: %d bytes", req.FileName, len(req.Content))
+	
 	if req.FileName == "" || len(req.Content) == 0 {
+		log.Printf("❌ Invalid request - FileName: '%s', ContentSize: %d", req.FileName, len(req.Content))
 		return nil, status.Error(codes.InvalidArgument, "file_name and content required")
 	}
 
