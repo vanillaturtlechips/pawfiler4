@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   LoginRequest,
   SignupRequest,
   UserProfile,
@@ -30,11 +30,11 @@ import { config } from "./config";
 import { toast } from "sonner";
 import { fixImageUrl } from "../utils/imageUrl";
 
-// ?ъ슜??ID ?앹꽦 ?먮뒗 媛?몄삤湲?(UUID v4 ?뺤떇)
+// 사용자 ID 생성 또는 가져오기 (UUID v4 형식)
 const getUserId = (): string => {
   let userId = localStorage.getItem(config.storageKeys.quizUserId);
   if (!userId) {
-    // UUID v4 ?앹꽦
+    // UUID v4 생성
     userId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -45,21 +45,21 @@ const getUserId = (): string => {
   return userId;
 }
 
-// ?먮윭 泥섎━ ?ы띁
+// 에러 처리 헬퍼
 export const handleApiError = (error: unknown, context: string): never => {
   console.error(`[API Error - ${context}]:`, error);
   
   if (error instanceof TypeError && error.message === 'Failed to fetch') {
-    toast.error(`?쒕쾭???곌껐?????놁뒿?덈떎. ?ㅽ듃?뚰겕瑜??뺤씤?댁＜?몄슂.`);
+    toast.error(`서버에 연결할 수 없습니다. 네트워크를 확인해주세요.`);
     throw new Error(`Network error in ${context}`);
   }
   
   if (error instanceof Error) {
-    toast.error(error.message || `${context} 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.`);
+    toast.error(error.message || `${context} 중 오류가 발생했습니다.`);
     throw error;
   }
   
-  toast.error(`${context} 以??????녿뒗 ?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.`);
+  toast.error(`${context} 중 알 수 없는 오류가 발생했습니다.`);
   throw new Error(`Unknown error in ${context}`);
 };
 
@@ -99,7 +99,8 @@ const request = async <T>(
       if (attempt === retries) {
         throw error;
       }
-      // ?ъ떆?????湲?      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      // 재시도 전 대기
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
   }
   
@@ -116,7 +117,7 @@ export const login = async (req: LoginRequest) => {
       body: JSON.stringify(req),
     });
   } catch (error) {
-    return handleApiError(error, '濡쒓렇??);
+    return handleApiError(error, '로그인');
   }
 };
 
@@ -130,7 +131,7 @@ export const signup = async (req: SignupRequest) => {
       body: JSON.stringify(req),
     });
   } catch (error) {
-    return handleApiError(error, '?뚯썝媛??);
+    return handleApiError(error, '회원가입');
   }
 };
 
@@ -144,7 +145,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
     const userId = getUserId();
     
     const body: any = { user_id: userId };
-    // ?쒖씠???뚮씪誘명꽣 異붽? (all???꾨땺 ?뚮쭔)
+    // 난이도 파라미터 추가 (all이 아닐 때만)
     if (difficulty && difficulty !== "all") {
       body.difficulty = difficulty;
     }
@@ -168,7 +169,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
 
     const data = await response.json();
     
-    // gRPC ?묐떟???꾨줎?몄뿏????낆쑝濡?蹂??(snake_case -> camelCase)
+    // gRPC 응답을 프론트엔드 타입으로 변환 (snake_case -> camelCase)
     const typeMap: { [key: string]: QuizQuestion["type"] } = {
       "MULTIPLE_CHOICE": "multiple_choice",
       "TRUE_FALSE": "true_false",
@@ -190,7 +191,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
       explanation: data.explanation,
     };
 
-    // ??낅퀎濡?異붽? ?꾨뱶 ?ы븿
+    // 타입별로 추가 필드 포함
     switch (questionType) {
       case "multiple_choice":
         return {
@@ -198,7 +199,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
           type: "multiple_choice" as const,
           mediaType,
           options: data.options || [],
-          correctIndex: -1, // 珥덇린?먮뒗 ?뺣떟??紐⑤쫫 (?듭븞 ?쒖텧 ???낅뜲?댄듃)
+          correctIndex: -1, // 초기에는 정답을 모름 (답안 제출 후 업데이트)
         } as MultipleChoiceQuestion;
       case "true_false":
         return {
@@ -227,7 +228,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
         throw new Error(`Unknown question type: ${questionType}`);
     }
   } catch (error) {
-    return handleApiError(error, '?댁쫰 臾몄젣 濡쒕뱶');
+    return handleApiError(error, '퀴즈 문제 로드');
   }
 };
 
@@ -240,13 +241,13 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
   try {
     const userId = getUserId();
     
-    // gRPC ?붿껌 蹂몃Ц ?앹꽦
+    // gRPC 요청 본문 생성
     const requestBody: any = {
       user_id: userId,
       question_id: req.questionId,
     };
 
-    // ?듬? ??낆뿉 ?곕씪 ?꾨뱶 異붽?
+    // 답변 타입에 따라 필드 추가
     if (req.selectedIndex !== undefined) {
       requestBody.selected_index = req.selectedIndex;
     }
@@ -274,7 +275,7 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
 
     const data = await response.json();
     
-    // ?ㅻ챸?먯꽌 ?뺣떟 ?몃뜳???뚯떛
+    // 설명에서 정답 인덱스 파싱
     let explanation = data.explanation || "";
     let correctIndex: number | undefined = undefined;
     
@@ -301,7 +302,7 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
       maxEnergy: data.maxEnergy ?? data.max_energy,
     };
   } catch (error) {
-    return handleApiError(error, '?듭븞 ?쒖텧');
+    return handleApiError(error, '답안 제출');
   }
 };
 
@@ -344,7 +345,7 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
       maxEnergy: data.maxEnergy ?? data.max_energy,
     };
   } catch (error) {
-    return handleApiError(error, '?듦퀎 濡쒕뱶');
+    return handleApiError(error, '통계 로드');
   }
 };
 
@@ -360,14 +361,14 @@ export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
     const data = await response.json();
     return {
       level: data.level ?? 1,
-      tierName: data.tierName ?? data.tier_name ?? '??猿띾뜲湲?蹂묒븘由?,
+      tierName: data.tierName ?? data.tier_name ?? '알 껍데기 병아리',
       totalExp: data.totalExp ?? data.total_exp ?? 0,
       totalCoins: data.totalCoins ?? data.total_coins ?? 0,
       energy: data.energy ?? 100,
       maxEnergy: data.maxEnergy ?? data.max_energy ?? 100,
     };
   } catch (error) {
-    return handleApiError(error, '?꾨줈??濡쒕뱶');
+    return handleApiError(error, '프로필 로드');
   }
 };
 
@@ -379,7 +380,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
   
   try {
     if (typeof videoFile === 'string') {
-      // URL濡?遺꾩꽍
+      // URL로 분석
       const response = await request<{task_id: string, verdict: string, confidence_score: number, message: string}>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
         method: "POST",
         body: JSON.stringify({
@@ -398,12 +399,12 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
         processing_time_ms: 0
       };
     } else {
-      // ?뚯씪 ?ш린 泥댄겕 (100MB)
+      // 파일 크기 체크 (100MB)
       if (videoFile.size > 100 * 1024 * 1024) {
-        throw new Error('?뚯씪 ?ш린??100MB瑜?珥덇낵?????놁뒿?덈떎');
+        throw new Error('파일 크기는 100MB를 초과할 수 없습니다');
       }
       
-      // ?뚯씪 ?낅줈??- multipart濡??꾩넚
+      // 파일 업로드 - multipart로 전송
       const userId = localStorage.getItem(config.storageKeys.quizUserId) || '';
       const formData = new FormData();
       formData.append('video', videoFile);
@@ -438,13 +439,14 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       throw new Error('Analysis timeout');
     }
   } catch (error) {
-    return handleApiError(error, '?곸긽 遺꾩꽍');
+    return handleApiError(error, '영상 분석');
   }
 };
 
 export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> => {
   if (config.useMockApi) {
-    // Mock ?곗씠??    return {
+    // Mock 데이터
+    return {
       taskId,
       finalVerdict: "FAKE",
       confidence: 0.87,
@@ -479,7 +481,7 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
     });
     return response;
   } catch (error) {
-    return handleApiError(error, '?듯빀 寃곌낵 議고쉶');
+    return handleApiError(error, '통합 결과 조회');
   }
 };
 
@@ -496,7 +498,7 @@ export const getSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
     });
     return result.plans;
   } catch (error) {
-    return handleApiError(error, '援щ룆 ?뚮옖 濡쒕뱶');
+    return handleApiError(error, '구독 플랜 로드');
   }
 };
 
@@ -513,7 +515,7 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
       body: JSON.stringify(req),
     });
   } catch (error) {
-    return handleApiError(error, '寃곗젣');
+    return handleApiError(error, '결제');
   }
 };
 
@@ -555,13 +557,13 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
 
     const data = await response.json();
     return {
-      authorNickname: data.authorNickname || data.author_nickname || "?꾩쭅 ?놁쓬",
-      authorEmoji: data.authorEmoji || data.author_emoji || "?룇",
+      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
+      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
       totalLikes: data.totalLikes ?? data.total_likes ?? 0,
     };
   } catch (error) {
     console.error('Failed to fetch top detective:', error);
-    return { authorNickname: "?꾩쭅 ?놁쓬", authorEmoji: "?룇", totalLikes: 0 };
+    return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
   }
 };
 
@@ -582,7 +584,7 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch hot topic:', error);
-    return { tag: "?놁쓬", count: 0 };
+    return { tag: "없음", count: 0 };
   }
 };
 
@@ -773,7 +775,7 @@ export const fetchPurchaseHistory = async (userId: string) => {
   return userServicePost<{ purchases: object[] }>("GetPurchaseHistory", { user_id: userId });
 };
 
-// ??? Admin Shop API ????????????????????????????????????????????????????????????
+// ─── Admin Shop API ────────────────────────────────────────────────────────────
 
 export interface AdminShopItem {
   id: string;
@@ -831,7 +833,7 @@ export const adminDeleteShopItem = async (id: string): Promise<void> =>
   adminFetch("DELETE", `/items/${id}`);
 
 // Report Service
-const REPORT_BASE_URL = import.meta.env.VITE_REPORT_BASE_URL || 'http://localhost:8090';
+const REPORT_BASE_URL = import.meta.env.VITE_REPORT_BASE_URL || '';
 
 export const generateReport = async (days?: number | null): Promise<{ report_url: string }> => {
   const userId = getUserId();
