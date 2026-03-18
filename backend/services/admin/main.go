@@ -80,6 +80,7 @@ func main() {
 	// Admin Community routes
 	communityRouter := router.PathPrefix("/admin/community").Subrouter()
 	communityRouter.HandleFunc("/posts", communityHandler.ListPosts).Methods("GET")
+	communityRouter.HandleFunc("/posts", communityHandler.CreateAdminPost).Methods("POST")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.UpdatePost).Methods("PUT")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.DeletePost).Methods("DELETE")
 	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")

@@ -17,3 +17,8 @@ variable "quiz_media_bucket_arn" {
   description = "ARN of the quiz media S3 bucket"
   type        = string
 }
+
+variable "community_media_bucket_arn" {
+  description = "ARN of the community media S3 bucket"
+  type        = string
+}

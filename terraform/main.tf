@@ -148,10 +148,11 @@ module "helm" {
 module "irsa" {
   source = "./modules/irsa"
 
-  project_name          = var.project_name
-  oidc_provider_arn     = module.eks.oidc_provider_arn
-  oidc_provider_url     = module.eks.oidc_provider_url
-  quiz_media_bucket_arn = module.s3.quiz_media_bucket_arn
+  project_name               = var.project_name
+  oidc_provider_arn          = module.eks.oidc_provider_arn
+  oidc_provider_url          = module.eks.oidc_provider_url
+  quiz_media_bucket_arn      = module.s3.quiz_media_bucket_arn
+  community_media_bucket_arn = module.s3.community_media_bucket_arn
 }
 
 # ---------------------------------------------------------------------------
