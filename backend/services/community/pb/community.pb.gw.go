@@ -440,6 +440,33 @@ func local_request_CommunityService_UploadMedia_0(ctx context.Context, marshaler
 	return msg, metadata, err
 }
 
+func request_CommunityService_SyncAuthorNickname_0(ctx context.Context, marshaler runtime.Marshaler, client CommunityServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq SyncAuthorNicknameRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.SyncAuthorNickname(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_CommunityService_SyncAuthorNickname_0(ctx context.Context, marshaler runtime.Marshaler, server CommunityServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq SyncAuthorNicknameRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.SyncAuthorNickname(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_CommunityService_GetNotices_0(ctx context.Context, marshaler runtime.Marshaler, client CommunityServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq GetNoticesRequest
@@ -491,6 +518,33 @@ func local_request_CommunityService_GetTopDetective_0(ctx context.Context, marsh
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	msg, err := server.GetTopDetective(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_CommunityService_GetRanking_0(ctx context.Context, marshaler runtime.Marshaler, client CommunityServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetRankingRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.GetRanking(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_CommunityService_GetRanking_0(ctx context.Context, marshaler runtime.Marshaler, server CommunityServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetRankingRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.GetRanking(ctx, &protoReq)
 	return msg, metadata, err
 }
 
@@ -827,6 +881,26 @@ func RegisterCommunityServiceHandlerServer(ctx context.Context, mux *runtime.Ser
 		}
 		forward_CommunityService_UploadMedia_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_CommunityService_SyncAuthorNickname_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/community.CommunityService/SyncAuthorNickname", runtime.WithHTTPPathPattern("/community.CommunityService/SyncAuthorNickname"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_CommunityService_SyncAuthorNickname_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CommunityService_SyncAuthorNickname_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPost, pattern_CommunityService_GetNotices_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -866,6 +940,26 @@ func RegisterCommunityServiceHandlerServer(ctx context.Context, mux *runtime.Ser
 			return
 		}
 		forward_CommunityService_GetTopDetective_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_CommunityService_GetRanking_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/community.CommunityService/GetRanking", runtime.WithHTTPPathPattern("/community.CommunityService/GetRanking"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_CommunityService_GetRanking_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CommunityService_GetRanking_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 	mux.Handle(http.MethodPost, pattern_CommunityService_GetHotTopic_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
@@ -1182,6 +1276,23 @@ func RegisterCommunityServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 		}
 		forward_CommunityService_UploadMedia_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_CommunityService_SyncAuthorNickname_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/community.CommunityService/SyncAuthorNickname", runtime.WithHTTPPathPattern("/community.CommunityService/SyncAuthorNickname"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_CommunityService_SyncAuthorNickname_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CommunityService_SyncAuthorNickname_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPost, pattern_CommunityService_GetNotices_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1216,6 +1327,23 @@ func RegisterCommunityServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 		}
 		forward_CommunityService_GetTopDetective_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_CommunityService_GetRanking_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/community.CommunityService/GetRanking", runtime.WithHTTPPathPattern("/community.CommunityService/GetRanking"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_CommunityService_GetRanking_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_CommunityService_GetRanking_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPost, pattern_CommunityService_GetHotTopic_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1237,43 +1365,47 @@ func RegisterCommunityServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 }
 
 var (
-	pattern_CommunityService_GetFeed_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetFeed"}, ""))
-	pattern_CommunityService_GetPost_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetPost"}, ""))
-	pattern_CommunityService_CreatePost_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "CreatePost"}, ""))
-	pattern_CommunityService_UpdatePost_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "UpdatePost"}, ""))
-	pattern_CommunityService_DeletePost_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "DeletePost"}, ""))
-	pattern_CommunityService_GetComments_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetComments"}, ""))
-	pattern_CommunityService_CreateComment_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "CreateComment"}, ""))
-	pattern_CommunityService_DeleteComment_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "DeleteComment"}, ""))
-	pattern_CommunityService_LikePost_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "LikePost"}, ""))
-	pattern_CommunityService_UnlikePost_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "UnlikePost"}, ""))
-	pattern_CommunityService_CheckLike_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "CheckLike"}, ""))
-	pattern_CommunityService_VotePost_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "VotePost"}, ""))
-	pattern_CommunityService_GetVoteResult_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetVoteResult"}, ""))
-	pattern_CommunityService_GetUserVote_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetUserVote"}, ""))
-	pattern_CommunityService_UploadMedia_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "UploadMedia"}, ""))
-	pattern_CommunityService_GetNotices_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetNotices"}, ""))
-	pattern_CommunityService_GetTopDetective_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetTopDetective"}, ""))
-	pattern_CommunityService_GetHotTopic_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetHotTopic"}, ""))
+	pattern_CommunityService_GetFeed_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetFeed"}, ""))
+	pattern_CommunityService_GetPost_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetPost"}, ""))
+	pattern_CommunityService_CreatePost_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "CreatePost"}, ""))
+	pattern_CommunityService_UpdatePost_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "UpdatePost"}, ""))
+	pattern_CommunityService_DeletePost_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "DeletePost"}, ""))
+	pattern_CommunityService_GetComments_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetComments"}, ""))
+	pattern_CommunityService_CreateComment_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "CreateComment"}, ""))
+	pattern_CommunityService_DeleteComment_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "DeleteComment"}, ""))
+	pattern_CommunityService_LikePost_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "LikePost"}, ""))
+	pattern_CommunityService_UnlikePost_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "UnlikePost"}, ""))
+	pattern_CommunityService_CheckLike_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "CheckLike"}, ""))
+	pattern_CommunityService_VotePost_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "VotePost"}, ""))
+	pattern_CommunityService_GetVoteResult_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetVoteResult"}, ""))
+	pattern_CommunityService_GetUserVote_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetUserVote"}, ""))
+	pattern_CommunityService_UploadMedia_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "UploadMedia"}, ""))
+	pattern_CommunityService_SyncAuthorNickname_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "SyncAuthorNickname"}, ""))
+	pattern_CommunityService_GetNotices_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetNotices"}, ""))
+	pattern_CommunityService_GetTopDetective_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetTopDetective"}, ""))
+	pattern_CommunityService_GetRanking_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetRanking"}, ""))
+	pattern_CommunityService_GetHotTopic_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"community.CommunityService", "GetHotTopic"}, ""))
 )
 
 var (
-	forward_CommunityService_GetFeed_0         = runtime.ForwardResponseMessage
-	forward_CommunityService_GetPost_0         = runtime.ForwardResponseMessage
-	forward_CommunityService_CreatePost_0      = runtime.ForwardResponseMessage
-	forward_CommunityService_UpdatePost_0      = runtime.ForwardResponseMessage
-	forward_CommunityService_DeletePost_0      = runtime.ForwardResponseMessage
-	forward_CommunityService_GetComments_0     = runtime.ForwardResponseMessage
-	forward_CommunityService_CreateComment_0   = runtime.ForwardResponseMessage
-	forward_CommunityService_DeleteComment_0   = runtime.ForwardResponseMessage
-	forward_CommunityService_LikePost_0        = runtime.ForwardResponseMessage
-	forward_CommunityService_UnlikePost_0      = runtime.ForwardResponseMessage
-	forward_CommunityService_CheckLike_0       = runtime.ForwardResponseMessage
-	forward_CommunityService_VotePost_0        = runtime.ForwardResponseMessage
-	forward_CommunityService_GetVoteResult_0   = runtime.ForwardResponseMessage
-	forward_CommunityService_GetUserVote_0     = runtime.ForwardResponseMessage
-	forward_CommunityService_UploadMedia_0     = runtime.ForwardResponseMessage
-	forward_CommunityService_GetNotices_0      = runtime.ForwardResponseMessage
-	forward_CommunityService_GetTopDetective_0 = runtime.ForwardResponseMessage
-	forward_CommunityService_GetHotTopic_0     = runtime.ForwardResponseMessage
+	forward_CommunityService_GetFeed_0            = runtime.ForwardResponseMessage
+	forward_CommunityService_GetPost_0            = runtime.ForwardResponseMessage
+	forward_CommunityService_CreatePost_0         = runtime.ForwardResponseMessage
+	forward_CommunityService_UpdatePost_0         = runtime.ForwardResponseMessage
+	forward_CommunityService_DeletePost_0         = runtime.ForwardResponseMessage
+	forward_CommunityService_GetComments_0        = runtime.ForwardResponseMessage
+	forward_CommunityService_CreateComment_0      = runtime.ForwardResponseMessage
+	forward_CommunityService_DeleteComment_0      = runtime.ForwardResponseMessage
+	forward_CommunityService_LikePost_0           = runtime.ForwardResponseMessage
+	forward_CommunityService_UnlikePost_0         = runtime.ForwardResponseMessage
+	forward_CommunityService_CheckLike_0          = runtime.ForwardResponseMessage
+	forward_CommunityService_VotePost_0           = runtime.ForwardResponseMessage
+	forward_CommunityService_GetVoteResult_0      = runtime.ForwardResponseMessage
+	forward_CommunityService_GetUserVote_0        = runtime.ForwardResponseMessage
+	forward_CommunityService_UploadMedia_0        = runtime.ForwardResponseMessage
+	forward_CommunityService_SyncAuthorNickname_0 = runtime.ForwardResponseMessage
+	forward_CommunityService_GetNotices_0         = runtime.ForwardResponseMessage
+	forward_CommunityService_GetTopDetective_0    = runtime.ForwardResponseMessage
+	forward_CommunityService_GetRanking_0         = runtime.ForwardResponseMessage
+	forward_CommunityService_GetHotTopic_0        = runtime.ForwardResponseMessage
 )

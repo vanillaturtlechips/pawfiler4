@@ -555,7 +555,12 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
       throw new Error(`Failed to fetch top detective: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
+      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
+      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
+    };
   } catch (error) {
     console.error('Failed to fetch top detective:', error);
     return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
@@ -673,6 +678,14 @@ export interface UserFullProfile {
   current_streak?: number;
   bestStreak: number;
   best_streak?: number;
+  totalLikesReceived?: number;
+  total_likes_received?: number;
+  totalCommentsWritten?: number;
+  total_comments_written?: number;
+  suspiciousVideos?: number;
+  suspicious_videos?: number;
+  avgConfidence?: number;
+  avg_confidence?: number;
 }
 
 export interface UserActivity {
@@ -702,9 +715,12 @@ export interface ShopCatalog {
 
 export interface PurchaseResult {
   success: boolean;
-  item_name: string;
-  coins_paid: number;
-  total_coins: number;
+  itemName?: string;
+  item_name?: string;
+  coinsPaid?: number;
+  coins_paid?: number;
+  totalCoins?: number;
+  total_coins?: number;
 }
 
 const userServicePost = async <T>(path: string, body: object): Promise<T> => {
@@ -728,7 +744,7 @@ export const updateUserProfile = async (
   userId: string,
   nickname?: string,
   avatarEmoji?: string
-): Promise<{ success: boolean; nickname: string; avatar_emoji: string }> => {
+): Promise<{ success: boolean; nickname: string; avatarEmoji?: string; avatar_emoji?: string }> => {
   return userServicePost("UpdateProfile", {
     user_id: userId,
     ...(nickname && { nickname }),
@@ -746,8 +762,8 @@ export const fetchShopItems = async (): Promise<ShopCatalog> => {
   const items = res.items ?? [];
   return {
     subscriptions: items.filter((i) => i.type === "subscription"),
-    coin_packages: items.filter((i) => i.type === "coin_package"),
-    packages: items.filter((i) => i.type !== "subscription" && i.type !== "coin_package"),
+    coin_packages: items.filter((i) => i.type === "coin_package" || i.type === "coins"),
+    packages: items.filter((i) => i.type !== "subscription" && i.type !== "coin_package" && i.type !== "coins"),
   };
 };
 

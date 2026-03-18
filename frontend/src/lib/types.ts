@@ -156,6 +156,7 @@ export interface CommunityPost {
   isAdminPost?: boolean;
   trueVotes?: number;
   falseVotes?: number;
+  isCorrect?: boolean;
 }
 
 export interface CommunityComment {
@@ -191,7 +192,7 @@ export interface AnalysisLogEntry {
 
 export interface DeepfakeReport {
   taskId: string;
-  verdict: "real" | "fake" | "uncertain";
+  verdict: "real" | "fake" | "uncertain" | "REAL" | "FAKE" | "UNCERTAIN" | "PROCESSING" | "NOT_FOUND";
   confidenceScore: number;
   manipulatedRegions: { label: string; confidence: number }[];
   frameSamplesAnalyzed: number;

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// VotePost - 게시글 투표
+// VotePost - 게시글 투표 (언제든지 변경 가능)
 func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.VotePostResponse, error) {
 	if req.PostId == "" || req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
@@ -23,29 +23,46 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 	}
 	defer tx.Rollback()
 
-	var exists bool
+	var prevVote *bool
+	var prevVoteVal bool
 	err = tx.QueryRowContext(ctx,
-		"SELECT EXISTS(SELECT 1 FROM community.post_votes WHERE post_id = $1 AND user_id = $2)",
-		req.PostId, req.UserId).Scan(&exists)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to check vote")
-	}
-	if exists {
-		return &pb.VotePostResponse{Success: true, AlreadyVoted: true, XpEarned: 0}, nil
+		"SELECT vote FROM community.post_votes WHERE post_id = $1 AND user_id = $2",
+		req.PostId, req.UserId).Scan(&prevVoteVal)
+	if err == nil {
+		prevVote = &prevVoteVal
 	}
 
-	_, err = tx.ExecContext(ctx,
-		"INSERT INTO community.post_votes (id, post_id, user_id, vote) VALUES ($1, $2, $3, $4)",
-		uuid.New().String(), req.PostId, req.UserId, req.Vote)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to vote")
+	if prevVote != nil {
+		// 같은 값이면 변경 없음
+		if *prevVote == req.Vote {
+			return &pb.VotePostResponse{Success: true, AlreadyVoted: true, XpEarned: 0}, nil
+		}
+		// 다른 값이면 UPDATE
+		_, err = tx.ExecContext(ctx,
+			"UPDATE community.post_votes SET vote = $1 WHERE post_id = $2 AND user_id = $3",
+			req.Vote, req.PostId, req.UserId)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Failed to update vote")
+		}
+	} else {
+		// 첫 투표 INSERT
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO community.post_votes (id, post_id, user_id, vote) VALUES ($1, $2, $3, $4)",
+			uuid.New().String(), req.PostId, req.UserId, req.Vote)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Failed to vote")
+		}
 	}
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "Failed to commit")
 	}
 
-	return &pb.VotePostResponse{Success: true, AlreadyVoted: false, XpEarned: 1}, nil
+	xpEarned := int32(0)
+	if prevVote == nil {
+		xpEarned = 1 // 첫 투표에만 XP
+	}
+	return &pb.VotePostResponse{Success: true, AlreadyVoted: false, XpEarned: xpEarned}, nil
 }
 
 // GetVoteResult - 투표 결과 조회

@@ -13,17 +13,6 @@ import { config } from "@/lib/config";
 
 type ShopTab = "subscription" | "coins" | "packages";
 
-interface ShopItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  icon: string;
-  badge?: string;
-  type: "subscription" | "coins" | "avatar" | "item";
-  quantity?: number;
-  bonus?: number;
-}
 
 const ShopPage = () => {
   const { user, updateUser } = useAuth();
@@ -50,7 +39,7 @@ const ShopPage = () => {
       .catch(() => {});
   }, []);
 
-  const handlePurchase = async (item: ShopItem) => {
+  const handlePurchase = async (item: ShopCatalog["subscriptions"][number]) => {
     if (!user) {
       toast.error("로그인이 필요합니다.");
       return;
@@ -70,10 +59,15 @@ const ShopPage = () => {
     setPurchasing(item.id);
     try {
       const result = await purchaseItem(userId, item.id);
-      toast.success(`${result.item_name}을(를) 구매했습니다!`);
-      updateUser({ coins: result.totalCoins ?? result.total_coins });
+      if (!result.success) {
+        toast.error((result as any).error ?? "구매에 실패했습니다.");
+        return;
+      }
+      toast.success(`${result.itemName ?? result.item_name}을(를) 구매했습니다!`);
+      const newCoins = result.totalCoins ?? result.total_coins;
+      updateUser({ coins: newCoins });
       if (quizProfile) {
-        updateQuizProfile({ ...quizProfile, totalCoins: result.totalCoins ?? result.total_coins });
+        updateQuizProfile({ ...quizProfile, totalCoins: newCoins });
       }
     } catch (err: any) {
       const msg = err?.data?.error || err?.message || "구매 실패";
@@ -83,7 +77,7 @@ const ShopPage = () => {
     }
   };
 
-  const getCurrentItems = (): ShopItem[] => {
+  const getCurrentItems = (): ShopCatalog["subscriptions"] => {
     switch (activeTab) {
       case "subscription":
         return catalog.subscriptions;
@@ -359,7 +353,7 @@ const ShopPage = () => {
                 key={activeTab}
                 className="grid grid-cols-4 gap-3 h-full content-start"
               >
-                {getCurrentItems().map((item, index) => (
+                {getCurrentItems().map((item) => (
                   <div
                     key={item.id}
                     className="relative"

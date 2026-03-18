@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -16,8 +18,6 @@ import (
 	"github.com/lib/pq"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
-	"os"
 )
 
 // GetFeed - 게시글 피드 조회
@@ -237,7 +237,7 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	defer tx.Rollback()
 
 	var authorID, mediaURL string
-	err = tx.QueryRowContext(ctx, "SELECT author_id, media_url FROM community.posts WHERE id = $1 FOR UPDATE", req.PostId).Scan(&authorID, &mediaURL)
+	err = tx.QueryRowContext(ctx, "SELECT author_id, COALESCE(media_url, '') FROM community.posts WHERE id = $1 FOR UPDATE", req.PostId).Scan(&authorID, &mediaURL)
 	if err == sql.ErrNoRows {
 		return nil, status.Error(codes.NotFound, "Post not found")
 	}
@@ -251,8 +251,7 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 
 	if mediaURL != "" {
 		if err := deleteMediaFromS3(mediaURL); err != nil {
-			log.Printf("S3 delete failed: %v", err)
-			return nil, status.Error(codes.Internal, "Failed to delete media")
+			log.Printf("S3 delete failed (non-blocking): %v", err)
 		}
 	}
 
