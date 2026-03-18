@@ -16,9 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      has_services: ${{ steps.set-matrix.outputs.has_services }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      admin_frontend: ${{ steps.filter.outputs.admin_frontend }}
+      is_empty: ${{ steps.filter.outputs.changes == '[]' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,22 +33,23 @@ jobs:
             auth: 'backend/services/auth/**'
             frontend: 'frontend/**'
             admin_frontend: 'admin-frontend/**'
+            report: 'backend/services/report/**'
 
       - name: Generate Matrix
         id: set-matrix
         run: |
           SERVICES='${{ steps.filter.outputs.changes }}'
-          MATRIX=$(echo $SERVICES | jq -c 'map(select(. != "frontend" and . != "admin_frontend")) | map({
+          # Map service names to ECR repository names
+          MATRIX=$(echo $SERVICES | jq -c 'map({
             service: .,
             ecr_name: (. + "-service")
           })')
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "has_services=$(echo $MATRIX | jq 'length > 0')" >> $GITHUB_OUTPUT
 
   # Docker 빌드 및 ECR 푸시
   build-and-push:
     needs: detect-changes
-    if: needs.detect-changes.outputs.has_services == 'true'
+    if: needs.detect-changes.outputs.is_empty == 'false'
     runs-on: ubuntu-latest
     strategy:
       matrix:
