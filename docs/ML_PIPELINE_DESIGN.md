@@ -1,4 +1,4 @@
-# 딥페이크 탐지 ML 파이프라인 설계
+# AI 생성 영상 판별 ML 파이프라인 설계
 
 > 작성일: 2026-03-15
 
@@ -25,7 +25,7 @@
 - 비지도 제외: ground truth 있음
 
 **최적화 목표:**
-- 1차: Recall 최대화 (딥페이크를 real로 놓치는 게 더 위험)
+- 1차: Recall 최대화 (AI 생성 영상을 real로 놓치는 게 더 위험)
 - 2차: F1-score (precision/recall 균형)
 - 3차: Inference latency < 200ms (실시간 퀴즈 서비스)
 

@@ -14,7 +14,7 @@
 | 분류 유형 | 지도학습 다중 분류 (35클래스) |
 | 입력 | 영상 프레임 + 음성 |
 | 출력 | AI 모델명 / real / fake / audio_fake |
-| 최적화 1순위 | Recall 최대화 (딥페이크를 real로 놓치는 게 더 위험) |
+| 최적화 1순위 | Recall 최대화 (AI 생성 영상을 real로 놓치는 게 더 위험) |
 | 최적화 2순위 | F1-score (macro) ≥ 0.90 (SLO 목표) |
 | 최적화 3순위 | Inference latency < 200ms |
 
@@ -25,7 +25,7 @@
 | 데이터셋 | 레이블 | 규모 | 용도 |
 |---|---|---|---|
 | AIGVDBench | AI 모델명 (Sora, Gen2 등 23종) | ~478k 영상 | AI 모델 식별 |
-| Celeb-DF | real / fake | ~6.5k 영상 | 딥페이크 탐지 |
+| Celeb-DF | real / fake | ~6.5k 영상 | 얼굴 합성 탐지 |
 | WildDeepfake | real / fake | 실제 인터넷 수집 | 실전 적응 |
 | DFADD | 0(real) / 1(fake) | 음성 mel-spectrogram | 음성 합성 탐지 |
 
@@ -306,7 +306,7 @@ CloudFront → ALB → Envoy → Video Analysis Service
 **SageMaker 파이프라인:**
 ```python
 pipeline = Pipeline(
-    name="pawfiler-deepfake-detection",
+    name="pawfiler-ai-detection",
     steps=[
         ProcessingStep(name="feature-engineering"),
         TrainingStep(name="train-xgboost"),   # Cascade 1단계
