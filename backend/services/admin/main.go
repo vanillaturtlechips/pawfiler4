@@ -46,7 +46,7 @@ func main() {
 	quizHandler := handler.NewQuizAdminHandler(quizService)
 
 	communityRepo := repository.NewCommunityRepository(db)
-	communityHandler := handler.NewCommunityAdminHandler(communityRepo)
+	communityHandler := handler.NewCommunityAdminHandler(communityRepo, quizRepo)
 
 	shopRepo := repository.NewShopRepository(db)
 	shopHandler := handler.NewShopAdminHandler(shopRepo)
@@ -81,9 +81,11 @@ func main() {
 	communityRouter := router.PathPrefix("/admin/community").Subrouter()
 	communityRouter.HandleFunc("/posts", communityHandler.ListPosts).Methods("GET")
 	communityRouter.HandleFunc("/posts", communityHandler.CreateAdminPost).Methods("POST")
+	communityRouter.HandleFunc("/posts/review", communityHandler.GetPostsPendingReview).Methods("GET")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.UpdatePost).Methods("PUT")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.DeletePost).Methods("DELETE")
 	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")
+	communityRouter.HandleFunc("/posts/{id}/publish", communityHandler.PublishAsQuizQuestion).Methods("POST")
 	communityRouter.HandleFunc("/comments/{id}", communityHandler.DeleteComment).Methods("DELETE")
 
 	// gorilla/mux는 OPTIONS를 명시해야 preflight 통과

@@ -30,6 +30,25 @@ type Post struct {
 	CreatedAt      string   `json:"createdAt"`
 }
 
+type PostWithVotes struct {
+	ID             string   `json:"id"`
+	UserID         string   `json:"userId"`
+	AuthorNickname string   `json:"authorNickname"`
+	AuthorEmoji    string   `json:"authorEmoji"`
+	Title          string   `json:"title"`
+	Body           string   `json:"body"`
+	Tags           []string `json:"tags"`
+	Likes          int      `json:"likes"`
+	Comments       int      `json:"comments"`
+	CreatedAt      string   `json:"createdAt"`
+	MediaURL       string   `json:"mediaUrl"`
+	MediaType      string   `json:"mediaType"`
+	IsCorrect      *bool    `json:"isCorrect"`
+	TrueVotes      int      `json:"trueVotes"`
+	FalseVotes     int      `json:"falseVotes"`
+	TotalVotes     int      `json:"totalVotes"`
+}
+
 type Comment struct {
 	ID             string `json:"id"`
 	PostID         string `json:"postId"`
@@ -216,18 +235,105 @@ func (r *CommunityRepository) CreateAdminPost(req *CreateAdminPostRequest) (*Pos
 	return &post, nil
 }
 
-func generateUUID() string {
-	// simple UUID v4 generation
-	b := make([]byte, 16)
-	_, _ = fmt.Sscanf("00000000-0000-4000-8000-000000000000", "%x-%x-%x-%x-%x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-	// use crypto/rand via time-based fallback
-	import_time_nano := fmt.Sprintf("%d", 0)
-	_ = import_time_nano
-	return fmt.Sprintf("%08x-%04x-4%03x-%04x-%012x",
-		0, 0, 0, 0, 0)
+func (r *CommunityRepository) GetPostsPendingReview(minVotes, page, pageSize int) ([]PostWithVotes, int, error) {
+	offset := (page - 1) * pageSize
+
+	var total int
+	err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM (
+			SELECT p.id
+			FROM community.posts p
+			JOIN community.post_votes pv ON p.id = pv.post_id
+			WHERE p.is_admin_post = false
+			  AND p.media_url IS NOT NULL AND p.media_url != ''
+			GROUP BY p.id
+			HAVING COUNT(pv.post_id) >= $1
+		) sub
+	`, minVotes).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count pending review posts: %w", err)
+	}
+
+	rows, err := r.db.Query(`
+		SELECT p.id, p.author_id, p.author_nickname, p.author_emoji,
+		       p.title, p.body, p.tags, p.likes, p.comments, p.created_at::text,
+		       COALESCE(p.media_url, ''), COALESCE(p.media_type, ''),
+		       p.is_correct,
+		       COUNT(CASE WHEN pv.vote = true THEN 1 END)  AS true_votes,
+		       COUNT(CASE WHEN pv.vote = false THEN 1 END) AS false_votes,
+		       COUNT(pv.post_id)                           AS total_votes
+		FROM community.posts p
+		JOIN community.post_votes pv ON p.id = pv.post_id
+		WHERE p.is_admin_post = false
+		  AND p.media_url IS NOT NULL AND p.media_url != ''
+		GROUP BY p.id, p.author_id, p.author_nickname, p.author_emoji,
+		         p.title, p.body, p.tags, p.likes, p.comments, p.created_at,
+		         p.media_url, p.media_type, p.is_correct
+		HAVING COUNT(pv.post_id) >= $1
+		ORDER BY total_votes DESC
+		LIMIT $2 OFFSET $3
+	`, minVotes, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query pending review posts: %w", err)
+	}
+	defer rows.Close()
+
+	var posts []PostWithVotes
+	for rows.Next() {
+		var p PostWithVotes
+		var tags pq.StringArray
+		if err := rows.Scan(
+			&p.ID, &p.UserID, &p.AuthorNickname, &p.AuthorEmoji,
+			&p.Title, &p.Body, &tags, &p.Likes, &p.Comments, &p.CreatedAt,
+			&p.MediaURL, &p.MediaType, &p.IsCorrect,
+			&p.TrueVotes, &p.FalseVotes, &p.TotalVotes,
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan post: %w", err)
+		}
+		p.Tags = []string(tags)
+		if p.Tags == nil {
+			p.Tags = []string{}
+		}
+		posts = append(posts, p)
+	}
+	if posts == nil {
+		posts = []PostWithVotes{}
+	}
+	return posts, total, nil
 }
 
-func (r *CommunityRepository) GetPostByID(id string) (*sql.Row, error) {
-	return nil, nil
+func (r *CommunityRepository) GetPostByID(id string) (*PostWithVotes, error) {
+	var p PostWithVotes
+	var tags pq.StringArray
+	err := r.db.QueryRow(`
+		SELECT p.id, p.author_id, p.author_nickname, p.author_emoji,
+		       p.title, p.body, p.tags, p.likes, p.comments, p.created_at::text,
+		       COALESCE(p.media_url, ''), COALESCE(p.media_type, ''),
+		       p.is_correct,
+		       COUNT(CASE WHEN pv.vote = true THEN 1 END)  AS true_votes,
+		       COUNT(CASE WHEN pv.vote = false THEN 1 END) AS false_votes,
+		       COUNT(pv.post_id)                           AS total_votes
+		FROM community.posts p
+		LEFT JOIN community.post_votes pv ON p.id = pv.post_id
+		WHERE p.id = $1
+		GROUP BY p.id, p.author_id, p.author_nickname, p.author_emoji,
+		         p.title, p.body, p.tags, p.likes, p.comments, p.created_at,
+		         p.media_url, p.media_type, p.is_correct
+	`, id).Scan(
+		&p.ID, &p.UserID, &p.AuthorNickname, &p.AuthorEmoji,
+		&p.Title, &p.Body, &tags, &p.Likes, &p.Comments, &p.CreatedAt,
+		&p.MediaURL, &p.MediaType, &p.IsCorrect,
+		&p.TrueVotes, &p.FalseVotes, &p.TotalVotes,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("post not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get post: %w", err)
+	}
+	p.Tags = []string(tags)
+	if p.Tags == nil {
+		p.Tags = []string{}
+	}
+	return &p, nil
 }
