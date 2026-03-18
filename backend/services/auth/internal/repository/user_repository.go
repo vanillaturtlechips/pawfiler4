@@ -31,8 +31,8 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash string) (string, error) {
 	var id string
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO auth.users (id, email, password_hash, created_at)
-		 VALUES (gen_random_uuid(), $1, $2, NOW())
+		`INSERT INTO auth.users (id, email, password_hash, nickname, avatar_emoji, created_at)
+		 VALUES (gen_random_uuid(), $1, $2, '탐정', '🦊', NOW())
 		 RETURNING id`,
 		email, passwordHash,
 	).Scan(&id)

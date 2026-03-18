@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { UserProfile } from "@/lib/types";
 import { config } from "@/lib/config";
+import { fetchUserFullProfile } from "@/lib/api";
 
 interface AuthState {
   token: string | null;
@@ -69,6 +70,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem(config.storageKeys.quizUserId, user.id);
     }
     setState({ token, user, isLoggedIn: true });
+    // user-service에서 실제 닉네임/아바타 fetch해서 AuthContext 동기화
+    fetchUserFullProfile(user.id)
+      .then((profile) => {
+        if (profile?.nickname) {
+          const updated = { ...user, nickname: profile.nickname, avatarEmoji: profile.avatarEmoji || user.avatarEmoji };
+          localStorage.setItem(config.storageKeys.authUser, JSON.stringify(updated));
+          setState((prev) => ({ ...prev, user: updated }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const logout = useCallback(() => {

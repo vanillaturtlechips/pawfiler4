@@ -9,7 +9,6 @@ import { ArrowLeft, Coins, Sparkles, Gift, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { purchaseItem, fetchShopItems, fetchUserProfile, type ShopCatalog } from "@/lib/api";
-import { config } from "@/lib/config";
 
 type ShopTab = "subscription" | "coins" | "packages";
 
@@ -45,7 +44,7 @@ const ShopPage = () => {
       return;
     }
 
-    const userId = localStorage.getItem(config.storageKeys.quizUserId);
+    const userId = user?.id;
     if (!userId) {
       toast.error("사용자 정보를 찾을 수 없습니다.");
       return;

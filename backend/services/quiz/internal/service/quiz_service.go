@@ -41,6 +41,9 @@ type QuizService interface {
 	// UpdateUserProfile updates gamification profile
 	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
 
+	// UpdateNicknameAvatar updates only nickname/avatar without touching coins or exp.
+	UpdateNicknameAvatar(ctx context.Context, userID, nickname, avatarEmoji string) error
+
 	// GetRanking returns ranked users
 	GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error)
 
@@ -164,6 +167,10 @@ func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*r
 
 func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
 	return s.repo.UpdateUserProfile(ctx, profile)
+}
+
+func (s *quizServiceImpl) UpdateNicknameAvatar(ctx context.Context, userID, nickname, avatarEmoji string) error {
+	return s.repo.UpdateNicknameAvatar(ctx, userID, nickname, avatarEmoji)
 }
 
 func (s *quizServiceImpl) GetRanking(ctx context.Context, sortBy string, limit int) ([]repository.RankingEntry, error) {
