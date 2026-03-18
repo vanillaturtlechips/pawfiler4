@@ -1,12 +1,10 @@
-import type {
+﻿import type {
   LoginRequest,
   SignupRequest,
   UserProfile,
   QuizQuestion,
   QuizSubmitRequest,
   QuizSubmitResponse,
-  CommunityFeed,
-  CommunityComment,
   DeepfakeReport,
   UnifiedReport,
   CheckoutRequest,
@@ -14,7 +12,6 @@ import type {
   SubscriptionPlan,
   QuizStats,
   QuizGameProfile,
-  CommunityPost,
   MediaType,
   MultipleChoiceQuestion,
   TrueFalseQuestion,
@@ -26,7 +23,6 @@ import {
   submitQuizAnswer as mockSubmitQuizAnswer,
   mockLogin,
   mockSignup,
-  fetchCommunityFeed as mockFetchCommunityFeed,
   runVideoAnalysis as mockRunVideoAnalysis,
   fetchQuizStats as mockFetchQuizStats,
 } from "./mockApi";
@@ -34,11 +30,11 @@ import { config } from "./config";
 import { toast } from "sonner";
 import { fixImageUrl } from "../utils/imageUrl";
 
-// 사용자 ID 생성 또는 가져오기 (UUID v4 형식)
-export const getUserId = (): string => {
+// ?ъ슜??ID ?앹꽦 ?먮뒗 媛?몄삤湲?(UUID v4 ?뺤떇)
+const getUserId = (): string => {
   let userId = localStorage.getItem(config.storageKeys.quizUserId);
   if (!userId) {
-    // UUID v4 생성
+    // UUID v4 ?앹꽦
     userId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -49,21 +45,21 @@ export const getUserId = (): string => {
   return userId;
 }
 
-// 에러 처리 헬퍼
+// ?먮윭 泥섎━ ?ы띁
 export const handleApiError = (error: unknown, context: string): never => {
   console.error(`[API Error - ${context}]:`, error);
   
   if (error instanceof TypeError && error.message === 'Failed to fetch') {
-    toast.error(`서버에 연결할 수 없습니다. 네트워크를 확인해주세요.`);
+    toast.error(`?쒕쾭???곌껐?????놁뒿?덈떎. ?ㅽ듃?뚰겕瑜??뺤씤?댁＜?몄슂.`);
     throw new Error(`Network error in ${context}`);
   }
   
   if (error instanceof Error) {
-    toast.error(error.message || `${context} 중 오류가 발생했습니다.`);
+    toast.error(error.message || `${context} 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.`);
     throw error;
   }
   
-  toast.error(`${context} 중 알 수 없는 오류가 발생했습니다.`);
+  toast.error(`${context} 以??????녿뒗 ?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.`);
   throw new Error(`Unknown error in ${context}`);
 };
 
@@ -103,8 +99,7 @@ const request = async <T>(
       if (attempt === retries) {
         throw error;
       }
-      // 재시도 전 대기
-      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      // ?ъ떆?????湲?      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
   }
   
@@ -121,7 +116,7 @@ export const login = async (req: LoginRequest) => {
       body: JSON.stringify(req),
     });
   } catch (error) {
-    return handleApiError(error, '로그인');
+    return handleApiError(error, '濡쒓렇??);
   }
 };
 
@@ -135,7 +130,7 @@ export const signup = async (req: SignupRequest) => {
       body: JSON.stringify(req),
     });
   } catch (error) {
-    return handleApiError(error, '회원가입');
+    return handleApiError(error, '?뚯썝媛??);
   }
 };
 
@@ -149,7 +144,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
     const userId = getUserId();
     
     const body: any = { user_id: userId };
-    // 난이도 파라미터 추가 (all이 아닐 때만)
+    // ?쒖씠???뚮씪誘명꽣 異붽? (all???꾨땺 ?뚮쭔)
     if (difficulty && difficulty !== "all") {
       body.difficulty = difficulty;
     }
@@ -173,7 +168,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
 
     const data = await response.json();
     
-    // gRPC 응답을 프론트엔드 타입으로 변환 (snake_case -> camelCase)
+    // gRPC ?묐떟???꾨줎?몄뿏????낆쑝濡?蹂??(snake_case -> camelCase)
     const typeMap: { [key: string]: QuizQuestion["type"] } = {
       "MULTIPLE_CHOICE": "multiple_choice",
       "TRUE_FALSE": "true_false",
@@ -195,7 +190,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
       explanation: data.explanation,
     };
 
-    // 타입별로 추가 필드 포함
+    // ??낅퀎濡?異붽? ?꾨뱶 ?ы븿
     switch (questionType) {
       case "multiple_choice":
         return {
@@ -203,7 +198,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
           type: "multiple_choice" as const,
           mediaType,
           options: data.options || [],
-          correctIndex: -1, // 초기에는 정답을 모름 (답안 제출 후 업데이트)
+          correctIndex: -1, // 珥덇린?먮뒗 ?뺣떟??紐⑤쫫 (?듭븞 ?쒖텧 ???낅뜲?댄듃)
         } as MultipleChoiceQuestion;
       case "true_false":
         return {
@@ -232,7 +227,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
         throw new Error(`Unknown question type: ${questionType}`);
     }
   } catch (error) {
-    return handleApiError(error, '퀴즈 문제 로드');
+    return handleApiError(error, '?댁쫰 臾몄젣 濡쒕뱶');
   }
 };
 
@@ -245,13 +240,13 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
   try {
     const userId = getUserId();
     
-    // gRPC 요청 본문 생성
+    // gRPC ?붿껌 蹂몃Ц ?앹꽦
     const requestBody: any = {
       user_id: userId,
       question_id: req.questionId,
     };
 
-    // 답변 타입에 따라 필드 추가
+    // ?듬? ??낆뿉 ?곕씪 ?꾨뱶 異붽?
     if (req.selectedIndex !== undefined) {
       requestBody.selected_index = req.selectedIndex;
     }
@@ -279,7 +274,7 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
 
     const data = await response.json();
     
-    // 설명에서 정답 인덱스 파싱
+    // ?ㅻ챸?먯꽌 ?뺣떟 ?몃뜳???뚯떛
     let explanation = data.explanation || "";
     let correctIndex: number | undefined = undefined;
     
@@ -291,20 +286,22 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
     
     return {
       correct: data.correct ?? false,
-      xpEarned: data.xp_earned ?? 0,
-      coinsEarned: data.coins_earned ?? 0,
+      xpEarned: data.xpEarned ?? data.xp_earned ?? 0,
+      coinsEarned: data.coinsEarned ?? data.coins_earned ?? 0,
       explanation: explanation,
-      streakCount: data.streak_count ?? 0,
+      streakCount: data.streakCount ?? data.streak_count ?? 0,
+      streakBonus: data.streakBonus ?? data.streak_bonus ?? 0,
+      tierPromoted: data.tierPromoted ?? data.tier_promoted ?? false,
       correctIndex: correctIndex,
       level: data.level,
-      tierName: data.tier_name,
-      totalExp: data.total_exp,
-      totalCoins: data.total_coins,
+      tierName: data.tierName ?? data.tier_name,
+      totalExp: data.totalExp ?? data.total_exp,
+      totalCoins: data.totalCoins ?? data.total_coins,
       energy: data.energy,
-      maxEnergy: data.max_energy,
+      maxEnergy: data.maxEnergy ?? data.max_energy,
     };
   } catch (error) {
-    return handleApiError(error, '답안 제출');
+    return handleApiError(error, '?듭븞 ?쒖텧');
   }
 };
 
@@ -334,20 +331,20 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
     const data = await response.json();
     
     return {
-      totalAnswered: data.total_answered ?? 0,
-      correctRate: data.correct_rate ?? 0,
-      currentStreak: data.current_streak ?? 0,
-      bestStreak: data.best_streak ?? 0,
+      totalAnswered: data.totalAnswered ?? data.total_answered ?? 0,
+      correctRate: data.correctRate ?? data.correct_rate ?? 0,
+      currentStreak: data.currentStreak ?? data.current_streak ?? 0,
+      bestStreak: data.bestStreak ?? data.best_streak ?? 0,
       lives: data.lives ?? 3,
       level: data.level,
-      tierName: data.tier_name,
-      totalExp: data.total_exp,
-      totalCoins: data.total_coins,
+      tierName: data.tierName ?? data.tier_name,
+      totalExp: data.totalExp ?? data.total_exp,
+      totalCoins: data.totalCoins ?? data.total_coins,
       energy: data.energy,
-      maxEnergy: data.max_energy,
+      maxEnergy: data.maxEnergy ?? data.max_energy,
     };
   } catch (error) {
-    return handleApiError(error, '통계 로드');
+    return handleApiError(error, '?듦퀎 濡쒕뱶');
   }
 };
 
@@ -363,156 +360,14 @@ export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
     const data = await response.json();
     return {
       level: data.level ?? 1,
-      tierName: data.tier_name ?? '알 껍데기 병아리',
-      totalExp: data.total_exp ?? 0,
-      totalCoins: data.total_coins ?? 0,
+      tierName: data.tierName ?? data.tier_name ?? '??猿띾뜲湲?蹂묒븘由?,
+      totalExp: data.totalExp ?? data.total_exp ?? 0,
+      totalCoins: data.totalCoins ?? data.total_coins ?? 0,
       energy: data.energy ?? 100,
-      maxEnergy: data.max_energy ?? 100,
+      maxEnergy: data.maxEnergy ?? data.max_energy ?? 100,
     };
   } catch (error) {
-    return handleApiError(error, '프로필 로드');
-  }
-};
-
-export const fetchCommunityFeed = async (
-  page = 1, 
-  pageSize = config.communityPageSize,
-  searchQuery?: string,
-  searchType: "title" | "body" | "all" = "title"
-): Promise<CommunityFeed> => {
-  try {
-    const requestBody: any = {
-      page,
-      pageSize,
-    };
-    
-    if (searchQuery && searchQuery.trim()) {
-      requestBody.searchQuery = searchQuery.trim();
-      requestBody.searchType = searchType;
-    }
-    
-    const response = await fetch(
-      `${config.communityBaseUrl}/community.CommunityService/GetFeed`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch feed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // gRPC snake_case를 camelCase로 변환
-    const transformedPosts: CommunityPost[] = data.posts?.map((post: any) => ({
-      id: post.id,
-      authorNickname: post.author_nickname || "익명",
-      authorEmoji: post.author_emoji || "👤",
-      title: post.title,
-      body: post.body,
-      likes: post.likes || 0,
-      comments: post.comments || 0,
-      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
-      tags: post.tags || [],
-      userId: post.author_id,
-    })) || [];
-
-    return {
-      posts: transformedPosts,
-      totalCount: data.total_count || 0,
-      page: data.page || page,
-    };
-  } catch (error) {
-    return handleApiError(error, '커뮤니티 피드 로드');
-  }
-};
-
-export const createCommunityPost = async (req: {
-  userId: string;
-  authorNickname: string;
-  authorEmoji: string;
-  title: string;
-  body: string;
-  tags: string[];
-}): Promise<CommunityPost> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreatePost`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create post: ${response.statusText}`);
-    }
-
-    const post = await response.json();
-    return {
-      id: post.id,
-      userId: post.author_id,
-      authorNickname: post.author_nickname || req.authorNickname,
-      authorEmoji: post.author_emoji || req.authorEmoji,
-      title: post.title,
-      body: post.body,
-      likes: post.likes || 0,
-      comments: post.comments || 0,
-      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
-      tags: post.tags || [],
-    };
-  } catch (error) {
-    return handleApiError(error, '게시글 작성');
-  }
-};
-
-export const updateCommunityPost = async (req: {
-  postId: string;
-  title: string;
-  body: string;
-  tags: string[];
-}): Promise<CommunityPost> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/UpdatePost`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to update post: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '게시글 수정');
-  }
-};
-
-export const deleteCommunityPost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeletePost`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ post_id: postId, user_id: userId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete post: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '게시글 삭제');
+    return handleApiError(error, '?꾨줈??濡쒕뱶');
   }
 };
 
@@ -524,12 +379,12 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
   
   try {
     if (typeof videoFile === 'string') {
-      // URL로 분석
+      // URL濡?遺꾩꽍
       const response = await request<{task_id: string, verdict: string, confidence_score: number, message: string}>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
         method: "POST",
         body: JSON.stringify({
           video_url: videoFile,
-          user_id: localStorage.getItem(config.storageKeys.userId) || ''
+          user_id: localStorage.getItem(config.storageKeys.quizUserId) || ''
         }),
       });
       
@@ -543,13 +398,13 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
         processing_time_ms: 0
       };
     } else {
-      // 파일 크기 체크 (100MB)
+      // ?뚯씪 ?ш린 泥댄겕 (100MB)
       if (videoFile.size > 100 * 1024 * 1024) {
-        throw new Error('파일 크기는 100MB를 초과할 수 없습니다');
+        throw new Error('?뚯씪 ?ш린??100MB瑜?珥덇낵?????놁뒿?덈떎');
       }
       
-      // 파일 업로드 - multipart로 전송
-      const userId = localStorage.getItem(config.storageKeys.userId) || '';
+      // ?뚯씪 ?낅줈??- multipart濡??꾩넚
+      const userId = localStorage.getItem(config.storageKeys.quizUserId) || '';
       const formData = new FormData();
       formData.append('video', videoFile);
       formData.append('user_id', userId);
@@ -583,14 +438,13 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       throw new Error('Analysis timeout');
     }
   } catch (error) {
-    return handleApiError(error, '영상 분석');
+    return handleApiError(error, '?곸긽 遺꾩꽍');
   }
 };
 
 export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> => {
   if (config.useMockApi) {
-    // Mock 데이터
-    return {
+    // Mock ?곗씠??    return {
       taskId,
       finalVerdict: "FAKE",
       confidence: 0.87,
@@ -625,7 +479,7 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
     });
     return response;
   } catch (error) {
-    return handleApiError(error, '통합 결과 조회');
+    return handleApiError(error, '?듯빀 寃곌낵 議고쉶');
   }
 };
 
@@ -642,7 +496,7 @@ export const getSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
     });
     return result.plans;
   } catch (error) {
-    return handleApiError(error, '구독 플랜 로드');
+    return handleApiError(error, '援щ룆 ?뚮옖 濡쒕뱶');
   }
 };
 
@@ -659,186 +513,11 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
       body: JSON.stringify(req),
     });
   } catch (error) {
-    return handleApiError(error, '결제');
+    return handleApiError(error, '寃곗젣');
   }
 };
 
-// Community Comments & Likes
-export const fetchCommunityComments = async (postId: string): Promise<CommunityComment[]> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetComments`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ postId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch comments: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // gRPC snake_case를 camelCase로 변환
-    const transformedComments: CommunityComment[] = data.comments?.map((comment: any) => ({
-      id: comment.id,
-      postId: comment.post_id,
-      authorNickname: comment.author_nickname || "익명",
-      authorEmoji: comment.author_emoji || "👤",
-      body: comment.body,
-      createdAt: (comment.created_at || new Date().toISOString()).replace(' ', 'T'),
-      userId: comment.author_id,
-    })) || [];
-    
-    return transformedComments;
-  } catch (error) {
-    console.error('Failed to fetch comments:', error);
-    return [];
-  }
-};
-
-export const createCommunityComment = async (req: {
-  postId: string;
-  userId: string;
-  authorNickname: string;
-  authorEmoji: string;
-  body: string;
-}): Promise<CommunityComment> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CreateComment`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create comment: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '댓글 작성');
-  }
-};
-
-export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeleteComment`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ commentId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete comment: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '댓글 삭제');
-  }
-};
-
-export const likePost = async (postId: string, userId: string): Promise<{ success: boolean; alreadyLiked?: boolean }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/LikePost`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ postId, userId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to like post: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '좋아요');
-  }
-};
-
-export const unlikePost = async (postId: string, userId: string): Promise<{ success: boolean }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/UnlikePost`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ postId, userId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to unlike post: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '좋아요 취소');
-  }
-};
-
-export const getPost = async (postId: string): Promise<CommunityPost> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetPost`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ post_id: postId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch post: ${response.statusText}`);
-    }
-
-    const post = await response.json();
-    return {
-      id: post.id,
-      userId: post.author_id,
-      authorNickname: post.author_nickname || "익명",
-      authorEmoji: post.author_emoji || "👤",
-      title: post.title,
-      body: post.body,
-      likes: post.likes || 0,
-      comments: post.comments || 0,
-      createdAt: (post.created_at || new Date().toISOString()).replace(' ', 'T'),
-      tags: post.tags || [],
-    };
-  } catch (error) {
-    return handleApiError(error, '게시글 로드');
-  }
-};
-
-export const checkLike = async (postId: string, userId: string): Promise<boolean> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/CheckLike`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ postId, userId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to check like: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.liked || false;
-  } catch (error) {
-    console.error('Failed to check like:', error);
-    return false;
-  }
-};
-
-// Community Dashboard APIs
+// Community Dashboard APIs (kept here for backward compatibility with existing imports)
 export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetNotices`, {
@@ -874,10 +553,15 @@ export const fetchTopDetective = async (): Promise<{ authorNickname: string; aut
       throw new Error(`Failed to fetch top detective: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    return {
+      authorNickname: data.authorNickname || data.author_nickname || "?꾩쭅 ?놁쓬",
+      authorEmoji: data.authorEmoji || data.author_emoji || "?룇",
+      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
+    };
   } catch (error) {
     console.error('Failed to fetch top detective:', error);
-    return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
+    return { authorNickname: "?꾩쭅 ?놁쓬", authorEmoji: "?룇", totalLikes: 0 };
   }
 };
 
@@ -898,7 +582,7 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch hot topic:', error);
-    return { tag: "없음", count: 0 };
+    return { tag: "?놁쓬", count: 0 };
   }
 };
 
@@ -921,6 +605,15 @@ export const syncProfileToQuiz = async (nickname: string, avatarEmoji: string): 
   }).catch(() => {});
 };
 
+export const syncAuthorToCommunity = async (userId: string, nickname: string, avatarEmoji: string): Promise<void> => {
+  if (!userId || !nickname) return;
+  await fetch(`${config.communityBaseUrl}/community.CommunityService/SyncAuthorNickname`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, nickname, avatar_emoji: avatarEmoji }),
+  }).catch(() => {});
+};
+
 export const fetchRanking = async (sortBy: string = "correct") => {
   try {
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRanking`, {
@@ -929,7 +622,8 @@ export const fetchRanking = async (sortBy: string = "correct") => {
       body: JSON.stringify({ sort_by: sortBy }),
     });
     if (!response.ok) return [];
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.entries ?? []);
   } catch {
     return [];
   }
@@ -943,11 +637,198 @@ export const fetchQuestionStats = async (questionId?: string) => {
       body: JSON.stringify(questionId ? { question_id: questionId } : {}),
     });
     if (!response.ok) return [];
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.stats ?? []);
   } catch {
     return [];
   }
 };
+
+// ============================
+// User Service (Profile + Shop)
+// ============================
+
+export interface UserFullProfile {
+  userId: string;
+  user_id?: string;
+  nickname: string;
+  avatarEmoji: string;
+  avatar_emoji?: string;
+  level: number;
+  tierName: string;
+  tier_name?: string;
+  totalExp: number;
+  total_exp?: number;
+  totalCoins: number;
+  total_coins?: number;
+  energy: number;
+  maxEnergy: number;
+  max_energy?: number;
+  totalQuizzes: number;
+  total_quizzes?: number;
+  correctRate: number;
+  correct_rate?: number;
+  totalAnalysis: number;
+  total_analysis?: number;
+  communityPosts: number;
+  community_posts?: number;
+  currentStreak: number;
+  current_streak?: number;
+  bestStreak: number;
+  best_streak?: number;
+  totalLikesReceived?: number;
+  total_likes_received?: number;
+  totalCommentsWritten?: number;
+  total_comments_written?: number;
+  suspiciousVideos?: number;
+  suspicious_videos?: number;
+  avgConfidence?: number;
+  avg_confidence?: number;
+}
+
+export interface UserActivity {
+  icon: string;
+  title: string;
+  time: string;
+  xp: number;
+}
+
+export interface ShopItemData {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge?: string;
+  type: string;
+  quantity?: number;
+  bonus?: number;
+}
+
+export interface ShopCatalog {
+  subscriptions: ShopItemData[];
+  coin_packages: ShopItemData[];
+  packages: ShopItemData[];
+}
+
+export interface PurchaseResult {
+  success: boolean;
+  itemName?: string;
+  item_name?: string;
+  coinsPaid?: number;
+  coins_paid?: number;
+  totalCoins?: number;
+  total_coins?: number;
+}
+
+const userServicePost = async <T>(path: string, body: object): Promise<T> => {
+  const res = await fetch(`${config.userServiceBaseUrl}/user.UserService/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
+  }
+  return data as T;
+};
+
+export const fetchUserFullProfile = async (userId: string): Promise<UserFullProfile> => {
+  return userServicePost<UserFullProfile>("GetProfile", { user_id: userId });
+};
+
+export const updateUserProfile = async (
+  userId: string,
+  nickname?: string,
+  avatarEmoji?: string
+): Promise<{ success: boolean; nickname: string; avatarEmoji?: string; avatar_emoji?: string }> => {
+  return userServicePost("UpdateProfile", {
+    user_id: userId,
+    ...(nickname && { nickname }),
+    ...(avatarEmoji && { avatar_emoji: avatarEmoji }),
+  });
+};
+
+export const fetchUserActivities = async (userId: string): Promise<UserActivity[]> => {
+  const res = await userServicePost<{ activities: UserActivity[] }>("GetRecentActivities", { user_id: userId });
+  return res.activities ?? [];
+};
+
+export const fetchShopItems = async (): Promise<ShopCatalog> => {
+  const res = await userServicePost<{ items: ShopItemData[] }>("GetShopItems", {});
+  const items = res.items ?? [];
+  return {
+    subscriptions: items.filter((i) => i.type === "subscription"),
+    coin_packages: items.filter((i) => i.type === "coin_package" || i.type === "coins"),
+    packages: items.filter((i) => i.type !== "subscription" && i.type !== "coin_package" && i.type !== "coins"),
+  };
+};
+
+export const purchaseItem = async (userId: string, itemId: string): Promise<PurchaseResult> => {
+  return userServicePost<PurchaseResult>("PurchaseItem", { user_id: userId, item_id: itemId });
+};
+
+export const fetchPurchaseHistory = async (userId: string) => {
+  return userServicePost<{ purchases: object[] }>("GetPurchaseHistory", { user_id: userId });
+};
+
+// ??? Admin Shop API ????????????????????????????????????????????????????????????
+
+export interface AdminShopItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge?: string;
+  type: string;
+  quantity: number;
+  bonus: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminShopItemInput {
+  id?: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  badge?: string;
+  type: string;
+  quantity?: number;
+  bonus?: number;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+const adminFetch = async <T>(method: string, path: string, body?: object): Promise<T> => {
+  const res = await fetch(`${config.adminServiceBaseUrl}/admin/shop${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, data });
+  }
+  return data as T;
+};
+
+export const adminFetchShopItems = async (): Promise<{ items: AdminShopItem[]; total: number }> =>
+  adminFetch("GET", "/items");
+
+export const adminCreateShopItem = async (input: AdminShopItemInput): Promise<AdminShopItem> =>
+  adminFetch("POST", "/items", input);
+
+export const adminUpdateShopItem = async (id: string, input: Partial<AdminShopItemInput>): Promise<AdminShopItem> =>
+  adminFetch("PUT", `/items/${id}`, input);
+
+export const adminDeleteShopItem = async (id: string): Promise<void> =>
+  adminFetch("DELETE", `/items/${id}`);
 
 // Report Service
 const REPORT_BASE_URL = import.meta.env.VITE_REPORT_BASE_URL || 'http://localhost:8090';
@@ -962,7 +843,7 @@ export const generateReport = async (days?: number | null): Promise<{ report_url
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       user_id: userId,
-      days: days ?? null,  // null이면 백엔드에서 전체 기간 처리
+      days: days ?? null,
       nickname: user?.nickname || null,
       avatar_emoji: user?.avatarEmoji || null,
       email: user?.email || null,
@@ -978,56 +859,4 @@ export const generateReport = async (days?: number | null): Promise<{ report_url
 
 export const downloadReport = (userId: string) => {
   window.open(`${REPORT_BASE_URL}/download/${userId}`, '_blank');
-};
-
-// Shop
-export type ShopItem = {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  type: string;
-  imageUrl?: string;
-};
-
-export type ShopCatalog = {
-  subscriptions: ShopItem[];
-  coin_packages: ShopItem[];
-  packages: ShopItem[];
-};
-
-export const fetchShopItems = async (): Promise<ShopCatalog> => {
-  try {
-    const response = await fetch(`${config.apiBaseUrl}/payment.PaymentService/GetShopItems`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    if (!response.ok) throw new Error(`Failed to fetch shop items: ${response.statusText}`);
-    const data = await response.json();
-    return {
-      subscriptions: data.subscriptions || [],
-      coin_packages: data.coin_packages || [],
-      packages: data.packages || [],
-    };
-  } catch (error) {
-    return handleApiError(error, '상점 아이템 로드');
-  }
-};
-
-export const purchaseItem = async (
-  userId: string,
-  itemId: string
-): Promise<{ success: boolean; itemName?: string; item_name?: string; totalCoins?: number; total_coins?: number }> => {
-  try {
-    const response = await fetch(`${config.apiBaseUrl}/payment.PaymentService/PurchaseItem`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, item_id: itemId }),
-    });
-    if (!response.ok) throw new Error(`Failed to purchase item: ${response.statusText}`);
-    return await response.json();
-  } catch (error) {
-    return handleApiError(error, '아이템 구매');
-  }
 };
