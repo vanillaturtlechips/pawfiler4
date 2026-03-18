@@ -41,6 +41,9 @@ const CommunityPostPage = () => {
   const [hasVoted, setHasVoted] = useState(false);
   const [votingLoading, setVotingLoading] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
+  // 선택 중 상태 (결과 공개 전 로컬 선택)
+  const [pendingVote, setPendingVote] = useState<boolean | null>(null);
+  const [resultRevealed, setResultRevealed] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -62,7 +65,7 @@ const CommunityPostPage = () => {
         if (user) {
           try {
             const myVote = await getUserVote(postId, user.id);
-            if (myVote.voted && myVote.vote !== undefined) { setHasVoted(true); setUserVote(myVote.vote); }
+            if (myVote.voted && myVote.vote !== undefined) { setHasVoted(true); setUserVote(myVote.vote); setResultRevealed(true); }
           } catch {}
         }
       } catch {
@@ -73,18 +76,31 @@ const CommunityPostPage = () => {
     load();
   }, [postId, user]);
 
-  const handleVote = async (vote: boolean) => {
+  // 선택지 클릭: 로컬 pendingVote만 변경 (API 호출 없음)
+  const handleVote = (vote: boolean) => {
     if (!user) { toast.error("로그인이 필요합니다."); return; }
-    if (votingLoading || !postId || userVote === vote) return;
+    if (resultRevealed) return; // 결과 공개 후 변경 불가
+    setPendingVote(prev => prev === vote ? null : vote); // 같은 거 누르면 해제
+  };
+
+  // 결과 확인하기: API 호출 + 결과 공개
+  const handleReveal = async () => {
+    if (!user) { toast.error("로그인이 필요합니다."); return; }
+    if (pendingVote === null) { toast.error("선택지를 먼저 골라주세요."); return; }
+    if (votingLoading || !postId) return;
     setVotingLoading(true);
     try {
-      const result = await votePost(postId, user.id, vote);
+      const result = await votePost(postId, user.id, pendingVote);
       if (result.success) {
-        if (hasVoted && userVote !== null) { if (userVote) setTrueVotes(v => v - 1); else setFalseVotes(v => v - 1); }
-        if (vote) setTrueVotes(v => v + 1); else setFalseVotes(v => v + 1);
-        setHasVoted(true); setUserVote(vote);
-        if (!hasVoted && result.xpEarned > 0) toast.success(`참여 완료! +${result.xpEarned} XP`);
-        else toast.success("의견이 변경되었습니다.");
+        // 최신 결과 다시 fetch
+        const voteResult = await getVoteResult(postId);
+        setTrueVotes(voteResult.trueVotes);
+        setFalseVotes(voteResult.falseVotes);
+        setHasVoted(true);
+        setUserVote(pendingVote);
+        setResultRevealed(true);
+        if (result.xpEarned > 0) toast.success(`참여 완료! +${result.xpEarned} XP`);
+        else toast.success("결과를 확인하세요!");
       }
     } catch { toast.error("참여에 실패했습니다."); }
     finally { setVotingLoading(false); }
@@ -179,8 +195,8 @@ const CommunityPostPage = () => {
           </div>
         </div>
 
-        {/* 메인: 미디어 + 참여 카드 — items-stretch로 좌우 시작선 맞춤 */}
-        <div className="grid grid-cols-1 md:grid-cols-[58%_42%] gap-3 items-stretch">
+        {/* 메인: 미디어 + 참여 카드 */}
+        <div className="grid grid-cols-1 md:grid-cols-[58%_42%] gap-3 items-start">
 
           {/* 미디어 카드 */}
           <div
@@ -222,44 +238,44 @@ const CommunityPostPage = () => {
 
           {/* 참여 카드 */}
           <div style={card} className="p-5 flex flex-col gap-3">
-            {/* 헤더 위계: 라벨 → 핵심 질문 → 보조 설명 */}
+            {/* 헤더 */}
             <div className="pb-3" style={{ borderBottom: "1px solid hsl(var(--parchment-border))" }}>
-              <span
-                className="text-[10px] font-jua uppercase tracking-widest"
-                style={{ color: "hsl(var(--orange-500, 249 115 22))", opacity: 0.8 }}
-              >
-                참여하기
+              <span className="text-[10px] font-jua uppercase tracking-widest text-orange-500 opacity-80">
+                {resultRevealed ? "참여 완료" : "참여하기"}
               </span>
               <p className="font-jua text-base text-wood-darkest leading-snug mt-1">
                 이 장면, 어떻게 생각하세요?
               </p>
-              {!hasVoted && (
-                <p className="text-xs mt-1" style={{ color: "hsl(var(--wood-light))" }}>
-                  선택 후 다른 사람들의 의견을 볼 수 있어요
-                </p>
-              )}
+              {/* 고정 높이 서브라벨 — 두 상태 모두 한 줄 차지 */}
+              <p className="text-xs mt-1 transition-opacity duration-200" style={{ color: "hsl(var(--wood-light))", opacity: resultRevealed ? 0.5 : 1 }}>
+                {resultRevealed
+                  ? `총 ${total}명이 참여했어요`
+                  : pendingVote !== null
+                    ? "결과 확인 전까지 선택을 변경할 수 있어요"
+                    : "선택지를 골라보세요"}
+              </p>
             </div>
 
             {/* 선택지 버튼 */}
             <div className="flex flex-col gap-1.5">
               <button
                 onClick={() => handleVote(true)}
-                disabled={votingLoading || (hasVoted && userVote !== true)}
+                disabled={resultRevealed}
                 className={`w-full py-2.5 px-3.5 rounded-xl text-sm font-jua text-left transition-all focus:outline-none
-                  ${!hasVoted
-                    ? 'text-wood-darkest hover:bg-orange-50 active:scale-[0.99]'
-                    : userVote === true
-                      ? 'text-wood-darkest'
-                      : 'text-wood-light cursor-default opacity-40'}`}
-                style={!hasVoted
-                  ? { background: "hsl(var(--parchment))", border: "1.5px solid hsl(var(--parchment-border))" }
-                  : userVote === true
+                  ${resultRevealed
+                    ? userVote === true ? 'text-wood-darkest' : 'text-wood-light opacity-60 cursor-default'
+                    : pendingVote === true ? 'text-wood-darkest' : 'text-wood-darkest hover:bg-orange-50 active:scale-[0.99]'}`}
+                style={resultRevealed
+                  ? userVote === true
                     ? { background: "#f0fdf4", border: "1px solid #86efac" }
-                    : { background: "hsl(var(--parchment))", border: "1px solid hsl(var(--parchment-border))" }}
+                    : { background: "hsl(var(--parchment))", border: "1px solid hsl(var(--parchment-border))" }
+                  : pendingVote === true
+                    ? { background: "#fff7ed", border: "1.5px solid #fb923c" }
+                    : { background: "hsl(var(--parchment))", border: "1.5px solid hsl(var(--parchment-border))" }}
               >
                 <span className="flex items-center justify-between">
                   <span>✅ 정답인 것 같아요</span>
-                  {hasVoted && (
+                  {resultRevealed && (
                     <span className="text-xs flex items-center gap-1" style={{ color: "hsl(var(--wood-light))" }}>
                       <Users size={10} />{trueVotes}명
                     </span>
@@ -269,22 +285,22 @@ const CommunityPostPage = () => {
 
               <button
                 onClick={() => handleVote(false)}
-                disabled={votingLoading || (hasVoted && userVote !== false)}
+                disabled={resultRevealed}
                 className={`w-full py-2.5 px-3.5 rounded-xl text-sm font-jua text-left transition-all focus:outline-none
-                  ${!hasVoted
-                    ? 'text-wood-darkest hover:bg-orange-50 active:scale-[0.99]'
-                    : userVote === false
-                      ? 'text-wood-darkest'
-                      : 'text-wood-light cursor-default opacity-40'}`}
-                style={!hasVoted
-                  ? { background: "hsl(var(--parchment))", border: "1.5px solid hsl(var(--parchment-border))" }
-                  : userVote === false
+                  ${resultRevealed
+                    ? userVote === false ? 'text-wood-darkest' : 'text-wood-light opacity-60 cursor-default'
+                    : pendingVote === false ? 'text-wood-darkest' : 'text-wood-darkest hover:bg-orange-50 active:scale-[0.99]'}`}
+                style={resultRevealed
+                  ? userVote === false
                     ? { background: "#fef2f2", border: "1px solid #fca5a5" }
-                    : { background: "hsl(var(--parchment))", border: "1px solid hsl(var(--parchment-border))" }}
+                    : { background: "hsl(var(--parchment))", border: "1px solid hsl(var(--parchment-border))" }
+                  : pendingVote === false
+                    ? { background: "#fff7ed", border: "1.5px solid #fb923c" }
+                    : { background: "hsl(var(--parchment))", border: "1.5px solid hsl(var(--parchment-border))" }}
               >
                 <span className="flex items-center justify-between">
                   <span>❌ 오답인 것 같아요</span>
-                  {hasVoted && (
+                  {resultRevealed && (
                     <span className="text-xs flex items-center gap-1" style={{ color: "hsl(var(--wood-light))" }}>
                       <Users size={10} />{falseVotes}명
                     </span>
@@ -293,27 +309,43 @@ const CommunityPostPage = () => {
               </button>
             </div>
 
-            {/* 결과 바 */}
-            {hasVoted && total > 0 && (
-              <div className="flex flex-col gap-1.5 pt-1">
-                <div className="flex justify-between text-xs font-jua" style={{ color: "hsl(var(--wood-light))" }}>
-                  <span>{trueRatio}%</span>
-                  <span className="flex items-center gap-1"><Users size={9} />총 {total}명</span>
-                  <span>{falseRatio}%</span>
-                </div>
-                <div className="h-1.5 rounded-full overflow-hidden flex" style={{ background: "hsl(var(--parchment-border))" }}>
-                  <div className="bg-orange-400 transition-all duration-700" style={{ width: `${trueRatio}%` }} />
-                  <div className="transition-all duration-700 flex-1" style={{ background: "hsl(var(--parchment-border))" }} />
-                </div>
-              </div>
-            )}
-
-            {/* 하단 안내 — 보조 정보로 약하게 */}
-            {!hasVoted && (
-              <p className="text-[11px] font-jua text-center mt-auto pt-1" style={{ color: "hsl(var(--wood-light))", opacity: 0.7 }}>
-                투표 후 결과를 확인할 수 있습니다
-              </p>
-            )}
+            {/* 하단 고정 슬롯 — 투표 전/후 동일 높이 유지 */}
+            <div className="flex flex-col gap-1.5" style={{ minHeight: "4.5rem" }}>
+              {resultRevealed ? (
+                /* 결과 바 */
+                total > 0 ? (
+                  <div className="flex flex-col gap-1.5 pt-1">
+                    <div className="flex justify-between text-xs font-jua" style={{ color: "hsl(var(--wood-light))" }}>
+                      <span>정답 {trueRatio}%</span>
+                      <span>오답 {falseRatio}%</span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden flex" style={{ background: "hsl(var(--parchment-border))" }}>
+                      <div className="bg-orange-400 transition-all duration-700 rounded-full" style={{ width: `${trueRatio}%` }} />
+                    </div>
+                    <p className="text-[11px] font-jua text-center pt-0.5" style={{ color: "hsl(var(--wood-light))", opacity: 0.6 }}>
+                      투표가 완료되었어요
+                    </p>
+                  </div>
+                ) : null
+              ) : (
+                /* 결과 확인하기 버튼 */
+                <>
+                  <button
+                    onClick={handleReveal}
+                    disabled={pendingVote === null || votingLoading}
+                    className="w-full py-2.5 rounded-xl text-sm font-jua transition-all focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={pendingVote !== null
+                      ? { background: "#f97316", color: "#fff", border: "none" }
+                      : { background: "hsl(var(--parchment-border))", color: "hsl(var(--wood-light))", border: "none" }}
+                  >
+                    {votingLoading ? "확인 중..." : "결과 확인하기"}
+                  </button>
+                  <p className="text-[11px] font-jua text-center" style={{ color: "hsl(var(--wood-light))", opacity: 0.6 }}>
+                    선택 후 결과를 확인할 수 있어요
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
