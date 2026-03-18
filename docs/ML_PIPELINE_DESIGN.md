@@ -27,7 +27,7 @@
 **최적화 목표:**
 - 1차: Recall 최대화 (AI 생성 영상을 real로 놓치는 게 더 위험)
 - 2차: F1-score (precision/recall 균형)
-- 3차: Inference latency < 200ms (실시간 퀴즈 서비스)
+- 3차: Inference latency < 200ms (실시간 영상 분석 응답성)
 
 ---
 
@@ -346,7 +346,7 @@ jobs:
 
 현재 아키텍처 확장:
 ```
-Quiz Service (Go gRPC)
+클라이언트 (Go gRPC)
     └── video_analysis.proto 호출
          └── Video Analysis Service (Python)
               ├── [현재] cascade_detector.py
