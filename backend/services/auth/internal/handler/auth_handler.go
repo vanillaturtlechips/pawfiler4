@@ -90,7 +90,7 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 }
 
 // rateLimitScript uses a Redis Lua script to count login attempts per IP.
-// Allows up to 10 attempts per minute per IP address.
+// Allows up to 300 attempts per minute per IP address.
 var rateLimitScript = redis.NewScript(`
 local count = redis.call('INCR', KEYS[1])
 if count == 1 then
@@ -116,7 +116,7 @@ func (h *Handler) loginRateLimit(r *http.Request) bool {
 		log.Printf("[auth] rate limit error: %v", err)
 		return true
 	}
-	return count <= 10
+	return count <= 300
 }
 
 // Signup handles POST /auth/signup – creates a new account and returns tokens.
