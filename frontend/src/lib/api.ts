@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { fixImageUrl } from "../utils/imageUrl";
 
 // 사용자 ID 생성 또는 가져오기 (UUID v4 형식)
-const getUserId = (): string => {
+export const getUserId = (): string => {
   let userId = localStorage.getItem(config.storageKeys.quizUserId);
   if (!userId) {
     // UUID v4 생성
