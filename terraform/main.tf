@@ -124,22 +124,27 @@ module "helm" {
   oidc_provider_url = module.eks.oidc_provider_url
   account_id        = data.aws_caller_identity.current.account_id
 
-  # enable_karpenter = var.enable_karpenter
-  # karpenter_queue_name = (
-  #   module.karpenter.karpenter_queue_name != null
-  #   ? module.karpenter.karpenter_queue_name
-  #   : ""
-  # )
-  # karpenter_controller_role_arn = (
-  #   module.karpenter.karpenter_controller_role_arn != null
-  #   ? module.karpenter.karpenter_controller_role_arn
-  #   : ""
-  # )
+  enable_karpenter = var.enable_karpenter
+  karpenter_queue_name = (
+    module.karpenter.karpenter_queue_name != null
+    ? module.karpenter.karpenter_queue_name
+    : ""
+  )
+  karpenter_controller_role_arn = (
+    module.karpenter.karpenter_controller_role_arn != null
+    ? module.karpenter.karpenter_controller_role_arn
+    : ""
+  )
+  karpenter_node_role_name = (
+    module.karpenter.karpenter_node_role_name != null
+    ? module.karpenter.karpenter_node_role_name
+    : ""
+  )
 
   kubecost_token        = var.kubecost_token
   argocd_admin_password = var.argocd_admin_password
 
-  depends_on = [module.eks]
+  depends_on = [module.eks, module.karpenter]
 }
 
 # ---------------------------------------------------------------------------
@@ -151,21 +156,22 @@ module "irsa" {
   project_name          = var.project_name
   oidc_provider_arn     = module.eks.oidc_provider_arn
   oidc_provider_url     = module.eks.oidc_provider_url
-  quiz_media_bucket_arn = module.s3.quiz_media_bucket_arn
+  quiz_media_bucket_arn      = module.s3.quiz_media_bucket_arn
+  community_media_bucket_arn = module.s3.community_media_bucket_arn
 }
 
 # ---------------------------------------------------------------------------
 # Karpenter: Autoscaler IAM, SQS, EventBridge
 # ---------------------------------------------------------------------------
-# module "karpenter" {
-#   source = "./modules/karpenter"
-#
-#   project_name      = var.project_name
-#   enable_karpenter  = var.enable_karpenter
-#   oidc_provider_arn = module.eks.oidc_provider_arn
-#   oidc_provider_url = module.eks.oidc_provider_url
-#   cluster_name      = var.cluster_name
-#   cluster_arn       = module.eks.eks_cluster_arn
-#
-#   depends_on = [module.eks]
-# }
+module "karpenter" {
+  source = "./modules/karpenter"
+
+  project_name      = var.project_name
+  enable_karpenter  = var.enable_karpenter
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
+  cluster_name      = var.cluster_name
+  cluster_arn       = module.eks.eks_cluster_arn
+
+  depends_on = [module.eks]
+}

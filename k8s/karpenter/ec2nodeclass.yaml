@@ -1,0 +1,17 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiSelectorTerms:
+    - alias: al2@latest
+  role: "pawfiler-karpenter-node"
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "pawfiler-eks-cluster"
+  securityGroupSelectorTerms:
+    - tags:
+        aws:eks:cluster-name: "pawfiler-eks-cluster"
+  tags:
+    Name: "karpenter-node"
+    karpenter.sh/discovery: "pawfiler-eks-cluster"

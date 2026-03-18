@@ -121,6 +121,10 @@ BASHRC
   tags = {
     Name = "${var.project_name}-bastion-host"
   }
+
+  lifecycle {
+    ignore_changes = [ami, key_name]
+  }
 }
 
 # Allow HTTPS from Bastion to EKS Control Plane
