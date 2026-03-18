@@ -78,10 +78,11 @@ func main() {
 	shopRouter.HandleFunc("/items/{id}", shopHandler.DeleteItem).Methods("DELETE")
 
 	// Admin Community routes
+	// NOTE: /posts/review는 Subrouter의 /posts/{id}에 먹히므로 메인 라우터에 직접 등록
+	router.HandleFunc("/admin/community/posts/review", communityHandler.GetPostsPendingReview).Methods("GET")
 	communityRouter := router.PathPrefix("/admin/community").Subrouter()
 	communityRouter.HandleFunc("/posts", communityHandler.ListPosts).Methods("GET")
 	communityRouter.HandleFunc("/posts", communityHandler.CreateAdminPost).Methods("POST")
-	communityRouter.HandleFunc("/posts/review", communityHandler.GetPostsPendingReview).Methods("GET")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.UpdatePost).Methods("PUT")
 	communityRouter.HandleFunc("/posts/{id}", communityHandler.DeletePost).Methods("DELETE")
 	communityRouter.HandleFunc("/posts/{id}/comments", communityHandler.GetComments).Methods("GET")

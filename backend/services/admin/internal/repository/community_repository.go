@@ -74,7 +74,7 @@ type CreateAdminPostRequest struct {
 	Tags      []string `json:"tags"`
 }
 
-func (r *CommunityRepository) ListPosts(page, pageSize int, search, searchType string) ([]Post, int, error) {
+func (r *CommunityRepository) ListPosts(page, pageSize int, search, searchType string) ([]PostWithVotes, int, error) {
 	offset := (page - 1) * pageSize
 
 	where := "1=1"
@@ -102,9 +102,18 @@ func (r *CommunityRepository) ListPosts(page, pageSize int, search, searchType s
 
 	query := fmt.Sprintf(`
 		SELECT p.id, p.author_id, p.author_nickname, p.author_emoji,
-		       p.title, p.body, p.tags, p.likes, p.created_at::text, p.comments
+		       p.title, p.body, p.tags, p.likes, p.comments, p.created_at::text,
+		       COALESCE(p.media_url, ''), COALESCE(p.media_type, ''),
+		       p.is_correct,
+		       COUNT(CASE WHEN pv.vote = true THEN 1 END)  AS true_votes,
+		       COUNT(CASE WHEN pv.vote = false THEN 1 END) AS false_votes,
+		       COUNT(pv.post_id)                           AS total_votes
 		FROM community.posts p
+		LEFT JOIN community.post_votes pv ON p.id = pv.post_id
 		WHERE %s
+		GROUP BY p.id, p.author_id, p.author_nickname, p.author_emoji,
+		         p.title, p.body, p.tags, p.likes, p.comments, p.created_at,
+		         p.media_url, p.media_type, p.is_correct
 		ORDER BY p.created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, where, argIdx, argIdx+1)
@@ -116,14 +125,16 @@ func (r *CommunityRepository) ListPosts(page, pageSize int, search, searchType s
 	}
 	defer rows.Close()
 
-	var posts []Post
+	var posts []PostWithVotes
 	for rows.Next() {
-		var p Post
+		var p PostWithVotes
 		var tags pq.StringArray
 
 		if err := rows.Scan(
 			&p.ID, &p.UserID, &p.AuthorNickname, &p.AuthorEmoji,
-			&p.Title, &p.Body, &tags, &p.Likes, &p.CreatedAt, &p.Comments,
+			&p.Title, &p.Body, &tags, &p.Likes, &p.Comments, &p.CreatedAt,
+			&p.MediaURL, &p.MediaType, &p.IsCorrect,
+			&p.TrueVotes, &p.FalseVotes, &p.TotalVotes,
 		); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan post: %w", err)
 		}
@@ -136,7 +147,7 @@ func (r *CommunityRepository) ListPosts(page, pageSize int, search, searchType s
 		posts = append(posts, p)
 	}
 	if posts == nil {
-		posts = []Post{}
+		posts = []PostWithVotes{}
 	}
 
 	return posts, total, nil
@@ -245,7 +256,6 @@ func (r *CommunityRepository) GetPostsPendingReview(minVotes, page, pageSize int
 			FROM community.posts p
 			JOIN community.post_votes pv ON p.id = pv.post_id
 			WHERE p.is_admin_post = false
-			  AND p.media_url IS NOT NULL AND p.media_url != ''
 			GROUP BY p.id
 			HAVING COUNT(pv.post_id) >= $1
 		) sub
@@ -265,7 +275,6 @@ func (r *CommunityRepository) GetPostsPendingReview(minVotes, page, pageSize int
 		FROM community.posts p
 		JOIN community.post_votes pv ON p.id = pv.post_id
 		WHERE p.is_admin_post = false
-		  AND p.media_url IS NOT NULL AND p.media_url != ''
 		GROUP BY p.id, p.author_id, p.author_nickname, p.author_emoji,
 		         p.title, p.body, p.tags, p.likes, p.comments, p.created_at,
 		         p.media_url, p.media_type, p.is_correct

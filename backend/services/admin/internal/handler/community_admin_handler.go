@@ -20,9 +20,9 @@ func NewCommunityAdminHandler(repo *repository.CommunityRepository, quizRepo *re
 }
 
 type ListPostsResponse struct {
-	Posts      []repository.Post `json:"posts"`
-	TotalCount int               `json:"totalCount"`
-	Page       int               `json:"page"`
+	Posts      []repository.PostWithVotes `json:"posts"`
+	TotalCount int                        `json:"totalCount"`
+	Page       int                        `json:"page"`
 }
 
 type GetCommentsResponse struct {

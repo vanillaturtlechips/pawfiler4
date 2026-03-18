@@ -13,8 +13,6 @@ import { toast } from "sonner";
 type Post = {
   id: string; title: string; body: string; authorNickname: string; authorEmoji: string;
   likes: number; comments: number; createdAt: string; tags: string[];
-};
-type PostWithVotes = Post & {
   mediaUrl: string; mediaType: string; isCorrect: boolean | null;
   trueVotes: number; falseVotes: number; totalVotes: number;
 };
@@ -22,7 +20,7 @@ type Comment = {
   id: string; postId: string; userId: string; authorNickname: string; authorEmoji: string; body: string; createdAt: string;
 };
 type Feed = { posts: Post[]; totalCount: number; page: number; };
-type ReviewFeed = { posts: PostWithVotes[]; totalCount: number; page: number; };
+type ReviewFeed = { posts: Post[]; totalCount: number; page: number; };
 
 const BASE = (import.meta.env.VITE_ADMIN_API_URL || "http://localhost:8082");
 
@@ -52,9 +50,9 @@ export default function AdminCommunityPage() {
   const [reviewFeed, setReviewFeed] = useState<ReviewFeed>({ posts: [], totalCount: 0, page: 1 });
 
   // 퀴즈 발행 모달 상태
-  const [publishTarget, setPublishTarget] = useState<PostWithVotes | null>(null);
+  const [publishTarget, setPublishTarget] = useState<Post | null>(null);
   const [publishDifficulty, setPublishDifficulty] = useState("medium");
-  const [publishCategory, setPublishCategory] = useState("deepfake-detection");
+  const [publishCategory, setPublishCategory] = useState("ai-generated-detection");
   const [publishExplanation, setPublishExplanation] = useState("");
   const [publishCorrectAnswer, setPublishCorrectAnswer] = useState<boolean | null>(null);
   const [publishLoading, setPublishLoading] = useState(false);
@@ -80,7 +78,7 @@ export default function AdminCommunityPage() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setReviewFeed({ posts: data.posts || [], totalCount: data.totalCount || 0, page: data.page || 1 });
-    } catch (e:any) { toast.error(e.message ?? "검토 목록 로드 실패"); }
+    } catch (e:any) { toast.error(e.message ?? "문제 요청 목록 로드 실패"); }
     finally { setReviewLoading(false); }
   };
 
@@ -139,7 +137,7 @@ export default function AdminCommunityPage() {
     } catch (e:any) { toast.error(e.message ?? "삭제 실패"); }
   };
 
-  const openPublish = (p: PostWithVotes) => {
+  const openPublish = (p: Post) => {
     setPublishTarget(p);
     setPublishCorrectAnswer(p.isCorrect ?? null);
     setPublishExplanation("");
@@ -190,7 +188,7 @@ export default function AdminCommunityPage() {
         <TabsList>
           <TabsTrigger value="posts">전체 게시글</TabsTrigger>
           <TabsTrigger value="review">
-            검토 대기
+            문제 요청
             {reviewFeed.totalCount > 0 && (
               <Badge className="ml-2 h-5 min-w-5 text-xs" variant="destructive">{reviewFeed.totalCount}</Badge>
             )}
@@ -247,10 +245,12 @@ export default function AdminCommunityPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[40%]">제목</TableHead>
+                    <TableHead className="w-[30%]">제목</TableHead>
                     <TableHead>작성자</TableHead>
-                    <TableHead className="text-center">좋아요</TableHead>
-                    <TableHead className="text-center">댓글</TableHead>
+                    <TableHead>미디어</TableHead>
+                    <TableHead className="text-center">진짜</TableHead>
+                    <TableHead className="text-center">가짜</TableHead>
+                    <TableHead className="text-center">총 투표</TableHead>
                     <TableHead>태그</TableHead>
                     <TableHead>작성일</TableHead>
                     <TableHead className="text-right">작업</TableHead>
@@ -266,8 +266,22 @@ export default function AdminCommunityPage() {
                           <span className="text-sm">{p.authorNickname}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">{p.likes}</TableCell>
-                      <TableCell className="text-center">{p.comments}</TableCell>
+                      <TableCell>
+                        {p.mediaUrl ? (
+                          <a href={p.mediaUrl} target="_blank" rel="noreferrer">
+                            <Badge variant="secondary">{p.mediaType || "media"}</Badge>
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">없음</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-green-600 font-medium">{p.trueVotes}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-red-500 font-medium">{p.falseVotes}</span>
+                      </TableCell>
+                      <TableCell className="text-center font-medium">{p.totalVotes}</TableCell>
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {p.tags.slice(0, 2).map((tag, i) => (
@@ -345,7 +359,7 @@ export default function AdminCommunityPage() {
                     <TableHead>작성자</TableHead>
                     <TableHead>미디어</TableHead>
                     <TableHead className="text-center">진짜</TableHead>
-                    <TableHead className="text-center">딥페이크</TableHead>
+                    <TableHead className="text-center">가짜</TableHead>
                     <TableHead className="text-center">총 투표</TableHead>
                     <TableHead>작성일</TableHead>
                     <TableHead className="text-right">발행</TableHead>
@@ -389,7 +403,7 @@ export default function AdminCommunityPage() {
                   {reviewFeed.posts.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                        검토 대기 중인 게시글이 없습니다 (최소 {minVotes}표 이상)
+                        문제 요청 게시글이 없습니다 (최소 {minVotes}표 이상)
                       </TableCell>
                     </TableRow>
                   )}
@@ -423,6 +437,24 @@ export default function AdminCommunityPage() {
               <div>
                 <div className="text-sm text-muted-foreground mb-1">작성자</div>
                 <div>{selectedPost.authorEmoji} {selectedPost.authorNickname}</div>
+              </div>
+              {selectedPost.mediaUrl && (
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">미디어</div>
+                  {selectedPost.mediaType === "video" ? (
+                    <video src={selectedPost.mediaUrl} controls className="w-full max-h-80 rounded-md object-contain bg-black" />
+                  ) : (
+                    <img src={selectedPost.mediaUrl} alt={selectedPost.title} className="w-full max-h-80 rounded-md object-contain bg-muted" />
+                  )}
+                </div>
+              )}
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">투표</div>
+                <div className="flex gap-4 text-sm">
+                  <span className="text-green-600 font-medium">진짜 {selectedPost.trueVotes}표</span>
+                  <span className="text-red-500 font-medium">가짜 {selectedPost.falseVotes}표</span>
+                  <span className="text-muted-foreground">총 {selectedPost.totalVotes}표</span>
+                </div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground mb-1">본문</div>
@@ -506,18 +538,31 @@ export default function AdminCommunityPage() {
 
       {/* 퀴즈 발행 다이얼로그 */}
       <Dialog open={!!publishTarget} onOpenChange={(o)=>!o&&setPublishTarget(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>퀴즈 문제로 발행</DialogTitle>
           </DialogHeader>
           {publishTarget && (
             <div className="space-y-4">
-              <div className="bg-muted p-3 rounded-md text-sm space-y-1">
-                <div className="font-medium">{publishTarget.title}</div>
-                <div className="text-muted-foreground">
-                  진짜 <span className="text-green-600 font-medium">{publishTarget.trueVotes}</span>표 /
-                  딥페이크 <span className="text-red-500 font-medium">{publishTarget.falseVotes}</span>표
-                  (총 {publishTarget.totalVotes}표)
+              {/* 게시글 미리보기 (읽기 전용) */}
+              <div className="border rounded-lg overflow-hidden">
+                {publishTarget.mediaUrl && (
+                  <div className="bg-black flex items-center justify-center max-h-60">
+                    {publishTarget.mediaType === "video" ? (
+                      <video src={publishTarget.mediaUrl} controls className="max-h-60 w-full object-contain" />
+                    ) : (
+                      <img src={publishTarget.mediaUrl} alt={publishTarget.title} className="max-h-60 w-full object-contain" />
+                    )}
+                  </div>
+                )}
+                <div className="p-3 bg-muted text-sm space-y-1">
+                  <div className="font-medium">{publishTarget.title}</div>
+                  <div className="text-muted-foreground text-xs">{publishTarget.authorEmoji} {publishTarget.authorNickname}</div>
+                  <div className="flex gap-3 pt-1">
+                    <span className="text-green-600 font-medium">진짜 {publishTarget.trueVotes}표</span>
+                    <span className="text-red-500 font-medium">가짜 {publishTarget.falseVotes}표</span>
+                    <span className="text-muted-foreground">총 {publishTarget.totalVotes}표</span>
+                  </div>
                 </div>
               </div>
 
@@ -529,7 +574,7 @@ export default function AdminCommunityPage() {
                     className="flex-1"
                     onClick={()=>setPublishCorrectAnswer(false)}
                   >
-                    딥페이크 (false)
+                    가짜 (false)
                   </Button>
                   <Button
                     variant={publishCorrectAnswer === true ? "default" : "outline"}
@@ -541,7 +586,7 @@ export default function AdminCommunityPage() {
                 </div>
                 {publishTarget.isCorrect !== null && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    작성자 설정: {publishTarget.isCorrect ? "진짜" : "딥페이크"}
+                    작성자 설정: {publishTarget.isCorrect ? "진짜" : "가짜"}
                   </p>
                 )}
               </div>
@@ -563,9 +608,8 @@ export default function AdminCommunityPage() {
                 <Select value={publishCategory} onValueChange={setPublishCategory}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="deepfake-detection">딥페이크 감지</SelectItem>
-                    <SelectItem value="ai-generated-detection">AI 생성 감지</SelectItem>
-                    <SelectItem value="video-synthesis-detection">영상 합성 감지</SelectItem>
+                    <SelectItem value="ai-generated-detection">AI 생성 이미지 탐지</SelectItem>
+                    <SelectItem value="video-synthesis-detection">영상 합성 탐지 (딥페이크)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -573,7 +617,7 @@ export default function AdminCommunityPage() {
               <div>
                 <label className="text-sm font-medium mb-2 block">해설 <span className="text-red-500">*</span></label>
                 <Textarea
-                  placeholder="이 미디어가 딥페이크/진짜인 이유를 설명해주세요..."
+                  placeholder="이 미디어가 가짜/진짜인 이유를 설명해주세요..."
                   value={publishExplanation}
                   onChange={(e)=>setPublishExplanation(e.target.value)}
                   className="min-h-[100px]"
