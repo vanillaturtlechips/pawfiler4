@@ -979,3 +979,55 @@ export const generateReport = async (days?: number | null): Promise<{ report_url
 export const downloadReport = (userId: string) => {
   window.open(`${REPORT_BASE_URL}/download/${userId}`, '_blank');
 };
+
+// Shop
+export type ShopItem = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  type: string;
+  imageUrl?: string;
+};
+
+export type ShopCatalog = {
+  subscriptions: ShopItem[];
+  coin_packages: ShopItem[];
+  packages: ShopItem[];
+};
+
+export const fetchShopItems = async (): Promise<ShopCatalog> => {
+  try {
+    const response = await fetch(`${config.apiBaseUrl}/payment.PaymentService/GetShopItems`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error(`Failed to fetch shop items: ${response.statusText}`);
+    const data = await response.json();
+    return {
+      subscriptions: data.subscriptions || [],
+      coin_packages: data.coin_packages || [],
+      packages: data.packages || [],
+    };
+  } catch (error) {
+    return handleApiError(error, '상점 아이템 로드');
+  }
+};
+
+export const purchaseItem = async (
+  userId: string,
+  itemId: string
+): Promise<{ success: boolean; itemName?: string; item_name?: string; totalCoins?: number; total_coins?: number }> => {
+  try {
+    const response = await fetch(`${config.apiBaseUrl}/payment.PaymentService/PurchaseItem`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, item_id: itemId }),
+    });
+    if (!response.ok) throw new Error(`Failed to purchase item: ${response.statusText}`);
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, '아이템 구매');
+  }
+};
