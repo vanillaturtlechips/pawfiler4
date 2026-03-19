@@ -1,3 +1,4 @@
+// report base url: api gateway (replaces lambda function url)
 import type {
   LoginRequest,
   SignupRequest,
