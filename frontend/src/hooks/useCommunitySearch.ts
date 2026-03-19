@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fetchCommunityFeed } from "@/lib/communityApi";
 import type { CommunityPost } from "@/lib/types";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ export function useCommunitySearch(token: string | null) {
   const [searchType, setSearchType] = useState<"title" | "body" | "all">("title");
   
   const pageSize = 15;
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   const fetchFeed = async (p: number, search?: string) => {
     try {
@@ -41,14 +43,15 @@ export function useCommunitySearch(token: string | null) {
     fetchFeed(1);
   }, [token]);
 
-  // 검색어 변경 시 디바운싱 적용
+  // 검색어/타입 변경 시 디바운싱 적용 (초기 로드 완료 후에만 실행)
   useEffect(() => {
-    if (!token) return;
+    if (!tokenRef.current) return;
+    if (!initialized) return;
     const timer = setTimeout(() => {
       fetchFeed(1, query || undefined);
-    }, 300); // 300ms 디바운싱
+    }, 300);
     return () => clearTimeout(timer);
-  }, [query, searchType, token]);
+  }, [query, searchType]);
 
   const handlePageChange = (newPage: number) => {
     fetchFeed(newPage, query || undefined);

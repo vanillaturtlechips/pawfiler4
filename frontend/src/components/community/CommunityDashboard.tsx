@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Heart, TrendingUp } from "lucide-react";
 
 type DashboardProps = {
@@ -33,30 +32,11 @@ const cardHeader: React.CSSProperties = {
 export default function CommunityDashboard({ featuredPosts, ranking, hotTopic, onTagClick, loading }: DashboardProps) {
   const navigate = useNavigate();
 
-  if (loading) {
-    return (
-      <div className="grid grid-cols-3 gap-4">
-        {[0, 1, 2].map((i) => (
-          <div key={i} style={card} className="p-4 flex flex-col gap-3">
-            <div style={cardHeader} className="flex items-center gap-1.5 pb-2.5">
-              <Skeleton className="h-4 w-4 rounded" style={{ background: "hsl(var(--muted))" }} />
-              <Skeleton className="h-4 w-24 rounded" style={{ background: "hsl(var(--muted))" }} />
-            </div>
-            {[0, 1, 2].map((j) => (
-              <div key={j} className="flex items-center gap-2 px-2 py-2 rounded-lg" style={{ background: "hsl(var(--parchment-border))" }}>
-                <Skeleton className="h-4 w-4 rounded shrink-0" style={{ background: "hsl(var(--muted))" }} />
-                <Skeleton className="h-4 flex-1 rounded" style={{ background: "hsl(var(--muted))" }} />
-                <Skeleton className="h-4 w-10 rounded shrink-0" style={{ background: "hsl(var(--muted))" }} />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div
+      className="grid grid-cols-3 gap-4 transition-opacity duration-300"
+      style={{ opacity: loading ? 0.4 : 1, pointerEvents: loading ? "none" : "auto" }}
+    >
 
       {/* 오늘의 추천 글 */}
       <div style={card} className="p-4 flex flex-col">
