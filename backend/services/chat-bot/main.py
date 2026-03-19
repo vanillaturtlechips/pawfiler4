@@ -9,6 +9,7 @@ import os
 import json
 import boto3
 import psycopg2
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,9 +32,38 @@ app.add_middleware(
 
 BEDROCK_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 EMBED_MODEL = "amazon.titan-embed-text-v2:0"
-CHAT_MODEL = "ap.anthropic.claude-3-5-sonnet-20241022-v2:0"
+CHAT_MODEL = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
 RAG_THRESHOLD = 0.75
 RAG_TOP_K = 3
+
+_bedrock_client = None
+_db_pool = None
+
+
+def get_bedrock():
+    global _bedrock_client
+    if _bedrock_client is None:
+        _bedrock_client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+    return _bedrock_client
+
+
+def get_pool():
+    global _db_pool
+    if _db_pool is None:
+        _db_pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=os.environ["DATABASE_URL"],
+        )
+    return _db_pool
+
+
+def get_db():
+    return get_pool().getconn()
+
+
+def release_db(conn):
+    get_pool().putconn(conn)
 
 SYSTEM_PROMPT = """당신은 PawFiler 서비스의 AI 도우미입니다.
 PawFiler는 AI 딥페이크 탐지 교육 플랫폼으로, 다음 기능을 제공합니다:
@@ -50,14 +80,6 @@ PawFiler는 AI 딥페이크 탐지 교육 플랫폼으로, 다음 기능을 제�
 class ChatRequest(BaseModel):
     message: str
     session_id: str = ""
-
-
-def get_db():
-    return psycopg2.connect(os.environ["DATABASE_URL"])
-
-
-def get_bedrock():
-    return boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
 
 def embed_query(bedrock_client, text: str) -> list[float]:
@@ -139,7 +161,7 @@ def chat(req: ChatRequest):
         }
 
     finally:
-        conn.close()
+        release_db(conn)
 
 
 @app.post("/chat/stream")
@@ -153,15 +175,19 @@ def chat_stream(req: ChatRequest):
         query_embedding = embed_query(bedrock, req.message)
         docs = search_knowledge(conn, query_embedding)
         messages = build_messages(req.message, docs)
+    except Exception:
+        release_db(conn)
+        raise
 
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,
-            "system": SYSTEM_PROMPT,
-            "messages": messages,
-        })
+    body = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1024,
+        "system": SYSTEM_PROMPT,
+        "messages": messages,
+    })
 
-        def generate():
+    def generate():
+        try:
             response = bedrock.invoke_model_with_response_stream(
                 modelId=CHAT_MODEL, body=body
             )
@@ -174,19 +200,18 @@ def chat_stream(req: ChatRequest):
             yield (
                 f"data: {json.dumps({'done': True, 'sources': [{'file': d['source_file'], 'section': d['section']} for d in docs]})}\n\n"
             )
+        finally:
+            release_db(conn)
 
-        return StreamingResponse(
-            generate(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no",
-                "Connection": "keep-alive",
-            },
-        )
-
-    finally:
-        conn.close()
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 if __name__ == "__main__":
