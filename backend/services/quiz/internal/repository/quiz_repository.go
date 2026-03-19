@@ -15,9 +15,9 @@ var (
 // QuizRepository defines the interface for quiz data access operations
 // Requirements: 3.1, 3.2, 3.3, 4.1, 9.1, 9.2, 9.3, 9.4, 12.1
 type QuizRepository interface {
-	// GetRandomQuestion retrieves a random question with optional filters
+	// GetRandomQuestion retrieves a random question with optional filters, excluding recently seen ones
 	// Requirements: 3.1, 3.2, 3.3
-	GetRandomQuestion(ctx context.Context, difficulty *string, questionType *QuestionType) (*Question, error)
+	GetRandomQuestion(ctx context.Context, userID string, difficulty *string, questionType *QuestionType) (*Question, error)
 
 	// GetQuestionById retrieves a specific question by ID
 	// Requirement: 4.1
