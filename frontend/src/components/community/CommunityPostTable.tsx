@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,18 +56,16 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
           {/* 바디 */}
           <div>
             {posts.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-14 text-center">
+              <div className="py-14 text-center">
                 <div className="text-5xl mb-3">🔍</div>
                 <p className="font-jua text-base text-wood-dark opacity-60">게시글이 없습니다</p>
                 <p className="font-jua text-sm mt-1" style={{ color: "hsl(var(--wood-light))" }}>첫 번째 글을 작성해보세요!</p>
-              </motion.div>
+              </div>
             ) : (
-              <AnimatePresence mode="popLayout">
+              <div>
                 {posts.map((post, index) => (
-                  <motion.div
+                  <div
                     key={post.id}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
                     className="grid grid-cols-[52px_1fr_120px_88px_80px_64px] gap-3 px-4 py-2.5 cursor-pointer group"
                     style={{ borderBottom: ROW_BORDER, transition: "background 120ms ease" }}
                     onClick={() => navigate(`/community/${post.id}`)}
@@ -138,7 +135,7 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
                       className="flex items-center justify-center gap-0.5"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {user && (post.userId === user.id || post.authorNickname === user.nickname) && (
+                      {user && post.userId === user.id && (
                         <>
                           <Button
                             variant="ghost"
@@ -179,9 +176,9 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
                         </>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
-              </AnimatePresence>
+              </div>
             )}
           </div>
         </>

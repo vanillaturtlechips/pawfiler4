@@ -109,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (savedToken && isTokenExpired(savedToken)) {
       const refreshToken = localStorage.getItem("refresh_token");
       if (refreshToken) {
-        fetch(`/api/auth/refresh`, {
+        fetch(`${config.apiBaseUrl}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),

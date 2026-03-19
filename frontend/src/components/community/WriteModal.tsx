@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -40,12 +40,14 @@ export default function WriteModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-parchment border-parchment-border w-[95vw] max-w-[1100px] rounded-3xl p-0 overflow-hidden border-[6px] h-[90vh] flex flex-col">
         <div className="px-8 pt-6 pb-4 border-b-4 border-parchment-border flex-shrink-0">
-          <DialogTitle className="font-jua text-3xl text-wood-darkest">
-            {editingPost ? "📝 게시글 수정" : "✍️ 새 글 작성"}
-          </DialogTitle>
-          <DialogDescription className="font-jua text-base text-muted-foreground mt-1">
-            이미지 또는 영상을 첨부하고 탐정들과 정보를 공유하세요
-          </DialogDescription>
+          <DialogHeader>
+            <DialogTitle className="font-jua text-3xl text-wood-darkest">
+              {editingPost ? "📝 게시글 수정" : "✍️ 새 글 작성"}
+            </DialogTitle>
+            <DialogDescription className="font-jua text-base text-muted-foreground mt-1">
+              이미지 또는 영상을 첨부하고 탐정들과 정보를 공유하세요
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
         <div className="flex flex-1 overflow-hidden">

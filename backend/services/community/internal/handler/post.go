@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"community/pb"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -44,28 +42,38 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 
 	if searchQuery != "" {
 		searchPattern := "%" + searchQuery + "%"
-		
-		var whereClause string
-		switch searchType {
-		case "body":
-			whereClause = "body ILIKE $1"
-		case "all":
-			whereClause = "title ILIKE $1 OR body ILIKE $1"
-		default:
-			whereClause = "title ILIKE $1"
+
+		if searchType == "body" {
+			// body 전용: $1=pattern, $2=pageSize, $3=offset
+			rows, err = h.db.QueryContext(ctx, `
+				SELECT 
+					id, author_id, author_nickname, author_emoji, title, body, 
+					likes, comments, created_at::text, tags,
+					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+				FROM community.posts
+				WHERE body ILIKE $1
+				ORDER BY is_admin_post DESC, created_at DESC
+				LIMIT $2 OFFSET $3
+			`, searchPattern, pageSize, offset)
+		} else {
+			// title(default) / all: $1=pattern, $2=exact, $3=pageSize, $4=offset
+			var whereClause string
+			if searchType == "all" {
+				whereClause = "(title ILIKE $1 OR body ILIKE $1 OR $2 = ANY(tags))"
+			} else {
+				whereClause = "(title ILIKE $1 OR $2 = ANY(tags))"
+			}
+			rows, err = h.db.QueryContext(ctx, fmt.Sprintf(`
+				SELECT 
+					id, author_id, author_nickname, author_emoji, title, body, 
+					likes, comments, created_at::text, tags,
+					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+				FROM community.posts
+				WHERE %s
+				ORDER BY is_admin_post DESC, created_at DESC
+				LIMIT $3 OFFSET $4
+			`, whereClause), searchPattern, searchQuery, pageSize, offset)
 		}
-		whereClause += " OR $2 = ANY(tags)"
-		
-		rows, err = h.db.QueryContext(ctx, fmt.Sprintf(`
-			SELECT 
-				id, author_id, author_nickname, author_emoji, title, body, 
-				likes, comments, created_at::text, tags,
-				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
-			FROM community.posts
-			WHERE %s
-			ORDER BY is_admin_post DESC, created_at DESC
-			LIMIT $3 OFFSET $4
-		`, whereClause), searchPattern, searchQuery, pageSize, offset)
 	} else {
 		rows, err = h.db.QueryContext(ctx, `
 			SELECT 
@@ -277,7 +285,7 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
 	if mediaURL != "" {
 		go func() {
-			if err := deleteMediaFromS3(mediaURL); err != nil {
+			if err := h.deleteMediaFromS3(mediaURL); err != nil {
 				log.Printf("S3 delete failed (non-blocking): %v", err)
 			}
 		}()
@@ -286,30 +294,18 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	return &pb.DeletePostResponse{Success: true}, nil
 }
 
-func deleteMediaFromS3(mediaURL string) error {
+func (h *Handler) deleteMediaFromS3(mediaURL string) error {
+	if h.s3 == nil {
+		return fmt.Errorf("s3 client not initialized")
+	}
 	parts := strings.Split(mediaURL, "/")
 	if len(parts) < 4 {
 		return fmt.Errorf("invalid media URL format: %s", mediaURL)
 	}
 	key := strings.Join(parts[len(parts)-3:], "/")
 
-	bucket := os.Getenv("S3_COMMUNITY_BUCKET")
-	if bucket == "" {
-		bucket = "pawfiler-community-media"
-	}
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "ap-northeast-2"
-	}
-
-	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
-	if err != nil {
-		return fmt.Errorf("AWS config error: %w", err)
-	}
-
-	client := s3.NewFromConfig(cfg)
-	_, err = client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-		Bucket: aws.String(bucket),
+	_, err := h.s3.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		Bucket: aws.String(h.s3Bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {

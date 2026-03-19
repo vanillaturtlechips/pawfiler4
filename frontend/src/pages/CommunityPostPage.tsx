@@ -1,5 +1,4 @@
-import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -38,7 +37,6 @@ const CommunityPostPage = () => {
   const [trueVotes, setTrueVotes] = useState(0);
   const [falseVotes, setFalseVotes] = useState(0);
   const [userVote, setUserVote] = useState<boolean | null>(null);
-  const [hasVoted, setHasVoted] = useState(false);
   const [votingLoading, setVotingLoading] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   // 선택 중 상태 (결과 공개 전 로컬 선택)
@@ -54,27 +52,28 @@ const CommunityPostPage = () => {
         setPost(loadedPost);
         setComments(loadedComments);
         if (user) {
-          const isLiked = await checkLike(postId, user.id);
+          const [isLiked, myVote] = await Promise.all([
+            checkLike(postId, user.id),
+            getUserVote(postId, user.id).catch(() => ({ voted: false, vote: undefined as boolean | undefined })),
+          ]);
           setLiked(isLiked);
+          if (myVote.voted && myVote.vote !== undefined) {
+            setUserVote(myVote.vote);
+            setResultRevealed(true);
+          }
         }
         try {
           const voteResult = await getVoteResult(postId);
           setTrueVotes(voteResult.trueVotes);
           setFalseVotes(voteResult.falseVotes);
         } catch {}
-        if (user) {
-          try {
-            const myVote = await getUserVote(postId, user.id);
-            if (myVote.voted && myVote.vote !== undefined) { setHasVoted(true); setUserVote(myVote.vote); setResultRevealed(true); }
-          } catch {}
-        }
       } catch {
         toast.error("게시글을 불러오는데 실패했습니다.");
         setPost(null);
       } finally { setLoading(false); }
     };
     load();
-  }, [postId, user]);
+  }, [postId, user?.id]);
 
   // 선택지 클릭: 로컬 pendingVote만 변경 (API 호출 없음)
   const handleVote = (vote: boolean) => {
@@ -96,7 +95,6 @@ const CommunityPostPage = () => {
         const voteResult = await getVoteResult(postId);
         setTrueVotes(voteResult.trueVotes);
         setFalseVotes(voteResult.falseVotes);
-        setHasVoted(true);
         setUserVote(pendingVote);
         setResultRevealed(true);
         if (result.xpEarned > 0) toast.success(`참여 완료! +${result.xpEarned} XP`);
@@ -105,6 +103,31 @@ const CommunityPostPage = () => {
     } catch { toast.error("참여에 실패했습니다."); }
     finally { setVotingLoading(false); }
   };
+
+  const handleLike = useCallback(async () => {
+    if (!user) { toast.error("로그인이 필요합니다."); return; }
+    const wasLiked = liked;
+    // optimistic update
+    setLiked(!wasLiked);
+    setPost(prev => prev ? { ...prev, likes: prev.likes + (wasLiked ? -1 : 1) } : prev);
+    try {
+      if (wasLiked) {
+        await unlikePost(post!.id, user.id);
+      } else {
+        const r = await likePost(post!.id, user.id);
+        if (r.alreadyLiked) {
+          // 이미 좋아요 상태 → optimistic +1 롤백
+          setLiked(true);
+          setPost(prev => prev ? { ...prev, likes: prev.likes - 1 } : prev);
+        }
+      }
+    } catch {
+      toast.error("좋아요 처리에 실패했습니다.");
+      // 실패 시 원래 상태로 롤백
+      setLiked(wasLiked);
+      setPost(prev => prev ? { ...prev, likes: prev.likes + (wasLiked ? 1 : -1) } : prev);
+    }
+  }, [user, liked, post]);
 
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !user) { toast.error("댓글 내용을 입력해주세요."); return; }
@@ -123,6 +146,7 @@ const CommunityPostPage = () => {
   };
 
   const handleDeleteComment = async (commentId: string) => {
+    if (!user) return;
     if (!confirm("정말 이 댓글을 삭제하시겠습니까?")) return;
     try {
       await deleteCommunityComment(commentId, user!.id);
@@ -366,15 +390,7 @@ const CommunityPostPage = () => {
         {/* 반응 버튼 */}
         <div className="flex items-center gap-2">
           <button
-            onClick={async () => {
-              if (!user) { toast.error("로그인이 필요합니다."); return; }
-              const prevLiked = liked;
-              const prevLikes = post.likes;
-              try {
-                if (liked) { setLiked(false); setPost({ ...post, likes: post.likes - 1 }); await unlikePost(post.id, user.id); }
-                else { setLiked(true); setPost({ ...post, likes: post.likes + 1 }); const r = await likePost(post.id, user.id); if (r.alreadyLiked) setPost({ ...post, likes: prevLikes }); }
-              } catch { toast.error("좋아요 처리에 실패했습니다."); setLiked(prevLiked); setPost({ ...post, likes: prevLikes }); }
-            }}
+          onClick={handleLike}
             className={`flex items-center gap-1.5 font-jua text-sm rounded-xl px-3 py-1.5 transition-all
               ${liked ? 'text-red-500' : 'text-wood-dark hover:text-orange-600'}`}
             style={{ background: "hsl(var(--parchment))", border: "1px solid hsl(var(--parchment-border))" }}
@@ -428,12 +444,9 @@ const CommunityPostPage = () => {
             <p className="text-xs font-jua py-1 text-wood-dark">아직 댓글이 없습니다. 첫 의견을 남겨보세요!</p>
           ) : (
             <div className="flex flex-col divide-y" style={{ borderColor: "hsl(var(--parchment-border))" }}>
-              {comments.map((comment, index) => (
-                <motion.div
+              {comments.map((comment) => (
+                <div
                   key={comment.id}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
                   className="flex gap-3 py-2.5 first:pt-0"
                 >
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0 mt-0.5" style={{ background: "hsl(var(--parchment-border))" }}>{comment.authorEmoji}</div>
@@ -453,7 +466,7 @@ const CommunityPostPage = () => {
                     </div>
                     <p className="text-sm leading-relaxed text-wood-dark break-words">{comment.body}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           )}
@@ -463,6 +476,9 @@ const CommunityPostPage = () => {
       {/* 라이트박스 */}
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
         <DialogContent className="max-w-[92vw] max-h-[92vh] p-2 bg-black/95 border-none rounded-2xl flex items-center justify-center">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{post.title}</DialogTitle>
+          </DialogHeader>
           <img src={post.mediaUrl || ""} alt={post.title} className="max-w-full max-h-[88vh] object-contain rounded-xl" />
         </DialogContent>
       </Dialog>

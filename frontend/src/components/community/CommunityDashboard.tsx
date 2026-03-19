@@ -10,7 +10,6 @@ type DashboardProps = {
     totalAnswered: number; correctCount: number; accuracy: number;
   }>;
   hotTopic: { tag: string; count: number };
-  topDetective: { authorNickname: string; authorEmoji: string; totalLikes: number };
   onTagClick: (tag: string) => void;
   loading?: boolean;
 };
@@ -45,7 +44,7 @@ export default function CommunityDashboard({ featuredPosts, ranking, hotTopic, o
           <h3 className="font-jua text-sm text-wood-darkest leading-none">오늘의 추천 글</h3>
         </div>
         <div className="flex flex-col gap-1 flex-1">
-          {featuredPosts.length > 0 ? featuredPosts.map((post, i) => (
+          {!loading && featuredPosts.length > 0 ? featuredPosts.map((post, i) => (
             <div
               key={post.id}
               onClick={() => navigate(`/community/${post.id}`)}

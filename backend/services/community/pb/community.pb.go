@@ -2280,6 +2280,7 @@ type RankingEntry struct {
 	TotalAnswered  int32                  `protobuf:"varint,6,opt,name=total_answered,json=totalAnswered,proto3" json:"total_answered,omitempty"`
 	CorrectAnswers int32                  `protobuf:"varint,7,opt,name=correct_answers,json=correctAnswers,proto3" json:"correct_answers,omitempty"`
 	TotalCoins     int32                  `protobuf:"varint,8,opt,name=total_coins,json=totalCoins,proto3" json:"total_coins,omitempty"`
+	Level          int32                  `protobuf:"varint,9,opt,name=level,proto3" json:"level,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2366,6 +2367,13 @@ func (x *RankingEntry) GetCorrectAnswers() int32 {
 func (x *RankingEntry) GetTotalCoins() int32 {
 	if x != nil {
 		return x.TotalCoins
+	}
+	return 0
+}
+
+func (x *RankingEntry) GetLevel() int32 {
+	if x != nil {
+		return x.Level
 	}
 	return 0
 }

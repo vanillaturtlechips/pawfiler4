@@ -1,5 +1,4 @@
-import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchRanking } from "@/lib/api";
@@ -7,7 +6,6 @@ import {
   createCommunityPost,
   updateCommunityPost,
   deleteCommunityPost,
-  fetchTopDetective,
   fetchHotTopic,
 } from "@/lib/communityApi";
 import { PlusCircle } from "lucide-react";
@@ -44,17 +42,6 @@ const CommunityPage = () => {
 
   // Dashboard loading state
   const [dashboardLoading, setDashboardLoading] = useState(true);
-
-  // Dashboard State
-  const [topDetective, setTopDetective] = useState<{
-    authorNickname: string;
-    authorEmoji: string;
-    totalLikes: number;
-  }>({
-    authorNickname: "아직 없음",
-    authorEmoji: "🏆",
-    totalLikes: 0,
-  });
   const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({
     tag: "없음",
     count: 0,
@@ -74,14 +61,6 @@ const CommunityPage = () => {
       totalAnswered: number;
       correctCount: number;
       accuracy: number;
-    }>
-  >([]);
-  const [featuredPosts, setFeaturedPosts] = useState<
-    Array<{
-      id: string;
-      title: string;
-      authorNickname: string;
-      likes: number;
     }>
   >([]);
 
@@ -106,27 +85,12 @@ const CommunityPage = () => {
   const loadDashboardData = async () => {
     setDashboardLoading(true);
     try {
-      const [detectiveData, topicData, rankingData] = await Promise.all([
-        fetchTopDetective(),
+      const [topicData, rankingData] = await Promise.all([
         fetchHotTopic(),
         fetchRanking("tier"),
       ]);
-      setTopDetective(detectiveData);
       setHotTopic(topicData);
       setRanking(rankingData);
-      
-      // 추천 글은 현재 posts에서 좋아요 순으로 정렬
-      const sorted = [...posts]
-        .sort((a, b) => b.likes - a.likes)
-        .slice(0, 3);
-      setFeaturedPosts(
-        sorted.map((p) => ({
-          id: p.id,
-          title: p.title,
-          authorNickname: p.authorNickname,
-          likes: p.likes,
-        }))
-      );
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
     } finally {
@@ -134,22 +98,6 @@ const CommunityPage = () => {
     }
   };
 
-  // posts가 변경될 때마다 추천 글 업데이트
-  useEffect(() => {
-    if (posts.length > 0) {
-      const sorted = [...posts]
-        .sort((a, b) => b.likes - a.likes)
-        .slice(0, 3);
-      setFeaturedPosts(
-        sorted.map((p) => ({
-          id: p.id,
-          title: p.title,
-          authorNickname: p.authorNickname,
-          likes: p.likes,
-        }))
-      );
-    }
-  }, [posts]);
   // WriteModal 관련 함수들
   const handleOpenCreate = () => {
     setEditingPost(null);
@@ -191,30 +139,28 @@ const CommunityPage = () => {
     }
   };
 
-  // 미디어 파일 처리
-  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // 미디어 파일 처리 (공통)
+  const processMediaFile = (file: File) => {
     if (file.size > 100 * 1024 * 1024) {
       toast.error("파일 크기는 100MB 이하여야 합니다.");
       return;
     }
-
     const isVideo = file.type.startsWith("video/");
     const isImage = file.type.startsWith("image/");
-
     if (!isVideo && !isImage) {
       toast.error("이미지 또는 비디오 파일만 업로드 가능합니다.");
       return;
     }
-
     setMediaFile(file);
     setMediaType(isVideo ? "video" : "image");
-
     const reader = new FileReader();
     reader.onload = (e) => setMediaPreview(e.target?.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processMediaFile(file);
   };
   // 드래그 앤 드롭
   const handleDragOver = (e: React.DragEvent) => {
@@ -230,29 +176,8 @@ const CommunityPage = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
     const file = e.dataTransfer.files[0];
-    if (file) {
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error("파일 크기는 100MB 이하여야 합니다.");
-        return;
-      }
-
-      const isVideo = file.type.startsWith("video/");
-      const isImage = file.type.startsWith("image/");
-
-      if (!isVideo && !isImage) {
-        toast.error("이미지 또는 비디오 파일만 업로드 가능합니다.");
-        return;
-      }
-
-      setMediaFile(file);
-      setMediaType(isVideo ? "video" : "image");
-
-      const reader = new FileReader();
-      reader.onload = (e) => setMediaPreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (file) processMediaFile(file);
   };
 
   const clearMedia = () => {
@@ -337,6 +262,11 @@ const CommunityPage = () => {
     }
   };
 
+  const featuredPosts = useMemo(
+    () => [...posts].sort((a, b) => b.likes - a.likes).slice(0, 3).map(p => ({ id: p.id, title: p.title, authorNickname: p.authorNickname, likes: p.likes })),
+    [posts]
+  );
+
   const handleTagClick = (tag: string) => {
     setQuery(tag);
   };
@@ -345,9 +275,7 @@ const CommunityPage = () => {
       className="h-[calc(100vh-5rem)] w-full overflow-y-auto"
       style={{ scrollbarGutter: "stable" }}
     >
-      <motion.div
-        className="flex flex-col gap-6 p-6 max-w-[1400px] mx-auto"
-      >
+      <div className="flex flex-col gap-6 p-6 max-w-[1400px] mx-auto">
         {/* Header Section */}
         <header className="flex flex-col gap-2.5">
           <div className="flex justify-between items-center">
@@ -382,9 +310,8 @@ const CommunityPage = () => {
           featuredPosts={featuredPosts}
           ranking={ranking}
           hotTopic={hotTopic}
-          topDetective={topDetective}
           onTagClick={handleTagClick}
-          loading={dashboardLoading}
+          loading={dashboardLoading || !initialized}
         />
 
         {/* Post Table */}
@@ -432,7 +359,7 @@ const CommunityPage = () => {
           onClearMedia={clearMedia}
           onSubmit={handleSubmit}
         />
-      </motion.div>
+      </div>
     </div>
   );
 };

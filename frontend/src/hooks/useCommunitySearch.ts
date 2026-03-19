@@ -16,10 +16,11 @@ export function useCommunitySearch(token: string | null) {
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
 
-  const fetchFeed = async (p: number, search?: string) => {
+  const fetchFeed = async (p: number, search?: string, type?: "title" | "body" | "all") => {
+    const resolvedType = type ?? searchType;
     try {
       setLoading(true);
-      const feed = await fetchCommunityFeed(p, pageSize, search, searchType);
+      const feed = await fetchCommunityFeed(p, pageSize, search, resolvedType);
       setTotalCount(feed.totalCount);
       setPage(p);
       setPosts(
@@ -28,12 +29,12 @@ export function useCommunitySearch(token: string | null) {
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )
       );
+      setInitialized(true);
     } catch (error) {
       console.error("Failed to fetch feed:", error);
       toast.error("게시글을 불러오는데 실패했습니다.");
     } finally {
       setLoading(false);
-      setInitialized(true);
     }
   };
 
@@ -47,14 +48,24 @@ export function useCommunitySearch(token: string | null) {
   useEffect(() => {
     if (!tokenRef.current) return;
     if (!initialized) return;
+    // query가 없고 searchType만 바뀐 경우 fetch 불필요
+    if (!query) return;
     const timer = setTimeout(() => {
-      fetchFeed(1, query || undefined);
+      fetchFeed(1, query, searchType);
     }, 300);
     return () => clearTimeout(timer);
   }, [query, searchType]);
 
+  // query가 비워지면 전체 피드 다시 로드
+  useEffect(() => {
+    if (!tokenRef.current) return;
+    if (!initialized) return;
+    if (query) return;
+    fetchFeed(1, undefined, searchType);
+  }, [query]);
+
   const handlePageChange = (newPage: number) => {
-    fetchFeed(newPage, query || undefined);
+    fetchFeed(newPage, query || undefined, searchType);
   };
 
   return {
@@ -70,7 +81,6 @@ export function useCommunitySearch(token: string | null) {
     setQuery,
     searchType,
     setSearchType,
-    fetchFeed,
     handlePageChange,
   };
 }

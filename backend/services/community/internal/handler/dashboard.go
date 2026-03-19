@@ -40,32 +40,53 @@ func (h *Handler) GetNotices(ctx context.Context, req *pb.GetNoticesRequest) (*p
 
 // GetTopDetective - 탐정 랭킹 조회
 func (h *Handler) GetTopDetective(ctx context.Context, req *pb.GetTopDetectiveRequest) (*pb.TopDetectiveResponse, error) {
-	var detective pb.TopDetectiveResponse
+	// author_id로만 GROUP BY → 닉네임 변경 이력 있어도 단일 행 보장
+	var authorID string
+	var totalLikes int64
 	err := h.db.QueryRowContext(ctx, `
-		SELECT p.author_nickname, p.author_emoji, SUM(p.likes) as total_likes
+		SELECT p.author_id, SUM(p.likes) as total_likes
 		FROM community.posts p
 		WHERE p.created_at >= DATE_TRUNC('month', NOW())
-		GROUP BY p.author_id, p.author_nickname, p.author_emoji
+		GROUP BY p.author_id
 		ORDER BY total_likes DESC
 		LIMIT 1
-	`).Scan(&detective.AuthorNickname, &detective.AuthorEmoji, &detective.TotalLikes)
+	`).Scan(&authorID, &totalLikes)
 
 	if err == sql.ErrNoRows {
-		detective = pb.TopDetectiveResponse{
+		return &pb.TopDetectiveResponse{
 			AuthorNickname: "아직 없음",
 			AuthorEmoji:    "🏆",
 			TotalLikes:     0,
-		}
-	} else if err != nil {
+		}, nil
+	}
+	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to fetch top detective")
+	}
+
+	// 최신 닉네임/이모지 별도 조회 (가장 최근 게시글 기준)
+	var detective pb.TopDetectiveResponse
+	detective.TotalLikes = int32(totalLikes)
+	err = h.db.QueryRowContext(ctx, `
+		SELECT author_nickname, author_emoji
+		FROM community.posts
+		WHERE author_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, authorID).Scan(&detective.AuthorNickname, &detective.AuthorEmoji)
+	if err != nil {
+		detective.AuthorNickname = "알 수 없음"
+		detective.AuthorEmoji = "🕵️"
 	}
 
 	return &detective, nil
 }
 
 // GetHotTopic - 인기 토픽 조회
+// 오늘 데이터가 있으면 오늘 기준, 없으면 전체 기간 — 서브쿼리 없이 두 번의 QueryRow로 처리
 func (h *Handler) GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (*pb.HotTopicResponse, error) {
 	var topic pb.HotTopicResponse
+
+	// 1차: 오늘 기준
 	err := h.db.QueryRowContext(ctx, `
 		SELECT tag, COUNT(*) as count
 		FROM community.posts, UNNEST(tags) as tag
@@ -76,6 +97,7 @@ func (h *Handler) GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (
 	`).Scan(&topic.Tag, &topic.Count)
 
 	if err == sql.ErrNoRows {
+		// 2차: 전체 기간 fallback
 		err = h.db.QueryRowContext(ctx, `
 			SELECT tag, COUNT(*) as count
 			FROM community.posts, UNNEST(tags) as tag
@@ -86,8 +108,9 @@ func (h *Handler) GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (
 	}
 
 	if err == sql.ErrNoRows {
-		topic = pb.HotTopicResponse{Tag: "없음", Count: 0}
-	} else if err != nil {
+		return &pb.HotTopicResponse{Tag: "없음", Count: 0}, nil
+	}
+	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to fetch hot topic")
 	}
 
