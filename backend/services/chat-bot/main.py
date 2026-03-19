@@ -175,7 +175,15 @@ def chat_stream(req: ChatRequest):
                 f"data: {json.dumps({'done': True, 'sources': [{'file': d['source_file'], 'section': d['section']} for d in docs]})}\n\n"
             )
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
 
     finally:
         conn.close()
