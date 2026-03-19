@@ -23,11 +23,12 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 	}
 
 	// 첫 조회 시 기본 row 자동 생성 — INSERT 실패 시 로그 기록
+	// $1=uuid, $2=text(닉네임 prefix용)로 타입 분리하여 pq 타입 추론 충돌 방지
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1, '탐정_' || UPPER(SUBSTRING($1::text, 1, 8)), '🦊', NOW())
+		VALUES ($1::uuid, '탐정_' || UPPER(SUBSTRING($2, 1, 8)), '🦊', NOW())
 		ON CONFLICT (user_id) DO NOTHING
-	`, req.UserId); err != nil {
+	`, req.UserId, req.UserId); err != nil {
 		log.Printf("[GetProfile] preferences auto-insert failed for %s: %v", req.UserId, err)
 	}
 
@@ -54,20 +55,20 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 			COALESCE(qs.correct_count,   0)   AS correct_count,
 			COALESCE(qs.current_streak,  0)   AS current_streak,
 			COALESCE(qs.best_streak,     0)   AS best_streak,
-			(SELECT COUNT(*)            FROM community.posts    WHERE author_id = $1::text)  AS community_posts,
-			(SELECT COALESCE(SUM(likes),0) FROM community.posts WHERE author_id = $1::text)  AS total_likes,
-			(SELECT COUNT(*)            FROM community.comments WHERE author_id = $1::text)  AS total_comments,
-			(SELECT COUNT(*)            FROM video_analysis.tasks WHERE user_id = $1)        AS total_analysis,
-			(SELECT COUNT(*)            FROM video_analysis.tasks t
+			(SELECT COUNT(*)               FROM community.posts    WHERE author_id = $1)  AS community_posts,
+			(SELECT COALESCE(SUM(likes),0) FROM community.posts    WHERE author_id = $1)  AS total_likes,
+			(SELECT COUNT(*)               FROM community.comments WHERE author_id = $1)  AS total_comments,
+			(SELECT COUNT(*)               FROM video_analysis.tasks WHERE user_id = $1::uuid)        AS total_analysis,
+			(SELECT COUNT(*)               FROM video_analysis.tasks t
 			 JOIN video_analysis.results r ON t.id = r.task_id
-			 WHERE t.user_id = $1 AND r.verdict != 'REAL')                                  AS suspicious_videos,
+			 WHERE t.user_id = $1::uuid AND r.verdict != 'REAL')                                      AS suspicious_videos,
 			(SELECT COALESCE(AVG(r.confidence_score)*100, 0)
 			 FROM video_analysis.tasks t JOIN video_analysis.results r ON t.id = r.task_id
-			 WHERE t.user_id = $1)                                                           AS avg_confidence
+			 WHERE t.user_id = $1::uuid)                                                              AS avg_confidence
 		FROM user_svc.preferences p
 		LEFT JOIN quiz.user_profiles qp ON qp.user_id = p.user_id
 		LEFT JOIN quiz.user_stats    qs ON qs.user_id  = p.user_id
-		WHERE p.user_id = $1
+		WHERE p.user_id = $1::uuid
 	`, req.UserId).Scan(
 		&nickname, &avatarEmoji,
 		&totalExp, &totalCoins, &energy, &maxEnergy,
@@ -129,7 +130,7 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 	var nickname, avatar string
 	err := s.db.QueryRowContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1, COALESCE($2, '탐정'), COALESCE($3, '🦊'), NOW())
+		VALUES ($1::uuid, COALESCE($2, '탐정'), COALESCE($3, '🦊'), NOW())
 		ON CONFLICT (user_id) DO UPDATE
 		SET
 			nickname     = COALESCE($2::varchar, user_svc.preferences.nickname),
