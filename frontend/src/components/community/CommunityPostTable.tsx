@@ -2,7 +2,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { Edit2, Trash2, Heart, MessageCircle } from "lucide-react";
 import type { CommunityPost } from "@/lib/types";
@@ -34,20 +33,11 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
   const { user } = useAuth();
 
   return (
-    <div style={tableStyle}>
-      {(loading || !initialized) ? (
-        <div className="p-4 flex flex-col gap-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4 px-3 py-2.5 rounded-lg" style={{ background: "hsl(var(--parchment-border))" }}>
-              <Skeleton className="h-4 w-10 rounded" style={{ background: "hsl(var(--muted))" }} />
-              <Skeleton className="h-4 flex-1 rounded" style={{ background: "hsl(var(--muted))" }} />
-              <Skeleton className="h-4 w-20 rounded" style={{ background: "hsl(var(--muted))" }} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          {/* 헤더 */}
+    <div
+      style={{ ...tableStyle, opacity: (loading || !initialized) ? 0.4 : 1, transition: "opacity 300ms ease", pointerEvents: (loading || !initialized) ? "none" : "auto" }}
+    >
+      <>
+        {/* 헤더 */}
           <div
             className="grid grid-cols-[52px_1fr_120px_88px_80px_64px] gap-3 px-4 py-2.5 font-jua text-xs"
             style={{
@@ -197,7 +187,6 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
             )}
           </div>
         </>
-      )}
     </div>
   );
 }
