@@ -12,3 +12,8 @@ output "ai_agent_service_role_arn" {
   description = "ARN of the AI agent service IAM role"
   value       = aws_iam_role.ai_agent_service.arn
 }
+
+output "loki_role_arn" {
+  description = "ARN of the Loki IAM role"
+  value       = aws_iam_role.loki.arn
+}
