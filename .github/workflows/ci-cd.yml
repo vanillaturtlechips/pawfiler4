@@ -35,12 +35,13 @@ jobs:
             auth: 'backend/services/auth/**'
             frontend: 'frontend/**'
             admin_frontend: 'admin-frontend/**'
+            report: 'backend/services/report/**'
 
       - name: Generate Matrix
         id: set-matrix
         run: |
           SERVICES='${{ steps.filter.outputs.changes }}'
-          MATRIX=$(echo $SERVICES | jq -c 'map(select(. != "frontend" and . != "admin_frontend")) | map({
+          MATRIX=$(echo $SERVICES | jq -c 'map(select(. != "frontend" and . != "admin_frontend" and . != "report")) | map({
             service: .,
             ecr_name: (. + "-service")
           })')
