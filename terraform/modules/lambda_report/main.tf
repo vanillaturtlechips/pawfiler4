@@ -43,6 +43,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "reports" {
     id     = "delete-after-1-day"
     status = "Enabled"
 
+    filter {}
+
     expiration {
       days = 1
     }
@@ -107,7 +109,7 @@ resource "aws_sqs_queue" "report_jobs" {
 
 resource "aws_security_group" "lambda_report" {
   name        = "${var.project_name}-lambda-report-sg"
-  description = "Security group for report Lambda — allows outbound to RDS and internet (NAT)"
+  description = "Security group for report Lambda - allows outbound to RDS and internet (NAT)"
   vpc_id      = var.vpc_id
 
   # 아웃바운드 전체 허용 (NAT Gateway 통해 S3/SQS API 호출, RDS 접근)
@@ -233,19 +235,52 @@ resource "aws_lambda_function" "report" {
   depends_on = [aws_iam_role_policy_attachment.report_lambda_vpc]
 }
 
-# ── Lambda Function URL ───────────────────────────────────────────────────────
+# ── API Gateway HTTP API ──────────────────────────────────────────────────────
+# Function URL 대체 — SCP 환경에서 lambda:InvokeFunctionUrl 차단 우회
 
-resource "aws_lambda_function_url" "report" {
-  function_name      = aws_lambda_function.report.function_name
-  authorization_type = "NONE"
+resource "aws_apigatewayv2_api" "report" {
+  name          = "${var.project_name}-report-api"
+  protocol_type = "HTTP"
 
-  cors {
-    allow_credentials = false
-    allow_origins     = ["*"]
-    allow_methods     = ["POST", "GET", "OPTIONS"]
-    allow_headers     = ["Content-Type"]
-    max_age           = 86400
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["Content-Type", "Authorization"]
+    max_age       = 86400
   }
+}
+
+resource "aws_apigatewayv2_integration" "report" {
+  api_id                 = aws_apigatewayv2_api.report.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.report.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "report_post" {
+  api_id    = aws_apigatewayv2_api.report.id
+  route_key = "POST /generate"
+  target    = "integrations/${aws_apigatewayv2_integration.report.id}"
+}
+
+resource "aws_apigatewayv2_route" "report_get" {
+  api_id    = aws_apigatewayv2_api.report.id
+  route_key = "GET /generate"
+  target    = "integrations/${aws_apigatewayv2_integration.report.id}"
+}
+
+resource "aws_apigatewayv2_stage" "report" {
+  api_id      = aws_apigatewayv2_api.report.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_lambda_permission" "report_apigw" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.report.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.report.execution_arn}/*/*"
 }
 
 # ── SQS → Lambda 이벤트 소스 매핑 ────────────────────────────────────────────

@@ -19,6 +19,7 @@ jobs:
       has_services: ${{ steps.set-matrix.outputs.has_services }}
       frontend: ${{ steps.filter.outputs.frontend }}
       admin_frontend: ${{ steps.filter.outputs.admin_frontend }}
+      report: ${{ steps.filter.outputs.report }}
     steps:
       - uses: actions/checkout@v4
 
@@ -143,6 +144,40 @@ jobs:
 
       - name: Invalidate CloudFront
         run: aws cloudfront create-invalidation --distribution-id E2ZI7JFQGIUFYC --paths "/*"
+
+  # Report Lambda 빌드 및 배포
+  deploy-report-lambda:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.report == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Lambda image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/services/report
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/report-lambda:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/report-lambda:latest
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name pawfiler-report \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/pawfiler/report-lambda:${{ github.sha }} \
+            --region ap-northeast-2
 
   # 어드민 프론트엔드 S3 배포
   deploy-admin-frontend:
