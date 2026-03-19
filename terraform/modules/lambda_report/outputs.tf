@@ -23,8 +23,8 @@ output "report_lambda_name" {
 }
 
 output "report_function_url" {
-  description = "Lambda Function URL (set as VITE_REPORT_BASE_URL in frontend)"
-  value       = aws_lambda_function_url.report.function_url
+  description = "API Gateway HTTP API URL (set as VITE_REPORT_BASE_URL in frontend)"
+  value       = aws_apigatewayv2_stage.report.invoke_url
 }
 
 output "report_ecr_repository_url" {
