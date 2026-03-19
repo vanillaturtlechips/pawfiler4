@@ -64,8 +64,11 @@ func (h *Handler) GetTopDetective(ctx context.Context, req *pb.GetTopDetectiveRe
 }
 
 // GetHotTopic - 인기 토픽 조회
+// 오늘 데이터가 있으면 오늘 기준, 없으면 전체 기간 — 서브쿼리 없이 두 번의 QueryRow로 처리
 func (h *Handler) GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (*pb.HotTopicResponse, error) {
 	var topic pb.HotTopicResponse
+
+	// 1차: 오늘 기준
 	err := h.db.QueryRowContext(ctx, `
 		SELECT tag, COUNT(*) as count
 		FROM community.posts, UNNEST(tags) as tag
@@ -76,6 +79,7 @@ func (h *Handler) GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (
 	`).Scan(&topic.Tag, &topic.Count)
 
 	if err == sql.ErrNoRows {
+		// 2차: 전체 기간 fallback
 		err = h.db.QueryRowContext(ctx, `
 			SELECT tag, COUNT(*) as count
 			FROM community.posts, UNNEST(tags) as tag
@@ -86,8 +90,9 @@ func (h *Handler) GetHotTopic(ctx context.Context, req *pb.GetHotTopicRequest) (
 	}
 
 	if err == sql.ErrNoRows {
-		topic = pb.HotTopicResponse{Tag: "없음", Count: 0}
-	} else if err != nil {
+		return &pb.HotTopicResponse{Tag: "없음", Count: 0}, nil
+	}
+	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to fetch hot topic")
 	}
 
