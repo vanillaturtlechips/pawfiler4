@@ -103,11 +103,13 @@ def build_messages(user_message: str, context_docs: list[dict]) -> list[dict]:
 
 
 @app.get("/health")
+@app.get("/api/chat/health")
 def health():
     return {"status": "ok"}
 
 
 @app.post("/chat")
+@app.post("/api/chat")
 def chat(req: ChatRequest):
     """일반 (non-streaming) 채팅"""
     bedrock = get_bedrock()
@@ -141,6 +143,7 @@ def chat(req: ChatRequest):
 
 
 @app.post("/chat/stream")
+@app.post("/api/chat/stream")
 def chat_stream(req: ChatRequest):
     """SSE 스트리밍 채팅"""
     bedrock = get_bedrock()
