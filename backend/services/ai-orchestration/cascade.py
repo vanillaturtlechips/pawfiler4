@@ -39,7 +39,7 @@ class XGBoostGate:
 
     CONFIDENCE_THRESHOLD = 0.85  # 이 이상이면 XGBoost만으로 판단
 
-    def __init__(self, model_path: str = "/mnt/efs/models/xgboost_cascade.json"):
+    def __init__(self, model_path: str = "/mnt/efs/models/xgboost_cascade.pkl"):
         self.model_path = model_path
         self.model = self._load_model()
         logger.info(f"XGBoostGate loaded (threshold={self.CONFIDENCE_THRESHOLD})")
@@ -66,11 +66,8 @@ class XGBoostGate:
         feature_vec = self._to_vector(features)
 
         if self.model is not None:
-            # XGBoost 추론
-            import xgboost as xgb
-            dmatrix = xgb.DMatrix(feature_vec.reshape(1, -1))
-            probs = self.model.predict(dmatrix)  # (1, 2) — [real_prob, fake_prob]
-            prob_fake = float(probs[0][1]) if probs.ndim > 1 else float(probs[0])
+            probs = self.model.predict_proba(feature_vec.reshape(1, -1))  # (1, 2)
+            prob_fake = float(probs[0][1])
         else:
             # 모델 없으면 항상 Deep Path로
             prob_fake = 0.5
@@ -107,9 +104,9 @@ class XGBoostGate:
     def _load_model(self):
         """XGBoost 모델 로드. 없으면 None (개발 단계)."""
         try:
-            import xgboost as xgb
-            model = xgb.Booster()
-            model.load_model(self.model_path)
+            import pickle
+            with open(self.model_path, "rb") as f:
+                model = pickle.load(f)
             logger.info(f"XGBoost model loaded from {self.model_path}")
             return model
         except Exception as e:
