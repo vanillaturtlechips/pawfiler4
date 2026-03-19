@@ -655,7 +655,23 @@ export const fetchRanking = async (sortBy: string = "correct") => {
     });
     if (!response.ok) return [];
     const data = await response.json();
-    return Array.isArray(data) ? data : (data.entries ?? []);
+    const entries: any[] = Array.isArray(data) ? data : (data.entries ?? []);
+    // quiz 서비스 snake_case/camelCase → RankingPage/CommunityDashboard 필드로 정규화
+    return entries.map((e: any) => ({
+      rank: e.rank ?? 0,
+      userId: e.userId || e.user_id || "",
+      nickname: e.nickname || "",
+      avatarEmoji: e.emoji || e.avatarEmoji || e.avatar_emoji || "🥚",
+      tier: e.tierName || e.tier_name || e.tier || "알",
+      level: e.level ?? 1,
+      totalExp: e.totalExp || e.total_exp || 0,
+      totalCoins: e.totalCoins || e.total_coins || 0,
+      totalAnswered: e.totalAnswered || e.total_answered || 0,
+      correctCount: e.correctAnswers || e.correct_answers || e.correctCount || 0,
+      accuracy: e.totalAnswered || e.total_answered
+        ? Math.round(((e.correctAnswers || e.correct_answers || 0) / (e.totalAnswered || e.total_answered)) * 100)
+        : 0,
+    }));
   } catch {
     return [];
   }

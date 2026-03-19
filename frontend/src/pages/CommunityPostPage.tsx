@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +37,6 @@ const CommunityPostPage = () => {
   const [trueVotes, setTrueVotes] = useState(0);
   const [falseVotes, setFalseVotes] = useState(0);
   const [userVote, setUserVote] = useState<boolean | null>(null);
-  const [hasVoted, setHasVoted] = useState(false);
   const [votingLoading, setVotingLoading] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   // 선택 중 상태 (결과 공개 전 로컬 선택)
@@ -54,20 +52,21 @@ const CommunityPostPage = () => {
         setPost(loadedPost);
         setComments(loadedComments);
         if (user) {
-          const isLiked = await checkLike(postId, user.id);
+          const [isLiked, myVote] = await Promise.all([
+            checkLike(postId, user.id),
+            getUserVote(postId, user.id).catch(() => ({ voted: false, vote: undefined as boolean | undefined })),
+          ]);
           setLiked(isLiked);
+          if (myVote.voted && myVote.vote !== undefined) {
+            setUserVote(myVote.vote);
+            setResultRevealed(true);
+          }
         }
         try {
           const voteResult = await getVoteResult(postId);
           setTrueVotes(voteResult.trueVotes);
           setFalseVotes(voteResult.falseVotes);
         } catch {}
-        if (user) {
-          try {
-            const myVote = await getUserVote(postId, user.id);
-            if (myVote.voted && myVote.vote !== undefined) { setHasVoted(true); setUserVote(myVote.vote); setResultRevealed(true); }
-          } catch {}
-        }
       } catch {
         toast.error("게시글을 불러오는데 실패했습니다.");
         setPost(null);
@@ -96,7 +95,6 @@ const CommunityPostPage = () => {
         const voteResult = await getVoteResult(postId);
         setTrueVotes(voteResult.trueVotes);
         setFalseVotes(voteResult.falseVotes);
-        setHasVoted(true);
         setUserVote(pendingVote);
         setResultRevealed(true);
         if (result.xpEarned > 0) toast.success(`참여 완료! +${result.xpEarned} XP`);
@@ -123,6 +121,7 @@ const CommunityPostPage = () => {
   };
 
   const handleDeleteComment = async (commentId: string) => {
+    if (!user) return;
     if (!confirm("정말 이 댓글을 삭제하시겠습니까?")) return;
     try {
       await deleteCommunityComment(commentId, user!.id);
@@ -429,7 +428,7 @@ const CommunityPostPage = () => {
           ) : (
             <div className="flex flex-col divide-y" style={{ borderColor: "hsl(var(--parchment-border))" }}>
               {comments.map((comment) => (
-                <motion.div
+                <div
                   key={comment.id}
                   className="flex gap-3 py-2.5 first:pt-0"
                 >
@@ -450,7 +449,7 @@ const CommunityPostPage = () => {
                     </div>
                     <p className="text-sm leading-relaxed text-wood-dark break-words">{comment.body}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           )}
@@ -460,6 +459,9 @@ const CommunityPostPage = () => {
       {/* 라이트박스 */}
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
         <DialogContent className="max-w-[92vw] max-h-[92vh] p-2 bg-black/95 border-none rounded-2xl flex items-center justify-center">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{post.title}</DialogTitle>
+          </DialogHeader>
           <img src={post.mediaUrl || ""} alt={post.title} className="max-w-full max-h-[88vh] object-contain rounded-xl" />
         </DialogContent>
       </Dialog>
