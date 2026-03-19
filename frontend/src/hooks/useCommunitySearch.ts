@@ -28,12 +28,12 @@ export function useCommunitySearch(token: string | null) {
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )
       );
+      setInitialized(true);
     } catch (error) {
       console.error("Failed to fetch feed:", error);
       toast.error("게시글을 불러오는데 실패했습니다.");
     } finally {
       setLoading(false);
-      setInitialized(true);
     }
   };
 

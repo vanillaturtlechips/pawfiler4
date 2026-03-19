@@ -435,56 +435,6 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
   }
 };
 
-// Community Dashboard
-export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetNotices`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch notices: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const notices = data.notices || data.posts || (Array.isArray(data) ? data : []);
-    return notices.map((n: any) => ({ id: n.id, title: n.title }));
-  } catch (error) {
-    console.error('Failed to fetch notices:', error);
-    return [];
-  }
-};
-
-export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetTopDetective`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch top detective: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return {
-      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
-      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
-      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
-    };
-  } catch (error) {
-    console.error('Failed to fetch top detective:', error);
-    return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
-  }
-};
-
 export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetHotTopic`, {
@@ -505,8 +455,6 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
     return { tag: "없음", count: 0 };
   }
 };
-
-// Community Media - 이제 gRPC UploadMedia로 통합됨
 
 // Community Voting (현재 백엔드 이슈로 인해 기본값 반환)
 export const votePost = async (postId: string, userId: string, vote: boolean): Promise<{ success: boolean; alreadyVoted: boolean; xpEarned: number }> => {

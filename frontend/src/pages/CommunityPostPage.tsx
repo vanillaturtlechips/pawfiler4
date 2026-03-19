@@ -428,12 +428,9 @@ const CommunityPostPage = () => {
             <p className="text-xs font-jua py-1 text-wood-dark">아직 댓글이 없습니다. 첫 의견을 남겨보세요!</p>
           ) : (
             <div className="flex flex-col divide-y" style={{ borderColor: "hsl(var(--parchment-border))" }}>
-              {comments.map((comment, index) => (
+              {comments.map((comment) => (
                 <motion.div
                   key={comment.id}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
                   className="flex gap-3 py-2.5 first:pt-0"
                 >
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0 mt-0.5" style={{ background: "hsl(var(--parchment-border))" }}>{comment.authorEmoji}</div>

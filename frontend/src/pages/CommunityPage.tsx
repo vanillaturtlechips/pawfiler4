@@ -7,7 +7,6 @@ import {
   createCommunityPost,
   updateCommunityPost,
   deleteCommunityPost,
-  fetchTopDetective,
   fetchHotTopic,
 } from "@/lib/communityApi";
 import { PlusCircle } from "lucide-react";
@@ -44,17 +43,6 @@ const CommunityPage = () => {
 
   // Dashboard loading state
   const [dashboardLoading, setDashboardLoading] = useState(true);
-
-  // Dashboard State
-  const [topDetective, setTopDetective] = useState<{
-    authorNickname: string;
-    authorEmoji: string;
-    totalLikes: number;
-  }>({
-    authorNickname: "아직 없음",
-    authorEmoji: "🏆",
-    totalLikes: 0,
-  });
   const [hotTopic, setHotTopic] = useState<{ tag: string; count: number }>({
     tag: "없음",
     count: 0,
@@ -74,14 +62,6 @@ const CommunityPage = () => {
       totalAnswered: number;
       correctCount: number;
       accuracy: number;
-    }>
-  >([]);
-  const [featuredPosts, setFeaturedPosts] = useState<
-    Array<{
-      id: string;
-      title: string;
-      authorNickname: string;
-      likes: number;
     }>
   >([]);
 
@@ -106,27 +86,12 @@ const CommunityPage = () => {
   const loadDashboardData = async () => {
     setDashboardLoading(true);
     try {
-      const [detectiveData, topicData, rankingData] = await Promise.all([
-        fetchTopDetective(),
+      const [topicData, rankingData] = await Promise.all([
         fetchHotTopic(),
         fetchRanking("tier"),
       ]);
-      setTopDetective(detectiveData);
       setHotTopic(topicData);
       setRanking(rankingData);
-      
-      // 추천 글은 현재 posts에서 좋아요 순으로 정렬
-      const sorted = [...posts]
-        .sort((a, b) => b.likes - a.likes)
-        .slice(0, 3);
-      setFeaturedPosts(
-        sorted.map((p) => ({
-          id: p.id,
-          title: p.title,
-          authorNickname: p.authorNickname,
-          likes: p.likes,
-        }))
-      );
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
     } finally {
@@ -134,22 +99,6 @@ const CommunityPage = () => {
     }
   };
 
-  // posts가 변경될 때마다 추천 글 업데이트
-  useEffect(() => {
-    if (posts.length > 0) {
-      const sorted = [...posts]
-        .sort((a, b) => b.likes - a.likes)
-        .slice(0, 3);
-      setFeaturedPosts(
-        sorted.map((p) => ({
-          id: p.id,
-          title: p.title,
-          authorNickname: p.authorNickname,
-          likes: p.likes,
-        }))
-      );
-    }
-  }, [posts]);
   // WriteModal 관련 함수들
   const handleOpenCreate = () => {
     setEditingPost(null);
@@ -379,12 +328,11 @@ const CommunityPage = () => {
         </header>
         {/* Dashboard Panels */}
         <CommunityDashboard
-          featuredPosts={featuredPosts}
+          featuredPosts={[...posts].sort((a, b) => b.likes - a.likes).slice(0, 3).map(p => ({ id: p.id, title: p.title, authorNickname: p.authorNickname, likes: p.likes }))}
           ranking={ranking}
           hotTopic={hotTopic}
-          topDetective={topDetective}
           onTagClick={handleTagClick}
-          loading={dashboardLoading}
+          loading={dashboardLoading || !initialized}
         />
 
         {/* Post Table */}
