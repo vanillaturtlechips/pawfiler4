@@ -15,6 +15,9 @@ import (
 
 // GetComments - 댓글 목록 조회
 func (h *Handler) GetComments(ctx context.Context, req *pb.GetCommentsRequest) (*pb.CommentsResponse, error) {
+	if req.PostId == "" {
+		return nil, status.Error(codes.InvalidArgument, "post_id is required")
+	}
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT id, post_id, author_id, author_nickname, author_emoji, content, created_at::text
 		FROM community.comments
@@ -43,6 +46,9 @@ func (h *Handler) GetComments(ctx context.Context, req *pb.GetCommentsRequest) (
 
 // CreateComment - 댓글 작성
 func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentRequest) (*pb.Comment, error) {
+	if req.PostId == "" || req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
+	}
 	if req.Body == "" {
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
@@ -99,6 +105,9 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 
 // DeleteComment - 댓글 삭제
 func (h *Handler) DeleteComment(ctx context.Context, req *pb.DeleteCommentRequest) (*pb.DeleteCommentResponse, error) {
+	if req.CommentId == "" || req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "comment_id and user_id are required")
+	}
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to delete comment")

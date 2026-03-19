@@ -111,7 +111,7 @@ const CommunityPostPage = () => {
     setSubmitting(true);
     try {
       const newComment = await createCommunityComment({
-        postId: postId || "1", userId: user.id,
+        postId: postId!, userId: user.id,
         authorNickname: user.nickname || "익명 탐정", authorEmoji: user.avatarEmoji || "🕵️", body: commentText,
       });
       setComments(prev => [...prev, newComment]);
@@ -125,7 +125,7 @@ const CommunityPostPage = () => {
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm("정말 이 댓글을 삭제하시겠습니까?")) return;
     try {
-      await deleteCommunityComment(commentId);
+      await deleteCommunityComment(commentId, user!.id);
       setComments(prev => prev.filter(c => c.id !== commentId));
       toast.success("댓글이 삭제되었습니다.");
       if (post) setPost({ ...post, comments: post.comments - 1 });
@@ -368,10 +368,12 @@ const CommunityPostPage = () => {
           <button
             onClick={async () => {
               if (!user) { toast.error("로그인이 필요합니다."); return; }
+              const prevLiked = liked;
+              const prevLikes = post.likes;
               try {
-                if (liked) { await unlikePost(post.id, user.id); setPost({ ...post, likes: post.likes - 1 }); setLiked(false); }
-                else { const r = await likePost(post.id, user.id); if (!r.alreadyLiked) setPost({ ...post, likes: post.likes + 1 }); setLiked(true); }
-              } catch { toast.error("좋아요 처리에 실패했습니다."); }
+                if (liked) { setLiked(false); setPost({ ...post, likes: post.likes - 1 }); await unlikePost(post.id, user.id); }
+                else { setLiked(true); setPost({ ...post, likes: post.likes + 1 }); const r = await likePost(post.id, user.id); if (r.alreadyLiked) setPost({ ...post, likes: prevLikes }); }
+              } catch { toast.error("좋아요 처리에 실패했습니다."); setLiked(prevLiked); setPost({ ...post, likes: prevLikes }); }
             }}
             className={`flex items-center gap-1.5 font-jua text-sm rounded-xl px-3 py-1.5 transition-all
               ${liked ? 'text-red-500' : 'text-wood-dark hover:text-orange-600'}`}

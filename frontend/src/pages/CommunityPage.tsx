@@ -163,7 +163,7 @@ const CommunityPage = () => {
     setFormBody(post.body);
     setFormTags(post.tags.join(", "));
     setMediaPreview(post.mediaUrl || null);
-    setMediaType(post.mediaType || null);
+    setMediaType((post.mediaType as MediaType) || null);
     setIsCorrect(post.isCorrect);
     setWriteModalOpen(true);
   };
@@ -255,8 +255,21 @@ const CommunityPage = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formTitle.trim() || !formBody.trim()) {
+    if (!formTitle.trim() && !formBody.trim()) {
       toast.error("제목과 내용을 입력해주세요.");
+      return;
+    }
+    if (!formTitle.trim()) {
+      toast.error("제목을 입력해주세요.");
+      return;
+    }
+    if (!formBody.trim()) {
+      toast.error("내용을 입력해주세요.");
+      return;
+    }
+
+    if (!editingPost && !mediaFile) {
+      toast.error("미디어(이미지 또는 영상)를 첨부해주세요.");
       return;
     }
 

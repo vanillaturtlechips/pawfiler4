@@ -160,6 +160,7 @@ export const createCommunityPost = async (req: {
       mediaUrl: data.mediaUrl || data.media_url,
       mediaType: data.media_type || data.mediaType,
       isAdminPost: data.isAdminPost || data.is_admin_post || false,
+      isCorrect: data.isCorrect ?? data.is_correct,
     };
   } catch (error) {
     return handleApiError(error, '게시글 작성');
@@ -338,7 +339,6 @@ export const createCommunityComment = async (req: {
       authorNickname: data.authorNickname || data.author_nickname || req.authorNickname,
       authorEmoji: data.authorEmoji || data.author_emoji || req.authorEmoji,
       body: data.body || req.body,
-      likes: data.likes || 0,
       createdAt: data.createdAt || data.created_at || new Date().toISOString(),
       userId: data.authorId || data.author_id || req.userId,
     };
@@ -347,14 +347,14 @@ export const createCommunityComment = async (req: {
   }
 };
 
-export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
+export const deleteCommunityComment = async (commentId: string, userId: string): Promise<{ success: boolean }> => {
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeleteComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ comment_id: commentId }),
+      body: JSON.stringify({ comment_id: commentId, user_id: userId }),
     });
 
     if (!response.ok) {
