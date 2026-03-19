@@ -259,9 +259,9 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
     // gRPC snake_case를 camelCase로 변환
     const transformedComments: CommunityComment[] = data.comments?.map((comment: any) => ({
       id: comment.id,
-      postId: comment.post_id,
+      postId: comment.postId || comment.post_id,
       authorNickname: comment.authorNickname || comment.author_nickname || "익명",
-      authorEmoji: comment.author_emoji || "👤",
+      authorEmoji: comment.authorEmoji || comment.author_emoji || "👤",
       body: comment.body,
       createdAt: comment.createdAt || comment.created_at || new Date().toISOString(),
       userId: comment.authorId || comment.author_id,
