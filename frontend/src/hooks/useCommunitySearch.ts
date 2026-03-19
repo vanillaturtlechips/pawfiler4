@@ -6,6 +6,7 @@ import { toast } from "sonner";
 export function useCommunitySearch(token: string | null) {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [query, setQuery] = useState("");
@@ -30,6 +31,7 @@ export function useCommunitySearch(token: string | null) {
       toast.error("게시글을 불러오는데 실패했습니다.");
     } finally {
       setLoading(false);
+      setInitialized(true);
     }
   };
 
@@ -56,6 +58,7 @@ export function useCommunitySearch(token: string | null) {
     posts,
     setPosts,
     loading,
+    initialized,
     page,
     totalCount,
     setTotalCount,
