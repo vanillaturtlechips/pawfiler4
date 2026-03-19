@@ -148,6 +148,12 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 	if req.Body == "" {
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
+	if req.MediaUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "Media is required")
+	}
+	if req.IsCorrect == nil {
+		return nil, status.Error(codes.InvalidArgument, "isCorrect is required")
+	}
 
 	// user 서비스 gRPC 호출로 최신 닉네임/아바타 조회
 	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
@@ -206,18 +212,23 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 
+	if strings.TrimSpace(req.Title) == "" {
+		return nil, status.Error(codes.InvalidArgument, "Title is required")
+	}
+
 	var post pb.Post
 	var tags []string
+	var mediaUrl, mediaType sql.NullString
 	err = tx.QueryRowContext(ctx, `
 		UPDATE community.posts
 		SET title = $1, body = $2, tags = $3, updated_at = NOW()
 		WHERE id = $4
 		RETURNING id, author_id, author_nickname, author_emoji, title, body, 
-		          likes, comments, created_at::text, tags
+		          likes, comments, created_at::text, tags, media_url, media_type
 	`, req.Title, req.Body, pq.Array(req.Tags), req.PostId).Scan(
 		&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt, 
-		(*pq.StringArray)(&tags))
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
+		(*pq.StringArray)(&tags), &mediaUrl, &mediaType)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to update post")
@@ -228,6 +239,8 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 	}
 
 	post.Tags = tags
+	post.MediaUrl = mediaUrl.String
+	post.MediaType = mediaType.String
 	return &post, nil
 }
 
