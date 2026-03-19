@@ -132,8 +132,8 @@ resource "aws_iam_role_policy" "ai_agent_bedrock" {
         "bedrock:InvokeModelWithResponseStream"
       ]
       Resource = [
-        "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
-        "arn:aws:bedrock:ap-northeast-2:009946608368:inference-profile/ap.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:inference-profile/*"
       ]
     }]
   })
