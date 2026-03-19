@@ -1,0 +1,90 @@
+# Ray Serve 배포 설정
+# 적용: serve deploy serve_config.yaml
+#
+# 이 파일은 각 Deployment의 리소스 할당, 오토스케일링 정책,
+# 모델 경로 등을 선언적으로 관리합니다.
+
+proxy_location: EveryNode
+
+http_options:
+  host: 0.0.0.0
+  port: 8000
+  request_timeout_s: 30
+
+applications:
+  - name: pawfiler
+    route_prefix: /
+    import_path: app:deployment_graph
+
+    deployments:
+      # ── Layer 1: GPU 싱글톤 ──
+      - name: shared_model_worker
+        num_replicas: 1
+        ray_actor_options:
+          num_gpus: 1
+          num_cpus: 2
+        max_ongoing_requests: 32
+        user_config:
+          model_dir: /mnt/efs/models
+
+      # ── Cascade Gate (CPU) ──
+      - name: xgboost_gate
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 1
+        max_ongoing_requests: 64
+        # 오토스케일링: 트래픽에 따라 1~4개
+        autoscaling_config:
+          min_replicas: 1
+          max_replicas: 4
+          target_ongoing_requests: 32
+
+      # ── Layer 2: 에이전트 ──
+      - name: video_agent
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 1
+        max_ongoing_requests: 16
+        autoscaling_config:
+          min_replicas: 1
+          max_replicas: 4
+          target_ongoing_requests: 8
+
+      - name: audio_agent
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 1
+        max_ongoing_requests: 16
+        autoscaling_config:
+          min_replicas: 1
+          max_replicas: 4
+          target_ongoing_requests: 8
+
+      - name: sync_agent
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 1
+        max_ongoing_requests: 8
+
+      - name: fusion_agent
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 1
+        max_ongoing_requests: 16
+
+      # ── Layer 3: Orchestrator (Ingress) ──
+      - name: orchestrator
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 1
+        max_ongoing_requests: 32
+        autoscaling_config:
+          min_replicas: 1
+          max_replicas: 4
+          target_ongoing_requests: 16
+
+      # ── Layer 4: Metrics ──
+      - name: metrics_collector
+        num_replicas: 1
+        ray_actor_options:
+          num_cpus: 0.5
