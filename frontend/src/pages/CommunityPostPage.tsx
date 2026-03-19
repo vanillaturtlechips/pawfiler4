@@ -106,26 +106,26 @@ const CommunityPostPage = () => {
 
   const handleLike = useCallback(async () => {
     if (!user) { toast.error("로그인이 필요합니다."); return; }
-    setPost(prev => {
-      if (!prev) return prev;
-      const newLiked = !liked;
-      setLiked(newLiked);
-      return { ...prev, likes: prev.likes + (newLiked ? 1 : -1) };
-    });
+    const wasLiked = liked;
+    // optimistic update
+    setLiked(!wasLiked);
+    setPost(prev => prev ? { ...prev, likes: prev.likes + (wasLiked ? -1 : 1) } : prev);
     try {
-      if (liked) {
+      if (wasLiked) {
         await unlikePost(post!.id, user.id);
       } else {
         const r = await likePost(post!.id, user.id);
         if (r.alreadyLiked) {
+          // 이미 좋아요 상태 → optimistic +1 롤백
           setLiked(true);
-          setPost(prev => prev ? { ...prev, likes: prev.likes } : prev);
+          setPost(prev => prev ? { ...prev, likes: prev.likes - 1 } : prev);
         }
       }
     } catch {
       toast.error("좋아요 처리에 실패했습니다.");
-      setLiked(liked);
-      setPost(prev => prev ? { ...prev, likes: prev.likes + (liked ? 1 : -1) } : prev);
+      // 실패 시 원래 상태로 롤백
+      setLiked(wasLiked);
+      setPost(prev => prev ? { ...prev, likes: prev.likes + (wasLiked ? 1 : -1) } : prev);
     }
   }, [user, liked, post]);
 

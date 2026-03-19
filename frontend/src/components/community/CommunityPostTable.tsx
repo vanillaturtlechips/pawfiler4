@@ -135,7 +135,7 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
                       className="flex items-center justify-center gap-0.5"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {user && (post.userId === user.id || post.authorNickname === user.nickname) && (
+                      {user && post.userId === user.id && (
                         <>
                           <Button
                             variant="ghost"
