@@ -37,6 +37,7 @@ jobs:
             frontend: 'frontend/**'
             admin_frontend: 'admin-frontend/**'
             report: 'backend/services/report/**'
+            chat-bot: 'backend/services/chat-bot/**'
 
       - name: Generate Matrix
         id: set-matrix
@@ -133,6 +134,7 @@ jobs:
           VITE_USE_MOCK_AUTH: "false"
           VITE_USE_MOCK_API: "false"
           VITE_REPORT_BASE_URL: ${{ secrets.VITE_REPORT_BASE_URL }}
+          VITE_AI_AGENT_BASE_URL: ${{ secrets.VITE_AI_AGENT_BASE_URL }}
         run: |
           npm ci
           npm run build
