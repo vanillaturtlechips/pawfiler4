@@ -18,6 +18,7 @@ import CommunitySearch from "@/components/community/CommunitySearch";
 import CommunityPostTable from "@/components/community/CommunityPostTable";
 import CommunityPagination from "@/components/community/CommunityPagination";
 import WriteModal from "@/components/community/WriteModal";
+import ChatbotWidget from "@/components/community/ChatbotWidget";
 import { useCommunitySearch } from "@/hooks/useCommunitySearch";
 
 const CommunityPage = () => {
@@ -360,6 +361,9 @@ const CommunityPage = () => {
           onSubmit={handleSubmit}
         />
       </div>
+
+      {/* AI 챗봇 위젯 */}
+      <ChatbotWidget />
     </div>
   );
 };
