@@ -92,3 +92,49 @@ resource "aws_iam_role_policy" "community_service_s3" {
     }]
   })
 }
+
+# ============================================================================
+# IAM Role for AI Agent Service (Bedrock 챗봇)
+# ============================================================================
+
+resource "aws_iam_role" "ai_agent_service" {
+  name = "${var.project_name}-ai-agent-service-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:${var.project_name}:ai-agent-service-sa"
+          "${replace(var.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+# Bedrock InvokeModel Policy for AI Agent Service
+resource "aws_iam_role_policy" "ai_agent_bedrock" {
+  name = "bedrock-access"
+  role = aws_iam_role.ai_agent_service.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ]
+      Resource = [
+        "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
+        "arn:aws:bedrock:ap-northeast-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0"
+      ]
+    }]
+  })
+}

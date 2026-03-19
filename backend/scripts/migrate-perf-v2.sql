@@ -155,6 +155,10 @@ ALTER TABLE user_svc.shop_purchases
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_posts_author_id
     ON community.posts (author_id);
 
+-- community.comments: author_id 인덱스 (프로필 변경 시 UPDATE 최적화)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_comments_author_id
+    ON community.comments (author_id);
+
 -- quiz.user_profiles ↔ community.posts JOIN 최적화
 -- ranking.go: qp.user_id::text = p.author_id — 타입 캐스트로 인덱스 미사용
 -- 이 인덱스는 user_id를 text로 검색할 때 사용됨
@@ -229,6 +233,7 @@ COMMIT;
 -- DROP INDEX CONCURRENTLY IF EXISTS idx_posts_title_trgm;
 -- DROP INDEX CONCURRENTLY IF EXISTS idx_posts_body_trgm;
 -- DROP INDEX CONCURRENTLY IF EXISTS idx_posts_author_id;
+-- DROP INDEX CONCURRENTLY IF EXISTS idx_comments_author_id;
 -- DROP INDEX CONCURRENTLY IF EXISTS idx_quiz_profiles_user_id_text;
 -- DROP INDEX CONCURRENTLY IF EXISTS idx_quiz_stats_user_id_text;
 -- DROP INDEX CONCURRENTLY IF EXISTS idx_user_answers_recent_correct;

@@ -562,7 +562,7 @@ const ProfilePage = () => {
                   </div>
 
                   {/* XP 진행도 */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 shadow-sm">
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 shadow-sm mb-5">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-2xl">⭐</span>
                       <h4 className="font-jua text-lg text-wood-darkest">레벨 진행도</h4>
@@ -591,6 +591,43 @@ const ProfilePage = () => {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* 리포트 다운로드 */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-6 h-6 text-indigo-500" />
+                      <h4 className="font-jua text-lg text-wood-darkest">활동 리포트 다운로드</h4>
+                    </div>
+                    <p className="font-jua text-sm text-wood-dark mb-3">
+                      선택한 기간의 퀴즈 데이터를 기반으로 오답 히트맵과 개선 포인트를 담은 리포트를 생성해요.
+                    </p>
+                    <div className="flex gap-2 mb-2">
+                      <Select value={reportDays} onValueChange={setReportDays}>
+                        <SelectTrigger className="font-jua text-sm rounded-xl border-2 border-indigo-200 bg-white flex-1">
+                          <SelectValue placeholder="기간 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7">최근 7일</SelectItem>
+                          <SelectItem value="30">최근 30일</SelectItem>
+                          <SelectItem value="90">최근 90일</SelectItem>
+                          <SelectItem value="all">전체 기간</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={handleGenerateReport}
+                        disabled={reportLoading}
+                        className="font-jua text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-4 rounded-xl"
+                      >
+                        {reportLoading
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : "📥 다운로드"
+                        }
+                      </Button>
+                    </div>
+                    {reportError && (
+                      <p className="font-jua text-sm text-red-500">{reportError}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -724,43 +761,6 @@ const ProfilePage = () => {
                         </Badge>
                       </div>
                     </div>
-                  </div>
-
-                  {/* 리포트 다운로드 */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 mb-4 shadow-sm">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FileText className="w-6 h-6 text-indigo-500" />
-                      <h4 className="font-jua text-lg text-wood-darkest">활동 리포트 다운로드</h4>
-                    </div>
-                    <p className="font-jua text-sm text-wood-dark mb-3">
-                      선택한 기간의 퀴즈 데이터를 기반으로 오답 히트맵과 개선 포인트를 담은 리포트를 생성해요.
-                    </p>
-                    <div className="flex gap-2 mb-2">
-                      <Select value={reportDays} onValueChange={setReportDays}>
-                        <SelectTrigger className="font-jua text-sm rounded-xl border-2 border-indigo-200 bg-white flex-1">
-                          <SelectValue placeholder="기간 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="7">최근 7일</SelectItem>
-                          <SelectItem value="30">최근 30일</SelectItem>
-                          <SelectItem value="90">최근 90일</SelectItem>
-                          <SelectItem value="all">전체 기간</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        onClick={handleGenerateReport}
-                        disabled={reportLoading}
-                        className="font-jua text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-4 rounded-xl"
-                      >
-                        {reportLoading
-                          ? <Loader2 className="w-4 h-4 animate-spin" />
-                          : "📥 다운로드"
-                        }
-                      </Button>
-                    </div>
-                    {reportError && (
-                      <p className="font-jua text-sm text-red-500">{reportError}</p>
-                    )}
                   </div>
 
                   {/* 프리미엄 업그레이드 */}

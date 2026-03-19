@@ -463,6 +463,23 @@ func (r *GormQuizRepository) UpdateUserProfile(ctx context.Context, profile *Use
 	return nil
 }
 
+// UpdateEnergy updates only energy-related fields, leaving XP/coins/tier untouched.
+// Must be used for energy deduction to prevent stale cache from overwriting AddRewards updates.
+func (r *GormQuizRepository) UpdateEnergy(ctx context.Context, userID string, energy int32, lastRefill time.Time) error {
+	result := r.db.WithContext(ctx).Model(&GormUserProfile{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]interface{}{
+			"energy":             energy,
+			"last_energy_refill": lastRefill,
+			"updated_at":         time.Now(),
+		})
+	if result.Error != nil {
+		return fmt.Errorf("failed to update energy: %w", result.Error)
+	}
+	r.redis.Del(ctx, fmt.Sprintf("quiz:user_profile:%s", userID))
+	return nil
+}
+
 // UpdateNicknameAvatar updates only nickname and avatar_emoji, leaving coins/exp/energy untouched.
 // This prevents stale Redis cache from clobbering coin values written by user-service AddRewards.
 func (r *GormQuizRepository) UpdateNicknameAvatar(ctx context.Context, userID, nickname, avatarEmoji string) error {

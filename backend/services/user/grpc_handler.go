@@ -3,18 +3,21 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
 	pb "user-service/pb"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type userServiceServer struct {
 	pb.UnimplementedUserServiceServer
-	db *sql.DB
+	db    *sql.DB
+	redis *redis.Client // quiz 캐시 무효화용, nil이면 스킵
 }
 
 func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) (*pb.UserProfile, error) {
@@ -22,12 +25,15 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
-	// 첫 조회 시 기본 row 자동 생성
-	s.db.ExecContext(ctx, `
+	// 첫 조회 시 기본 row 자동 생성 — INSERT 실패 시 로그 기록
+	// $1=uuid, $2=text(닉네임 prefix용)로 타입 분리하여 pq 타입 추론 충돌 방지
+	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1, '탐정_' || UPPER(SUBSTRING($1::text, 1, 8)), '🦊', NOW())
+		VALUES ($1::uuid, '탐정_' || UPPER(SUBSTRING($2, 1, 8)), '🦊', NOW())
 		ON CONFLICT (user_id) DO NOTHING
-	`, req.UserId)
+	`, req.UserId, req.UserId); err != nil {
+		log.Printf("[GetProfile] preferences auto-insert failed for %s: %v", req.UserId, err)
+	}
 
 	// 8개 독립 쿼리 → 단일 쿼리로 통합 (DB 왕복 8회 → 1회)
 	// LATERAL 서브쿼리로 필드별 기본값 fallback 유지
@@ -52,20 +58,20 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 			COALESCE(qs.correct_count,   0)   AS correct_count,
 			COALESCE(qs.current_streak,  0)   AS current_streak,
 			COALESCE(qs.best_streak,     0)   AS best_streak,
-			(SELECT COUNT(*)            FROM community.posts    WHERE author_id = $1::text)  AS community_posts,
-			(SELECT COALESCE(SUM(likes),0) FROM community.posts WHERE author_id = $1::text)  AS total_likes,
-			(SELECT COUNT(*)            FROM community.comments WHERE author_id = $1::text)  AS total_comments,
-			(SELECT COUNT(*)            FROM video_analysis.tasks WHERE user_id = $1)        AS total_analysis,
-			(SELECT COUNT(*)            FROM video_analysis.tasks t
+			(SELECT COUNT(*)               FROM community.posts    WHERE author_id = $1)  AS community_posts,
+			(SELECT COALESCE(SUM(likes),0) FROM community.posts    WHERE author_id = $1)  AS total_likes,
+			(SELECT COUNT(*)               FROM community.comments WHERE author_id = $1)  AS total_comments,
+			(SELECT COUNT(*)               FROM video_analysis.tasks WHERE user_id = $1::uuid)        AS total_analysis,
+			(SELECT COUNT(*)               FROM video_analysis.tasks t
 			 JOIN video_analysis.results r ON t.id = r.task_id
-			 WHERE t.user_id = $1 AND r.verdict != 'REAL')                                  AS suspicious_videos,
+			 WHERE t.user_id = $1::uuid AND r.verdict != 'REAL')                                      AS suspicious_videos,
 			(SELECT COALESCE(AVG(r.confidence_score)*100, 0)
 			 FROM video_analysis.tasks t JOIN video_analysis.results r ON t.id = r.task_id
-			 WHERE t.user_id = $1)                                                           AS avg_confidence
+			 WHERE t.user_id = $1::uuid)                                                              AS avg_confidence
 		FROM user_svc.preferences p
 		LEFT JOIN quiz.user_profiles qp ON qp.user_id = p.user_id
 		LEFT JOIN quiz.user_stats    qs ON qs.user_id  = p.user_id
-		WHERE p.user_id = $1
+		WHERE p.user_id = $1::uuid
 	`, req.UserId).Scan(
 		&nickname, &avatarEmoji,
 		&totalExp, &totalCoins, &energy, &maxEnergy,
@@ -127,7 +133,7 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 	var nickname, avatar string
 	err := s.db.QueryRowContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1, COALESCE($2, '탐정'), COALESCE($3, '🦊'), NOW())
+		VALUES ($1::uuid, COALESCE($2, '탐정'), COALESCE($3, '🦊'), NOW())
 		ON CONFLICT (user_id) DO UPDATE
 		SET
 			nickname     = COALESCE($2::varchar, user_svc.preferences.nickname),
@@ -139,6 +145,24 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 		log.Printf("UpdateProfile error: %v", err)
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
+
+	// community.posts/comments author 정보 비동기 동기화
+	// 인덱스(idx_posts_author_id, idx_comments_author_id) 적용 후 부하 없음
+	// 프로필 변경 응답을 블로킹하지 않도록 goroutine 처리
+	go func(userID, nick, avi string) {
+		bgCtx := context.Background()
+		if _, err := s.db.ExecContext(bgCtx,
+			`UPDATE community.posts SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3`,
+			nick, avi, userID); err != nil {
+			log.Printf("[UpdateProfile] failed to sync community posts for %s: %v", userID, err)
+		}
+		if _, err := s.db.ExecContext(bgCtx,
+			`UPDATE community.comments SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3`,
+			nick, avi, userID); err != nil {
+			log.Printf("[UpdateProfile] failed to sync community comments for %s: %v", userID, err)
+		}
+	}(req.UserId, nickname, avatar)
+
 	return &pb.UpdateProfileResponse{Success: true, Nickname: nickname, AvatarEmoji: avatar}, nil
 }
 
@@ -346,6 +370,14 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "failed to commit")
+	}
+
+	// quiz-service Redis 캐시 무효화 — stale 캐시가 AddRewards 결과를 덮어쓰는 문제 방지
+	if s.redis != nil {
+		cacheKey := fmt.Sprintf("quiz:user_profile:%s", req.UserId)
+		if delErr := s.redis.Del(context.Background(), cacheKey).Err(); delErr != nil {
+			log.Printf("[AddRewards] redis cache delete failed for %s: %v", req.UserId, delErr)
+		}
 	}
 
 	level := levelFromExp(int(totalExp))
