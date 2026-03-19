@@ -133,7 +133,8 @@ resource "aws_iam_role_policy" "ai_agent_bedrock" {
       ]
       Resource = [
         "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
-        "arn:aws:bedrock:ap-northeast-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0"
+        "arn:aws:bedrock:ap-northeast-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:ap-northeast-2:009946608368:inference-profile/ap.anthropic.claude-sonnet-4-5-20250929-v1:0"
       ]
     }]
   })
