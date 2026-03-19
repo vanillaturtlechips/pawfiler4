@@ -67,6 +67,9 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 
 // GetVoteResult - 투표 결과 조회
 func (h *Handler) GetVoteResult(ctx context.Context, req *pb.GetVoteResultRequest) (*pb.VoteResult, error) {
+	if req.PostId == "" {
+		return nil, status.Error(codes.InvalidArgument, "post_id is required")
+	}
 	var trueVotes, falseVotes int32
 	err := h.db.QueryRowContext(ctx, `
 		SELECT 
@@ -82,6 +85,9 @@ func (h *Handler) GetVoteResult(ctx context.Context, req *pb.GetVoteResultReques
 
 // GetUserVote - 유저 투표 여부 확인
 func (h *Handler) GetUserVote(ctx context.Context, req *pb.GetUserVoteRequest) (*pb.GetUserVoteResponse, error) {
+	if req.PostId == "" || req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
+	}
 	var vote bool
 	err := h.db.QueryRowContext(ctx,
 		"SELECT vote FROM community.post_votes WHERE post_id = $1 AND user_id = $2",

@@ -114,7 +114,7 @@ func (s *quizServiceImpl) GetRandomQuestion(ctx context.Context, userID string, 
 		return nil, fmt.Errorf("failed to update energy: %w", err)
 	}
 
-	question, err := s.repo.GetRandomQuestion(ctx, difficulty, repoQuestionType)
+	question, err := s.repo.GetRandomQuestion(ctx, userID, difficulty, repoQuestionType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get random question: %w", err)
 	}

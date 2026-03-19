@@ -93,8 +93,8 @@ func (r *GormQuizRepository) StartAutoRefresh(interval time.Duration) {
 	}()
 }
 
-// GetRandomQuestion 메모리에서 랜덤 문제 선택 (초고속)
-func (r *GormQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *string, questionType *QuestionType) (*Question, error) {
+// GetRandomQuestion 메모리에서 랜덤 문제 선택 (중복 방지)
+func (r *GormQuizRepository) GetRandomQuestion(ctx context.Context, userID string, difficulty *string, questionType *QuestionType) (*Question, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -102,36 +102,52 @@ func (r *GormQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *
 		return nil, fmt.Errorf("no questions loaded in cache")
 	}
 
-	// 필터 없음: 랜덤 선택
-	if difficulty == nil && questionType == nil {
-		idx := rand.Intn(len(r.questions))
-		return &r.questions[idx], nil
-	}
-
-	// 필터 적용: 메모리에서 필터링
-	var filtered []Question
+	// 필터 적용
+	var candidates []Question
 	for _, q := range r.questions {
-		match := true
-
 		if difficulty != nil && string(q.Difficulty) != *difficulty {
-			match = false
+			continue
 		}
-
 		if questionType != nil && q.Type != *questionType {
-			match = false
+			continue
 		}
-
-		if match {
-			filtered = append(filtered, q)
-		}
+		candidates = append(candidates, q)
 	}
 
-	if len(filtered) == 0 {
+	if len(candidates) == 0 {
 		return nil, fmt.Errorf("no questions found matching criteria")
 	}
 
-	idx := rand.Intn(len(filtered))
-	return &filtered[idx], nil
+	// Redis에서 최근 본 문제 ID 조회
+	seenKey := fmt.Sprintf("quiz:seen:%s", userID)
+	seenIDs, _ := r.redis.SMembers(ctx, seenKey).Result()
+	seenSet := make(map[string]struct{}, len(seenIDs))
+	for _, id := range seenIDs {
+		seenSet[id] = struct{}{}
+	}
+
+	// 아직 안 본 문제 필터링
+	var unseen []Question
+	for _, q := range candidates {
+		if _, alreadySeen := seenSet[q.ID]; !alreadySeen {
+			unseen = append(unseen, q)
+		}
+	}
+
+	// 전부 봤으면 seen 초기화 후 전체에서 선택
+	pool := unseen
+	if len(pool) == 0 {
+		r.redis.Del(ctx, seenKey)
+		pool = candidates
+	}
+
+	question := &pool[rand.Intn(len(pool))]
+
+	// 선택된 문제 seen 세트에 추가 (24시간 TTL)
+	r.redis.SAdd(ctx, seenKey, question.ID)
+	r.redis.Expire(ctx, seenKey, 24*time.Hour)
+
+	return question, nil
 }
 
 // GetQuestionById ID로 특정 문제 조회 (메모리에서 검색)
