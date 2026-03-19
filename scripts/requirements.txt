@@ -1,0 +1,6 @@
+webdataset==0.2.111
+timm
+opencv-python-headless
+xgboost
+scikit-learn
+numpy<2.0
