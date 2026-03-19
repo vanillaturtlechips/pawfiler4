@@ -2,26 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 시스템 의존성 설치
+# 시스템 의존성 설치 (비디오 서빙용 최소)
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    pkg-config \
-    libavformat-dev \
-    libavcodec-dev \
-    libavdevice-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libswresample-dev \
-    libavfilter-dev \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
 # 의존성 설치
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir timm==0.9.12
+RUN pip install --no-cache-dir -r requirements.txt
 
 # gRPC health probe
 RUN wget -qO /bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.24/grpc_health_probe-linux-amd64 && \
