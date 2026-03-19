@@ -1,5 +1,4 @@
-import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchRanking } from "@/lib/api";
@@ -140,30 +139,28 @@ const CommunityPage = () => {
     }
   };
 
-  // 미디어 파일 처리
-  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // 미디어 파일 처리 (공통)
+  const processMediaFile = (file: File) => {
     if (file.size > 100 * 1024 * 1024) {
       toast.error("파일 크기는 100MB 이하여야 합니다.");
       return;
     }
-
     const isVideo = file.type.startsWith("video/");
     const isImage = file.type.startsWith("image/");
-
     if (!isVideo && !isImage) {
       toast.error("이미지 또는 비디오 파일만 업로드 가능합니다.");
       return;
     }
-
     setMediaFile(file);
     setMediaType(isVideo ? "video" : "image");
-
     const reader = new FileReader();
     reader.onload = (e) => setMediaPreview(e.target?.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processMediaFile(file);
   };
   // 드래그 앤 드롭
   const handleDragOver = (e: React.DragEvent) => {
@@ -179,29 +176,8 @@ const CommunityPage = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
     const file = e.dataTransfer.files[0];
-    if (file) {
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error("파일 크기는 100MB 이하여야 합니다.");
-        return;
-      }
-
-      const isVideo = file.type.startsWith("video/");
-      const isImage = file.type.startsWith("image/");
-
-      if (!isVideo && !isImage) {
-        toast.error("이미지 또는 비디오 파일만 업로드 가능합니다.");
-        return;
-      }
-
-      setMediaFile(file);
-      setMediaType(isVideo ? "video" : "image");
-
-      const reader = new FileReader();
-      reader.onload = (e) => setMediaPreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (file) processMediaFile(file);
   };
 
   const clearMedia = () => {
@@ -286,6 +262,11 @@ const CommunityPage = () => {
     }
   };
 
+  const featuredPosts = useMemo(
+    () => [...posts].sort((a, b) => b.likes - a.likes).slice(0, 3).map(p => ({ id: p.id, title: p.title, authorNickname: p.authorNickname, likes: p.likes })),
+    [posts]
+  );
+
   const handleTagClick = (tag: string) => {
     setQuery(tag);
   };
@@ -294,9 +275,7 @@ const CommunityPage = () => {
       className="h-[calc(100vh-5rem)] w-full overflow-y-auto"
       style={{ scrollbarGutter: "stable" }}
     >
-      <motion.div
-        className="flex flex-col gap-6 p-6 max-w-[1400px] mx-auto"
-      >
+      <div className="flex flex-col gap-6 p-6 max-w-[1400px] mx-auto">
         {/* Header Section */}
         <header className="flex flex-col gap-2.5">
           <div className="flex justify-between items-center">
@@ -328,7 +307,7 @@ const CommunityPage = () => {
         </header>
         {/* Dashboard Panels */}
         <CommunityDashboard
-          featuredPosts={[...posts].sort((a, b) => b.likes - a.likes).slice(0, 3).map(p => ({ id: p.id, title: p.title, authorNickname: p.authorNickname, likes: p.likes }))}
+          featuredPosts={featuredPosts}
           ranking={ranking}
           hotTopic={hotTopic}
           onTagClick={handleTagClick}
@@ -380,7 +359,7 @@ const CommunityPage = () => {
           onClearMedia={clearMedia}
           onSubmit={handleSubmit}
         />
-      </motion.div>
+      </div>
     </div>
   );
 };

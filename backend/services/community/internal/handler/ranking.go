@@ -25,19 +25,15 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT 
-			p.author_id,
-			p.author_nickname,
-			p.author_emoji,
+			qp.user_id::text,
+			qp.nickname,
+			qp.avatar_emoji,
 			COALESCE(qp.current_tier, '알') as current_tier,
 			COALESCE(qs.total_answered, 0) as total_answered,
 			COALESCE(qs.correct_answers, 0) as correct_answers,
 			COALESCE(qp.total_coins, 0) as total_coins
-		FROM (
-			SELECT DISTINCT author_id, author_nickname, author_emoji
-			FROM community.posts
-		) p
-		LEFT JOIN quiz.user_profiles qp ON qp.user_id::text = p.author_id
-		LEFT JOIN quiz.user_stats qs ON qs.user_id::text = p.author_id
+		FROM quiz.user_profiles qp
+		LEFT JOIN quiz.user_stats qs ON qs.user_id = qp.user_id
 		ORDER BY COALESCE(qs.correct_answers, 0) DESC
 		LIMIT 20
 	`)

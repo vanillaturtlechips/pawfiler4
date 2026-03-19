@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,7 @@ const CommunityPostPage = () => {
       } finally { setLoading(false); }
     };
     load();
-  }, [postId, user]);
+  }, [postId, user?.id]);
 
   // 선택지 클릭: 로컬 pendingVote만 변경 (API 호출 없음)
   const handleVote = (vote: boolean) => {
@@ -103,6 +103,31 @@ const CommunityPostPage = () => {
     } catch { toast.error("참여에 실패했습니다."); }
     finally { setVotingLoading(false); }
   };
+
+  const handleLike = useCallback(async () => {
+    if (!user) { toast.error("로그인이 필요합니다."); return; }
+    setPost(prev => {
+      if (!prev) return prev;
+      const newLiked = !liked;
+      setLiked(newLiked);
+      return { ...prev, likes: prev.likes + (newLiked ? 1 : -1) };
+    });
+    try {
+      if (liked) {
+        await unlikePost(post!.id, user.id);
+      } else {
+        const r = await likePost(post!.id, user.id);
+        if (r.alreadyLiked) {
+          setLiked(true);
+          setPost(prev => prev ? { ...prev, likes: prev.likes } : prev);
+        }
+      }
+    } catch {
+      toast.error("좋아요 처리에 실패했습니다.");
+      setLiked(liked);
+      setPost(prev => prev ? { ...prev, likes: prev.likes + (liked ? 1 : -1) } : prev);
+    }
+  }, [user, liked, post]);
 
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !user) { toast.error("댓글 내용을 입력해주세요."); return; }
@@ -365,15 +390,7 @@ const CommunityPostPage = () => {
         {/* 반응 버튼 */}
         <div className="flex items-center gap-2">
           <button
-            onClick={async () => {
-              if (!user) { toast.error("로그인이 필요합니다."); return; }
-              const prevLiked = liked;
-              const prevLikes = post.likes;
-              try {
-                if (liked) { setLiked(false); setPost({ ...post, likes: post.likes - 1 }); await unlikePost(post.id, user.id); }
-                else { setLiked(true); setPost({ ...post, likes: post.likes + 1 }); const r = await likePost(post.id, user.id); if (r.alreadyLiked) setPost({ ...post, likes: prevLikes }); }
-              } catch { toast.error("좋아요 처리에 실패했습니다."); setLiked(prevLiked); setPost({ ...post, likes: prevLikes }); }
-            }}
+          onClick={handleLike}
             className={`flex items-center gap-1.5 font-jua text-sm rounded-xl px-3 py-1.5 transition-all
               ${liked ? 'text-red-500' : 'text-wood-dark hover:text-orange-600'}`}
             style={{ background: "hsl(var(--parchment))", border: "1px solid hsl(var(--parchment-border))" }}

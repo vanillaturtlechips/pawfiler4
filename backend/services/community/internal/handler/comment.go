@@ -8,6 +8,7 @@ import (
 	"community/pb"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
@@ -53,15 +54,6 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
 
-	var exists bool
-	err := h.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM community.posts WHERE id = $1)", req.PostId).Scan(&exists)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to check post")
-	}
-	if !exists {
-		return nil, status.Error(codes.NotFound, "Post not found")
-	}
-
 	// Fetch authoritative profile from user service to prevent author spoofing.
 	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
 
@@ -80,6 +72,10 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 	`, commentID, req.PostId, req.UserId, nickname, avatarEmoji, req.Body, createdAt)
 
 	if err != nil {
+		// FK 위반 = post 없음
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
+			return nil, status.Error(codes.NotFound, "Post not found")
+		}
 		return nil, status.Error(codes.Internal, "Failed to create comment")
 	}
 

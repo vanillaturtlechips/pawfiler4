@@ -7,6 +7,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	userpb "community/internal/userpb"
@@ -17,8 +18,9 @@ import (
 
 // Client is a gRPC client for the user service.
 type Client struct {
-	conn   *grpc.ClientConn
-	svc    userpb.UserServiceClient
+	mu   sync.Mutex
+	conn *grpc.ClientConn
+	svc  userpb.UserServiceClient
 }
 
 // New creates a lazy-connecting user service gRPC client.
@@ -27,6 +29,8 @@ func New() *Client {
 }
 
 func (c *Client) ensureConnected() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.conn != nil {
 		return nil
 	}
