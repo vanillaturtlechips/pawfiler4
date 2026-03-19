@@ -30,6 +30,7 @@ const CommunityPage = () => {
     posts,
     setPosts,
     loading,
+    initialized,
     page,
     totalCount,
     setTotalCount,
@@ -40,6 +41,9 @@ const CommunityPage = () => {
     setSearchType,
     handlePageChange,
   } = useCommunitySearch(token);
+
+  // Dashboard loading state
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   // Dashboard State
   const [topDetective, setTopDetective] = useState<{
@@ -100,6 +104,7 @@ const CommunityPage = () => {
   }, [token]);
 
   const loadDashboardData = async () => {
+    setDashboardLoading(true);
     try {
       const [detectiveData, topicData, rankingData] = await Promise.all([
         fetchTopDetective(),
@@ -124,6 +129,8 @@ const CommunityPage = () => {
       );
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
+    } finally {
+      setDashboardLoading(false);
     }
   };
 
@@ -379,12 +386,14 @@ const CommunityPage = () => {
           hotTopic={hotTopic}
           topDetective={topDetective}
           onTagClick={handleTagClick}
+          loading={dashboardLoading}
         />
 
         {/* Post Table */}
         <CommunityPostTable
           posts={posts}
           loading={loading}
+          initialized={initialized}
           page={page}
           pageSize={pageSize}
           totalCount={totalCount}

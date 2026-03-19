@@ -10,6 +10,7 @@ import type { CommunityPost } from "@/lib/types";
 type PostTableProps = {
   posts: CommunityPost[];
   loading: boolean;
+  initialized: boolean;
   page: number;
   pageSize: number;
   totalCount: number;
@@ -28,13 +29,13 @@ const tableStyle: React.CSSProperties = {
 const HOVER_BG = "hsl(30 70% 96%)";
 const ROW_BORDER = "1px solid hsl(var(--parchment-border))";
 
-export default function CommunityPostTable({ posts, loading, page, pageSize, totalCount, onEdit, onDelete }: PostTableProps) {
+export default function CommunityPostTable({ posts, loading, initialized, page, pageSize, totalCount, onEdit, onDelete }: PostTableProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
 
   return (
     <div style={tableStyle}>
-      {loading ? (
+      {(loading || !initialized) ? (
         <div className="p-4 flex flex-col gap-2">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="flex items-center gap-4 px-3 py-2.5 rounded-lg" style={{ background: "hsl(var(--parchment-border))" }}>
