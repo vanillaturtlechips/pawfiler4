@@ -3,18 +3,21 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
 	pb "user-service/pb"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type userServiceServer struct {
 	pb.UnimplementedUserServiceServer
-	db *sql.DB
+	db    *sql.DB
+	redis *redis.Client // quiz 캐시 무효화용, nil이면 스킵
 }
 
 func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) (*pb.UserProfile, error) {
@@ -367,6 +370,14 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "failed to commit")
+	}
+
+	// quiz-service Redis 캐시 무효화 — stale 캐시가 AddRewards 결과를 덮어쓰는 문제 방지
+	if s.redis != nil {
+		cacheKey := fmt.Sprintf("quiz:user_profile:%s", req.UserId)
+		if delErr := s.redis.Del(context.Background(), cacheKey).Err(); delErr != nil {
+			log.Printf("[AddRewards] redis cache delete failed for %s: %v", req.UserId, delErr)
+		}
 	}
 
 	level := levelFromExp(int(totalExp))
