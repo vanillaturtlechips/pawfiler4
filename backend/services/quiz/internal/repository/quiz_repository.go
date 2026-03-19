@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // Common repository errors
@@ -49,6 +50,10 @@ type QuizRepository interface {
 
 	// UpdateUserProfile persists the current state of a UserProfile.
 	UpdateUserProfile(ctx context.Context, profile *UserProfile) error
+
+	// UpdateEnergy updates only energy fields, leaving XP/coins/tier untouched.
+	// Use this for energy deduction to prevent stale cache from overwriting AddRewards.
+	UpdateEnergy(ctx context.Context, userID string, energy int32, lastRefill time.Time) error
 
 	// UpdateNicknameAvatar updates only the nickname and avatar_emoji fields,
 	// leaving coins/exp/energy untouched to prevent stale-cache clobbering.
