@@ -31,7 +31,8 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 			COALESCE(qp.current_tier, '알') as current_tier,
 			COALESCE(qs.total_answered, 0) as total_answered,
 			COALESCE(qs.correct_answers, 0) as correct_answers,
-			COALESCE(qp.total_coins, 0) as total_coins
+			COALESCE(qp.total_coins, 0) as total_coins,
+			COALESCE(qp.total_exp, 0) as total_exp
 		FROM quiz.user_profiles qp
 		LEFT JOIN quiz.user_stats qs ON qs.user_id = qp.user_id
 		ORDER BY COALESCE(qs.correct_answers, 0) DESC
@@ -47,8 +48,8 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 	rank := int32(1)
 	for rows.Next() {
 		var userId, nickname, emoji, tier string
-		var totalAnswered, correctAnswers, totalCoins int32
-		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctAnswers, &totalCoins); err != nil {
+		var totalAnswered, correctAnswers, totalCoins, totalExp int32
+		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctAnswers, &totalCoins, &totalExp); err != nil {
 			continue
 		}
 		entries = append(entries, &pb.RankingEntry{
@@ -60,6 +61,7 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 			TotalAnswered:  totalAnswered,
 			CorrectAnswers: correctAnswers,
 			TotalCoins:     totalCoins,
+			Level:          calcLevel(tier, totalExp),
 		})
 		rank++
 	}
@@ -71,4 +73,62 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 	h.rankingCacheMu.Unlock()
 
 	return result, nil
+}
+
+// calcLevel mirrors quiz service UserProfile.Level() logic
+func calcLevel(tier string, totalExp int32) int32 {
+	switch tier {
+	case "불사조":
+		switch {
+		case totalExp >= 8000:
+			return 5
+		case totalExp >= 6000:
+			return 4
+		case totalExp >= 4000:
+			return 3
+		case totalExp >= 2000:
+			return 2
+		default:
+			return 1
+		}
+	case "맹금닭":
+		switch {
+		case totalExp >= 3200:
+			return 5
+		case totalExp >= 2400:
+			return 4
+		case totalExp >= 1600:
+			return 3
+		case totalExp >= 800:
+			return 2
+		default:
+			return 1
+		}
+	case "삐약이":
+		switch {
+		case totalExp >= 1600:
+			return 5
+		case totalExp >= 1200:
+			return 4
+		case totalExp >= 800:
+			return 3
+		case totalExp >= 400:
+			return 2
+		default:
+			return 1
+		}
+	default: // 알
+		switch {
+		case totalExp >= 800:
+			return 5
+		case totalExp >= 600:
+			return 4
+		case totalExp >= 400:
+			return 3
+		case totalExp >= 200:
+			return 2
+		default:
+			return 1
+		}
+	}
 }
