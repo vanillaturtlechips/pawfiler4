@@ -22,12 +22,14 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
-	// 첫 조회 시 기본 row 자동 생성
-	s.db.ExecContext(ctx, `
+	// 첫 조회 시 기본 row 자동 생성 — INSERT 실패 시 로그 기록
+	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
 		VALUES ($1, '탐정_' || UPPER(SUBSTRING($1::text, 1, 8)), '🦊', NOW())
 		ON CONFLICT (user_id) DO NOTHING
-	`, req.UserId)
+	`, req.UserId); err != nil {
+		log.Printf("[GetProfile] preferences auto-insert failed for %s: %v", req.UserId, err)
+	}
 
 	// 8개 독립 쿼리 → 단일 쿼리로 통합 (DB 왕복 8회 → 1회)
 	// LATERAL 서브쿼리로 필드별 기본값 fallback 유지
@@ -139,6 +141,24 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 		log.Printf("UpdateProfile error: %v", err)
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
+
+	// community.posts/comments author 정보 비동기 동기화
+	// 인덱스(idx_posts_author_id, idx_comments_author_id) 적용 후 부하 없음
+	// 프로필 변경 응답을 블로킹하지 않도록 goroutine 처리
+	go func(userID, nick, avi string) {
+		bgCtx := context.Background()
+		if _, err := s.db.ExecContext(bgCtx,
+			`UPDATE community.posts SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3`,
+			nick, avi, userID); err != nil {
+			log.Printf("[UpdateProfile] failed to sync community posts for %s: %v", userID, err)
+		}
+		if _, err := s.db.ExecContext(bgCtx,
+			`UPDATE community.comments SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3`,
+			nick, avi, userID); err != nil {
+			log.Printf("[UpdateProfile] failed to sync community comments for %s: %v", userID, err)
+		}
+	}(req.UserId, nickname, avatar)
+
 	return &pb.UpdateProfileResponse{Success: true, Nickname: nickname, AvatarEmoji: avatar}, nil
 }
 
