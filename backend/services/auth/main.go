@@ -35,14 +35,20 @@ func main() {
 	}
 
 	// Ensure auth schema and users table exist at startup.
+	// CREATE TABLE IF NOT EXISTS는 테이블이 없을 때만 생성하므로
+	// 기존 테이블에 컬럼이 없는 경우를 위해 ADD COLUMN IF NOT EXISTS도 함께 실행
 	if _, err := db.Exec(`
 		CREATE SCHEMA IF NOT EXISTS auth;
 		CREATE TABLE IF NOT EXISTS auth.users (
 			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			email         TEXT UNIQUE NOT NULL,
 			password_hash TEXT NOT NULL,
+			nickname      VARCHAR(100) NOT NULL DEFAULT '탐정',
+			avatar_emoji  VARCHAR(10)  NOT NULL DEFAULT '🦊',
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS nickname     VARCHAR(100) NOT NULL DEFAULT '탐정';
+		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS avatar_emoji VARCHAR(10)  NOT NULL DEFAULT '🦊';
 	`); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}

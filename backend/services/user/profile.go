@@ -101,17 +101,21 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 
 	// 4. Community post count
 	var communityPosts int
-	db.QueryRowContext(ctx,
+	if err = db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM community.posts WHERE author_id = $1`,
 		req.UserID,
-	).Scan(&communityPosts)
+	).Scan(&communityPosts); err != nil {
+		log.Printf("error fetching community_posts count: %v", err)
+	}
 
 	// 5. Video analysis count
 	var totalAnalysis int
-	db.QueryRowContext(ctx,
+	if err = db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM video_analysis.tasks WHERE user_id = $1`,
 		req.UserID,
-	).Scan(&totalAnalysis)
+	).Scan(&totalAnalysis); err != nil {
+		log.Printf("error fetching total_analysis count: %v", err)
+	}
 
 	level := levelFromExp(totalExp)
 

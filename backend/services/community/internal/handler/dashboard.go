@@ -16,7 +16,7 @@ func (h *Handler) GetNotices(ctx context.Context, req *pb.GetNoticesRequest) (*p
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT id, title
 		FROM community.posts
-		WHERE '공지' = ANY(tags)
+		WHERE tags @> ARRAY['공지']
 		ORDER BY created_at DESC
 		LIMIT 3
 	`)

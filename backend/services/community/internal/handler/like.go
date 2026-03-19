@@ -28,7 +28,10 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to like post")
+	}
 	// No rows inserted means the user already liked this post.
 	if rowsAffected == 0 {
 		if err = tx.Commit(); err != nil {
@@ -63,7 +66,10 @@ func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to unlike post")
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to unlike post")
+	}
 	if rowsAffected > 0 {
 		_, err = tx.ExecContext(ctx, "UPDATE community.posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", req.PostId)
 		if err != nil {

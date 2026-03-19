@@ -252,12 +252,6 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 
-	if mediaURL != "" {
-		if err := deleteMediaFromS3(mediaURL); err != nil {
-			log.Printf("S3 delete failed (non-blocking): %v", err)
-		}
-	}
-
 	_, err = tx.ExecContext(ctx, "DELETE FROM community.posts WHERE id = $1", req.PostId)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to delete post")
@@ -265,6 +259,15 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "Failed to commit transaction")
+	}
+
+	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
+	if mediaURL != "" {
+		go func() {
+			if err := deleteMediaFromS3(mediaURL); err != nil {
+				log.Printf("S3 delete failed (non-blocking): %v", err)
+			}
+		}()
 	}
 
 	return &pb.DeletePostResponse{Success: true}, nil

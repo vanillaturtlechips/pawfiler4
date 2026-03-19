@@ -17,12 +17,13 @@ import (
 
 // GormQuizRepository GORM + Redis를 사용하는 QuizRepository 구현
 type GormQuizRepository struct {
-	db           *gorm.DB
-	redis        *redis.Client
-	questions    []Question
-	mu           sync.RWMutex
+	db            *gorm.DB
+	redis         *redis.Client
+	questions     []Question
+	questionIndex map[string]int // ID → slice index, O(1) 탐색용
+	mu            sync.RWMutex
 	workerStarted bool
-	workerMu     sync.Mutex
+	workerMu      sync.Mutex
 }
 
 // NewGormQuizRepository GORM + Redis 기반 repository 생성
@@ -70,9 +71,14 @@ func (r *GormQuizRepository) LoadQuestions(ctx context.Context) error {
 		questions[i] = *gq.ToQuestion()
 	}
 
-	// 3. 메모리에 저장
+	// 3. 메모리에 저장 + O(1) 탐색용 index 빌드
+	index := make(map[string]int, len(questions))
+	for i, q := range questions {
+		index[q.ID] = i
+	}
 	r.mu.Lock()
 	r.questions = questions
+	r.questionIndex = index
 	r.mu.Unlock()
 
 	log.Printf("Loaded %d questions from database into memory", len(questions))
@@ -134,18 +140,16 @@ func (r *GormQuizRepository) GetRandomQuestion(ctx context.Context, difficulty *
 	return &filtered[idx], nil
 }
 
-// GetQuestionById ID로 특정 문제 조회 (메모리에서 검색)
+// GetQuestionById ID로 특정 문제 조회 (map 인덱스로 O(1) 탐색)
 func (r *GormQuizRepository) GetQuestionById(ctx context.Context, questionID string) (*Question, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
-	// 메모리에서 ID로 검색
-	for _, q := range r.questions {
-		if q.ID == questionID {
-			return &q, nil
-		}
+
+	if idx, ok := r.questionIndex[questionID]; ok {
+		q := r.questions[idx]
+		return &q, nil
 	}
-	
+
 	return nil, fmt.Errorf("question not found: %s", questionID)
 }
 
@@ -297,11 +301,25 @@ func (r *GormQuizRepository) processBatch() {
 	err := r.db.CreateInBatches(gormAnswers, len(gormAnswers)).Error
 	if err != nil {
 		log.Printf("Failed to save batch to DB: %v", err)
-		// 실패 시 다시 큐에 넣고 카운터 복구
+		// 실패 시 Redis 재삽입 시도; Redis도 실패하면 DB 직접 저장 (데이터 유실 방지)
 		for _, answer := range batch {
-			answerJSON, _ := json.Marshal(answer)
-			r.redis.LPush(ctx, "quiz:answer_queue", answerJSON)
-			r.redis.Incr(ctx, "quiz:answer_queue:count")
+			answerCopy := answer
+			answerJSON, marshalErr := json.Marshal(answer)
+			if marshalErr != nil {
+				log.Printf("Failed to marshal answer %s for re-queue: %v — falling back to direct DB save", answer.ID, marshalErr)
+				if dbErr := r.saveAnswerToDB(ctx, &answerCopy); dbErr != nil {
+					log.Printf("CRITICAL: Failed to save answer %s to DB: %v", answer.ID, dbErr)
+				}
+				continue
+			}
+			if pushErr := r.redis.LPush(ctx, "quiz:answer_queue", answerJSON).Err(); pushErr != nil {
+				log.Printf("Re-queue failed for answer %s: %v — falling back to direct DB save", answer.ID, pushErr)
+				if dbErr := r.saveAnswerToDB(ctx, &answerCopy); dbErr != nil {
+					log.Printf("CRITICAL: Failed to save answer %s to DB: %v", answer.ID, dbErr)
+				}
+			} else {
+				r.redis.Incr(ctx, "quiz:answer_queue:count")
+			}
 		}
 	} else {
 		log.Printf("Successfully saved %d answers to DB", len(batch))
@@ -538,9 +556,9 @@ func (r *GormQuizRepository) ApplyAnswerRewards(ctx context.Context, userID stri
 	var stats *UserStats
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. stats 업데이트
+		// 1. stats 업데이트 — FOR UPDATE로 동시 요청 lost-update 방지
 		var gs GormUserStats
-		if err := tx.Where("user_id = ?", userID).First(&gs).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&gs).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				gs = GormUserStats{UserID: userID, Lives: 3}
 				tx.Create(&gs)
