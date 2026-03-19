@@ -53,11 +53,12 @@ type QuizService interface {
 
 // SubmitResult represents the result of a submitted answer
 type SubmitResult struct {
-	IsCorrect    bool
-	XPEarned     int32
-	CoinsEarned  int32
-	StreakBonus  int32
-	Explanation  string
+	IsCorrect     bool
+	XPEarned      int32
+	CoinsEarned   int32
+	StreakBonus   int32
+	CurrentStreak int32 // 저장 후 갱신된 스트릭 — handler가 추가 GetUserStats 호출 없이 사용
+	Explanation   string
 }
 
 // UserRewardClient delegates XP/coin rewards to user service via gRPC.
@@ -324,11 +325,16 @@ func (s *quizServiceImpl) SubmitAnswer(ctx context.Context, userID string, quest
 	}
 
 	// Step 6: Return result
+	var currentStreak int32
+	if updatedStats != nil {
+		currentStreak = updatedStats.CurrentStreak
+	}
 	return &SubmitResult{
-		IsCorrect:   isCorrect,
-		XPEarned:    xpEarned,
-		CoinsEarned: coinsEarned,
-		StreakBonus: streakBonus,
-		Explanation: question.Explanation,
+		IsCorrect:     isCorrect,
+		XPEarned:      xpEarned,
+		CoinsEarned:   coinsEarned,
+		StreakBonus:   streakBonus,
+		CurrentStreak: currentStreak,
+		Explanation:   question.Explanation,
 	}, nil
 }

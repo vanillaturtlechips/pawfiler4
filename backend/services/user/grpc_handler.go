@@ -22,77 +22,90 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
-	// 첫 조회 시 기본 row 자동 생성 - user_id 앞 8자리로 고유 닉네임 생성
+	// 첫 조회 시 기본 row 자동 생성
 	s.db.ExecContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
 		VALUES ($1, '탐정_' || UPPER(SUBSTRING($1::text, 1, 8)), '🦊', NOW())
 		ON CONFLICT (user_id) DO NOTHING
 	`, req.UserId)
 
-	var nickname, avatarEmoji string
-	err := s.db.QueryRowContext(ctx,
-		`SELECT nickname, avatar_emoji FROM user_svc.preferences WHERE user_id = $1`, req.UserId,
-	).Scan(&nickname, &avatarEmoji)
+	// 8개 독립 쿼리 → 단일 쿼리로 통합 (DB 왕복 8회 → 1회)
+	// LATERAL 서브쿼리로 필드별 기본값 fallback 유지
+	var (
+		nickname, avatarEmoji                              string
+		totalExp, totalCoins, energy, maxEnergy            int
+		totalAnswered, correctCount, currentStreak, bestStreak int
+		communityPosts, totalLikesReceived, totalCommentsWritten int
+		totalAnalysis, suspiciousVideos                    int
+		avgConfidence                                      float64
+	)
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(p.nickname,      '탐정') AS nickname,
+			COALESCE(p.avatar_emoji,  '🦊')  AS avatar_emoji,
+			COALESCE(qp.total_exp,    0)      AS total_exp,
+			COALESCE(qp.total_coins,  0)      AS total_coins,
+			COALESCE(qp.energy,       100)    AS energy,
+			COALESCE(qp.max_energy,   100)    AS max_energy,
+			COALESCE(qs.total_answered,  0)   AS total_answered,
+			COALESCE(qs.correct_count,   0)   AS correct_count,
+			COALESCE(qs.current_streak,  0)   AS current_streak,
+			COALESCE(qs.best_streak,     0)   AS best_streak,
+			(SELECT COUNT(*)            FROM community.posts    WHERE author_id = $1::text)  AS community_posts,
+			(SELECT COALESCE(SUM(likes),0) FROM community.posts WHERE author_id = $1::text)  AS total_likes,
+			(SELECT COUNT(*)            FROM community.comments WHERE author_id = $1::text)  AS total_comments,
+			(SELECT COUNT(*)            FROM video_analysis.tasks WHERE user_id = $1)        AS total_analysis,
+			(SELECT COUNT(*)            FROM video_analysis.tasks t
+			 JOIN video_analysis.results r ON t.id = r.task_id
+			 WHERE t.user_id = $1 AND r.verdict != 'REAL')                                  AS suspicious_videos,
+			(SELECT COALESCE(AVG(r.confidence_score)*100, 0)
+			 FROM video_analysis.tasks t JOIN video_analysis.results r ON t.id = r.task_id
+			 WHERE t.user_id = $1)                                                           AS avg_confidence
+		FROM user_svc.preferences p
+		LEFT JOIN quiz.user_profiles qp ON qp.user_id = p.user_id
+		LEFT JOIN quiz.user_stats    qs ON qs.user_id  = p.user_id
+		WHERE p.user_id = $1
+	`, req.UserId).Scan(
+		&nickname, &avatarEmoji,
+		&totalExp, &totalCoins, &energy, &maxEnergy,
+		&totalAnswered, &correctCount, &currentStreak, &bestStreak,
+		&communityPosts, &totalLikesReceived, &totalCommentsWritten,
+		&totalAnalysis, &suspiciousVideos, &avgConfidence,
+	)
 	if err != nil {
+		// preferences row가 아직 없을 경우 (INSERT가 경쟁 조건으로 누락된 경우) 기본값 사용
+		log.Printf("[GetProfile] query failed for %s: %v", req.UserId, err)
 		nickname, avatarEmoji = "탐정", "🦊"
+		energy, maxEnergy = 100, 100
 	}
-
-	var totalExp, totalCoins, energy, maxEnergy int
-	err = s.db.QueryRowContext(ctx,
-		`SELECT total_exp, total_coins, energy, max_energy FROM quiz.user_profiles WHERE user_id = $1`, req.UserId,
-	).Scan(&totalExp, &totalCoins, &energy, &maxEnergy)
-	if err != nil {
-		totalExp, totalCoins, energy, maxEnergy = 0, 0, 100, 100
-	}
-
-	var totalAnswered, correctCount, currentStreak, bestStreak int
-	s.db.QueryRowContext(ctx,
-		`SELECT total_answered, correct_count, current_streak, best_streak FROM quiz.user_stats WHERE user_id = $1`, req.UserId,
-	).Scan(&totalAnswered, &correctCount, &currentStreak, &bestStreak)
 
 	var correctRate float64
 	if totalAnswered > 0 {
 		correctRate = float64(correctCount) / float64(totalAnswered) * 100
 	}
 
-	var communityPosts, totalAnalysis int
-	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM community.posts WHERE author_id = $1`, req.UserId).Scan(&communityPosts)
-	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM video_analysis.tasks WHERE user_id = $1`, req.UserId).Scan(&totalAnalysis)
-
-	var totalLikesReceived, totalCommentsWritten, suspiciousVideos int
-	var avgConfidence float64
-	s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(likes), 0) FROM community.posts WHERE author_id = $1`, req.UserId).Scan(&totalLikesReceived)
-	s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM community.comments WHERE author_id = $1`, req.UserId).Scan(&totalCommentsWritten)
-	s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM video_analysis.tasks t
-		JOIN video_analysis.results r ON t.id = r.task_id
-		WHERE t.user_id = $1 AND r.verdict != 'REAL'`, req.UserId).Scan(&suspiciousVideos)
-	s.db.QueryRowContext(ctx, `
-		SELECT COALESCE(AVG(r.confidence_score) * 100, 0) FROM video_analysis.tasks t
-		JOIN video_analysis.results r ON t.id = r.task_id
-		WHERE t.user_id = $1`, req.UserId).Scan(&avgConfidence)
-
 	level := levelFromExp(int(totalExp))
 	return &pb.UserProfile{
-		UserId:                req.UserId,
-		Nickname:              nickname,
-		AvatarEmoji:           avatarEmoji,
-		Level:                 int32(level),
-		TierName:              tierNameFromLevel(level),
-		TotalExp:              int32(totalExp),
-		TotalCoins:            int32(totalCoins),
-		Energy:                int32(energy),
-		MaxEnergy:             int32(maxEnergy),
-		TotalQuizzes:          int32(totalAnswered),
-		CorrectRate:           correctRate,
-		TotalAnalysis:         int32(totalAnalysis),
-		CommunityPosts:        int32(communityPosts),
-		CurrentStreak:         int32(currentStreak),
-		BestStreak:            int32(bestStreak),
-		TotalLikesReceived:    int32(totalLikesReceived),
-		TotalCommentsWritten:  int32(totalCommentsWritten),
-		SuspiciousVideos:      int32(suspiciousVideos),
-		AvgConfidence:         avgConfidence,
+		UserId:               req.UserId,
+		Nickname:             nickname,
+		AvatarEmoji:          avatarEmoji,
+		Level:                int32(level),
+		TierName:             tierNameFromLevel(level),
+		TotalExp:             int32(totalExp),
+		TotalCoins:           int32(totalCoins),
+		Energy:               int32(energy),
+		MaxEnergy:            int32(maxEnergy),
+		TotalQuizzes:         int32(totalAnswered),
+		CorrectRate:          correctRate,
+		TotalAnalysis:        int32(totalAnalysis),
+		CommunityPosts:       int32(communityPosts),
+		CurrentStreak:        int32(currentStreak),
+		BestStreak:           int32(bestStreak),
+		TotalLikesReceived:   int32(totalLikesReceived),
+		TotalCommentsWritten: int32(totalCommentsWritten),
+		SuspiciousVideos:     int32(suspiciousVideos),
+		AvgConfidence:        avgConfidence,
 	}, nil
 }
 
@@ -101,32 +114,27 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
-	var curNickname, curAvatar string
-	s.db.QueryRowContext(ctx,
-		`SELECT nickname, avatar_emoji FROM user_svc.preferences WHERE user_id = $1`, req.UserId,
-	).Scan(&curNickname, &curAvatar)
-
-	nickname := curNickname
-	avatar := curAvatar
+	// 사전 SELECT 제거 — COALESCE로 nil 필드는 기존 값 유지, RETURNING으로 실제 저장값 반환
+	// DB 왕복 2회 → 1회
+	var nicknameParam, avatarParam interface{}
 	if req.Nickname != nil && *req.Nickname != "" {
-		nickname = *req.Nickname
+		nicknameParam = *req.Nickname
 	}
 	if req.AvatarEmoji != nil && *req.AvatarEmoji != "" {
-		avatar = *req.AvatarEmoji
-	}
-	if nickname == "" {
-		nickname = "탐정"
-	}
-	if avatar == "" {
-		avatar = "🦊"
+		avatarParam = *req.AvatarEmoji
 	}
 
-	_, err := s.db.ExecContext(ctx, `
+	var nickname, avatar string
+	err := s.db.QueryRowContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1, $2, $3, $4)
+		VALUES ($1, COALESCE($2, '탐정'), COALESCE($3, '🦊'), NOW())
 		ON CONFLICT (user_id) DO UPDATE
-		SET nickname = EXCLUDED.nickname, avatar_emoji = EXCLUDED.avatar_emoji, updated_at = EXCLUDED.updated_at
-	`, req.UserId, nickname, avatar, time.Now())
+		SET
+			nickname     = COALESCE($2::varchar, user_svc.preferences.nickname),
+			avatar_emoji = COALESCE($3::varchar, user_svc.preferences.avatar_emoji),
+			updated_at   = NOW()
+		RETURNING nickname, avatar_emoji
+	`, req.UserId, nicknameParam, avatarParam).Scan(&nickname, &avatar)
 	if err != nil {
 		log.Printf("UpdateProfile error: %v", err)
 		return nil, status.Error(codes.Internal, "failed to update profile")
@@ -221,12 +229,16 @@ func (s *userServiceServer) PurchaseItem(ctx context.Context, req *pb.PurchaseIt
 		`SELECT total_coins FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`, req.UserId,
 	).Scan(&totalCoins)
 	if err != nil {
-		tx.ExecContext(ctx, `
+		if _, insertErr := tx.ExecContext(ctx, `
 			INSERT INTO quiz.user_profiles (user_id, total_exp, total_coins, energy, max_energy, last_energy_refill, updated_at)
-			VALUES ($1, 0, 0, 100, 100, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING`, req.UserId)
-		tx.QueryRowContext(ctx,
+			VALUES ($1, 0, 0, 100, 100, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING`, req.UserId); insertErr != nil {
+			return nil, status.Error(codes.Internal, "failed to initialize profile")
+		}
+		if err = tx.QueryRowContext(ctx,
 			`SELECT total_coins FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`, req.UserId,
-		).Scan(&totalCoins)
+		).Scan(&totalCoins); err != nil {
+			return nil, status.Error(codes.Internal, "failed to fetch profile")
+		}
 	}
 
 	if totalCoins < item.Price {
@@ -234,11 +246,15 @@ func (s *userServiceServer) PurchaseItem(ctx context.Context, req *pb.PurchaseIt
 	}
 
 	newCoins := totalCoins - item.Price
-	tx.ExecContext(ctx, `UPDATE quiz.user_profiles SET total_coins = $1, updated_at = NOW() WHERE user_id = $2`, newCoins, req.UserId)
-	tx.ExecContext(ctx, `
+	if _, err = tx.ExecContext(ctx, `UPDATE quiz.user_profiles SET total_coins = $1, updated_at = NOW() WHERE user_id = $2`, newCoins, req.UserId); err != nil {
+		return nil, status.Error(codes.Internal, "failed to deduct coins")
+	}
+	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO user_svc.shop_purchases (id, user_id, item_id, item_name, item_type, coins_paid, purchased_at)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())`,
-		req.UserId, item.Id, item.Name, item.Type, item.Price)
+		req.UserId, item.Id, item.Name, item.Type, item.Price); err != nil {
+		return nil, status.Error(codes.Internal, "failed to record purchase")
+	}
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "internal server error")

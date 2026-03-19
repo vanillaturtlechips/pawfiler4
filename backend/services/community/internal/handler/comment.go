@@ -114,8 +114,9 @@ func (h *Handler) DeleteComment(ctx context.Context, req *pb.DeleteCommentReques
 	}
 	defer tx.Rollback()
 
+	// FOR UPDATE: 동시 삭제 요청이 같은 댓글을 대상으로 할 때 이중 카운터 감소 방지
 	var postID, authorID string
-	err = tx.QueryRowContext(ctx, "SELECT post_id, author_id FROM community.comments WHERE id = $1", req.CommentId).Scan(&postID, &authorID)
+	err = tx.QueryRowContext(ctx, "SELECT post_id, author_id FROM community.comments WHERE id = $1 FOR UPDATE", req.CommentId).Scan(&postID, &authorID)
 	if err == sql.ErrNoRows {
 		return nil, status.Error(codes.NotFound, "Comment not found")
 	}

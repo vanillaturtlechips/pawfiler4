@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"time"
 
 	"community/pb"
 
@@ -10,7 +11,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const rankingCacheTTL = 60 * time.Second
+
 func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*pb.GetRankingResponse, error) {
+	// 캐시 확인 — 크로스 스키마 JOIN 비용을 60초마다 한 번만 지불
+	h.rankingCacheMu.RLock()
+	if h.rankingCache != nil && time.Now().Before(h.rankingCache.expiresAt) {
+		cached := h.rankingCache.data
+		h.rankingCacheMu.RUnlock()
+		return cached, nil
+	}
+	h.rankingCacheMu.RUnlock()
+
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT 
 			p.author_id,
@@ -55,5 +67,12 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 		})
 		rank++
 	}
-	return &pb.GetRankingResponse{Entries: entries}, nil
+	result := &pb.GetRankingResponse{Entries: entries}
+
+	// 캐시 갱신
+	h.rankingCacheMu.Lock()
+	h.rankingCache = &rankingCacheEntry{data: result, expiresAt: time.Now().Add(rankingCacheTTL)}
+	h.rankingCacheMu.Unlock()
+
+	return result, nil
 }
