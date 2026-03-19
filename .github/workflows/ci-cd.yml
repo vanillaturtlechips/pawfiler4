@@ -36,7 +36,7 @@ jobs:
             frontend: 'frontend/**'
             admin_frontend: 'admin-frontend/**'
             report: 'backend/services/report/**'
-            ai-agent: 'backend/services/ai-agent/**'
+            chat-bot: 'backend/services/chat-bot/**'
 
       - name: Generate Matrix
         id: set-matrix
