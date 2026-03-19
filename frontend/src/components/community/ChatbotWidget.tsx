@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send } from "lucide-react";
 import { config } from "@/lib/config";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -9,6 +10,7 @@ interface Message {
 }
 
 const ChatbotWidget = () => {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -42,7 +44,7 @@ const ChatbotWidget = () => {
       const response = await fetch(`${config.aiAgentBaseUrl}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: currentInput }),
+        body: JSON.stringify({ message: currentInput, user_id: user?.id ?? null }),
       });
 
       const data = await response.json();
