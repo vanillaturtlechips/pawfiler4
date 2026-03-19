@@ -495,3 +495,41 @@ resource "aws_cloudfront_distribution" "community_media" {
     Name = "${var.project_name}-community-media-cdn"
   }
 }
+
+# ===========================================================================
+# Loki Chunks S3 (로그 저장소)
+# ===========================================================================
+
+resource "aws_s3_bucket" "loki_chunks" {
+  bucket = "${var.project_name}-loki-chunks"
+
+  tags = {
+    Name        = "${var.project_name}-loki-chunks"
+    Environment = "production"
+    Purpose     = "Loki log chunks storage"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "loki_chunks" {
+  bucket = aws_s3_bucket.loki_chunks.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "loki_chunks" {
+  bucket = aws_s3_bucket.loki_chunks.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 30
+    }
+  }
+}

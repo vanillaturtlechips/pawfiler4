@@ -158,6 +158,7 @@ module "irsa" {
   oidc_provider_url          = module.eks.oidc_provider_url
   quiz_media_bucket_arn      = module.s3.quiz_media_bucket_arn
   community_media_bucket_arn = module.s3.community_media_bucket_arn
+  loki_chunks_bucket_arn     = module.s3.loki_chunks_bucket_arn
 }
 
 # ---------------------------------------------------------------------------

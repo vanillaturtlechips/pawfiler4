@@ -38,12 +38,12 @@ export const fetchCommunityFeed = async (
   try {
     const requestBody: any = {
       page,
-      pageSize,
+      page_size: pageSize,
     };
-    
+
     if (searchQuery && searchQuery.trim()) {
-      requestBody.searchQuery = searchQuery.trim();
-      requestBody.searchType = searchType;
+      requestBody.search_query = searchQuery.trim();
+      requestBody.search_type = searchType;
     }
     
     const response = await fetch(
@@ -472,7 +472,7 @@ export const getUserVote = async (postId: string, userId: string): Promise<{ vot
     });
     if (!response.ok) throw new Error("투표 여부 조회 실패");
     const data = await response.json();
-    return { voted: data.voted ?? false, vote: data.vote };
+    return { voted: data.voted ?? false, vote: data.vote ?? data.user_vote };
   } catch (error) {
     console.error("Failed to get user vote:", error);
     return { voted: false };

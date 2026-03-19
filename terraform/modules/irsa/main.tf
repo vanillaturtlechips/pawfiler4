@@ -138,3 +138,50 @@ resource "aws_iam_role_policy" "ai_agent_bedrock" {
     }]
   })
 }
+
+# ============================================================================
+# IAM Role for Loki (S3 청크 저장)
+# ============================================================================
+
+resource "aws_iam_role" "loki" {
+  name = "${var.project_name}-loki-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:monitoring:loki"
+          "${replace(var.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "loki_s3" {
+  name = "s3-access"
+  role = aws_iam_role.loki.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ]
+      Resource = [
+        var.loki_chunks_bucket_arn,
+        "${var.loki_chunks_bucket_arn}/*"
+      ]
+    }]
+  })
+}

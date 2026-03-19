@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     fetchUserFullProfile(user.id)
       .then((profile) => {
         if (profile?.nickname) {
-          const updated = { ...user, nickname: profile.nickname, avatarEmoji: profile.avatarEmoji || user.avatarEmoji };
+          const updated = { ...user, nickname: profile.nickname, avatarEmoji: profile.avatarEmoji || user.avatarEmoji || '🥚' };
           localStorage.setItem(config.storageKeys.authUser, JSON.stringify(updated));
           setState((prev) => ({ ...prev, user: updated }));
         }

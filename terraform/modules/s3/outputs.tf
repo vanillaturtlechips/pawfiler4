@@ -57,3 +57,13 @@ output "community_media_cloudfront_url" {
   description = "Full CloudFront URL for community media"
   value       = "https://${aws_cloudfront_distribution.community_media.domain_name}"
 }
+
+output "loki_chunks_bucket_arn" {
+  description = "ARN of the Loki chunks S3 bucket"
+  value       = aws_s3_bucket.loki_chunks.arn
+}
+
+output "loki_chunks_bucket_name" {
+  description = "Name of the Loki chunks S3 bucket"
+  value       = aws_s3_bucket.loki_chunks.id
+}

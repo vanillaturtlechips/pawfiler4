@@ -22,3 +22,8 @@ variable "community_media_bucket_arn" {
   description = "ARN of the community media S3 bucket"
   type        = string
 }
+
+variable "loki_chunks_bucket_arn" {
+  description = "ARN of the Loki chunks S3 bucket"
+  type        = string
+}

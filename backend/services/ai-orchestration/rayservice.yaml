@@ -56,25 +56,25 @@ spec:
           - name: xgboost_gate
             autoscaling_config:
               min_replicas: 1
-              max_replicas: 4
+              max_replicas: 2
               target_ongoing_requests: 32
 
           - name: video_agent
             autoscaling_config:
               min_replicas: 1
-              max_replicas: 4
+              max_replicas: 2
               target_ongoing_requests: 8
 
           - name: audio_agent
             autoscaling_config:
               min_replicas: 1
-              max_replicas: 4
+              max_replicas: 2
               target_ongoing_requests: 8
 
           - name: orchestrator
             autoscaling_config:
               min_replicas: 1
-              max_replicas: 4
+              max_replicas: 2
               target_ongoing_requests: 16
 
   rayClusterConfig:
@@ -91,10 +91,17 @@ spec:
           labels:
             app: pawfiler
             role: head
+            karpenter.sh/capacity-type: spot  # 스팟 인스턴스 사용
           annotations:
             prometheus.io/scrape: "true"
             prometheus.io/port: "8080"
         spec:
+          nodeSelector:
+            karpenter.sh/capacity-type: spot  # 스팟 노드에만 스케줄
+          tolerations:
+            - key: "karpenter.sh/disruption"
+              operator: "Exists"
+              effect: "NoSchedule"
           containers:
             - name: ray-head
               image: <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pawfiler-serve:latest
@@ -135,7 +142,7 @@ spec:
     workerGroupSpecs:
       - replicas: 1
         minReplicas: 1
-        maxReplicas: 3          # Karpenter/CA가 GPU 노드 추가
+        maxReplicas: 2          # 최대 2개로 제한 (비용 절감)
         groupName: gpu-workers
         rayStartParams:
           num-gpus: "1"
@@ -145,9 +152,15 @@ spec:
             labels:
               app: pawfiler
               role: gpu-worker
+              karpenter.sh/capacity-type: spot  # 스팟 인스턴스 사용
           spec:
+            nodeSelector:
+              karpenter.sh/capacity-type: spot  # 스팟 노드에만 스케줄
             tolerations:
               - key: "nvidia.com/gpu"
+                operator: "Exists"
+                effect: "NoSchedule"
+              - key: "karpenter.sh/disruption"
                 operator: "Exists"
                 effect: "NoSchedule"
             containers:

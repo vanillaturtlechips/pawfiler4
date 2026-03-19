@@ -52,3 +52,25 @@ output "packaging_instance_ip" {
   value       = aws_spot_instance_request.webdataset_packaging.public_ip
   description = "SSH: ubuntu@<ip> / 로그: tail -f /var/log/packaging.log"
 }
+
+resource "aws_security_group" "webdataset_packaging" {
+  name        = "webdataset-packaging-sg"
+  description = "WebDataset packaging spot instance"
+  vpc_id      = data.aws_vpc.main_wds.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "webdataset-packaging-sg" }
+}

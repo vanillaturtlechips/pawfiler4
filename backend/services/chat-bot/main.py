@@ -31,7 +31,7 @@ app.add_middleware(
 
 BEDROCK_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 EMBED_MODEL = "amazon.titan-embed-text-v2:0"
-CHAT_MODEL = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+CHAT_MODEL = "ap.anthropic.claude-sonnet-4-5-20250929-v1:0"
 RAG_THRESHOLD = 0.75
 RAG_TOP_K = 3
 
@@ -103,11 +103,13 @@ def build_messages(user_message: str, context_docs: list[dict]) -> list[dict]:
 
 
 @app.get("/health")
+@app.get("/api/chat/health")
 def health():
     return {"status": "ok"}
 
 
 @app.post("/chat")
+@app.post("/api/chat")
 def chat(req: ChatRequest):
     """일반 (non-streaming) 채팅"""
     bedrock = get_bedrock()
@@ -141,6 +143,7 @@ def chat(req: ChatRequest):
 
 
 @app.post("/chat/stream")
+@app.post("/api/chat/stream")
 def chat_stream(req: ChatRequest):
     """SSE 스트리밍 채팅"""
     bedrock = get_bedrock()
@@ -172,7 +175,15 @@ def chat_stream(req: ChatRequest):
                 f"data: {json.dumps({'done': True, 'sources': [{'file': d['source_file'], 'section': d['section']} for d in docs]})}\n\n"
             )
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
 
     finally:
         conn.close()
