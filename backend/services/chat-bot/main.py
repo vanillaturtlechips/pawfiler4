@@ -33,7 +33,7 @@ app.add_middleware(
 BEDROCK_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 EMBED_MODEL = "amazon.titan-embed-text-v2:0"
 CHAT_MODEL = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
-RAG_THRESHOLD = 0.75
+RAG_THRESHOLD = 0.4
 RAG_TOP_K = 3
 
 _bedrock_client = None
