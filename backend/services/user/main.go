@@ -14,6 +14,7 @@ import (
 	pb "user-service/pb"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/redis/go-redis/v9"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -57,7 +58,21 @@ func main() {
 		httpPort = "8083"
 	}
 
-	svc := &userServiceServer{db: db}
+	// Redis 연결 (quiz 캐시 무효화용) — 실패해도 서비스 기동은 계속
+	var redisClient *redis.Client
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "redis:6379"
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		log.Printf("WARNING: Redis not available (%v), quiz cache invalidation disabled", err)
+	} else {
+		redisClient = rdb
+		log.Printf("Redis connected: %s", redisAddr)
+	}
+
+	svc := &userServiceServer{db: db, redis: redisClient}
 
 	lis, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {

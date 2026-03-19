@@ -41,6 +41,9 @@ type QuizService interface {
 	// UpdateUserProfile updates gamification profile
 	UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error
 
+	// UpdateEnergy updates only energy fields, leaving XP/coins/tier untouched.
+	UpdateEnergy(ctx context.Context, userID string, energy int32, lastRefill time.Time) error
+
 	// UpdateNicknameAvatar updates only nickname/avatar without touching coins or exp.
 	UpdateNicknameAvatar(ctx context.Context, userID, nickname, avatarEmoji string) error
 
@@ -111,7 +114,8 @@ func (s *quizServiceImpl) GetRandomQuestion(ctx context.Context, userID string, 
 		return nil, status.Errorf(codes.ResourceExhausted, "insufficient_energy:%d", profile.Energy)
 	}
 	profile.Energy -= 5
-	if err := s.repo.UpdateUserProfile(ctx, profile); err != nil {
+	// UpdateEnergy만 호출 — XP/코인 필드는 건드리지 않아 user-service AddRewards 결과를 덮어쓰지 않음
+	if err := s.repo.UpdateEnergy(ctx, profile.UserID, profile.Energy, profile.LastEnergyRefill); err != nil {
 		return nil, fmt.Errorf("failed to update energy: %w", err)
 	}
 
@@ -168,6 +172,10 @@ func (s *quizServiceImpl) GetUserProfile(ctx context.Context, userID string) (*r
 
 func (s *quizServiceImpl) UpdateUserProfile(ctx context.Context, profile *repository.UserProfile) error {
 	return s.repo.UpdateUserProfile(ctx, profile)
+}
+
+func (s *quizServiceImpl) UpdateEnergy(ctx context.Context, userID string, energy int32, lastRefill time.Time) error {
+	return s.repo.UpdateEnergy(ctx, userID, energy, lastRefill)
 }
 
 func (s *quizServiceImpl) UpdateNicknameAvatar(ctx context.Context, userID, nickname, avatarEmoji string) error {

@@ -460,7 +460,8 @@ func (h *QuizHandler) RefillEnergy(ctx context.Context, req *pb.RefillEnergyRequ
 		return nil, status.Errorf(codes.Internal, "failed to get profile: %v", err)
 	}
 	profile.Energy = profile.MaxEnergy
-	if err := h.service.UpdateUserProfile(ctx, profile); err != nil {
+	// UpdateEnergy만 호출 — XP/코인 필드를 건드리지 않음
+	if err := h.service.UpdateEnergy(ctx, profile.UserID, profile.Energy, profile.LastEnergyRefill); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update energy: %v", err)
 	}
 	return &pb.RefillEnergyResponse{
