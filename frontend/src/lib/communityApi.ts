@@ -247,7 +247,7 @@ export const fetchCommunityComments = async (postId: string): Promise<CommunityC
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ postId }),
+      body: JSON.stringify({ post_id: postId }),
     });
 
     if (!response.ok) {
@@ -287,7 +287,13 @@ export const createCommunityComment = async (req: {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(req),
+      body: JSON.stringify({
+        post_id: req.postId,
+        user_id: req.userId,
+        author_nickname: req.authorNickname,
+        author_emoji: req.authorEmoji,
+        body: req.body,
+      }),
     });
 
     if (!response.ok) {
