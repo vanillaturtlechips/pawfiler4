@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"time"
 
 	"community/pb"
 
@@ -10,22 +11,30 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const rankingCacheTTL = 60 * time.Second
+
 func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*pb.GetRankingResponse, error) {
+	// 캐시 확인 — 크로스 스키마 JOIN 비용을 60초마다 한 번만 지불
+	h.rankingCacheMu.RLock()
+	if h.rankingCache != nil && time.Now().Before(h.rankingCache.expiresAt) {
+		cached := h.rankingCache.data
+		h.rankingCacheMu.RUnlock()
+		return cached, nil
+	}
+	h.rankingCacheMu.RUnlock()
+
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT 
-			p.author_id,
-			p.author_nickname,
-			p.author_emoji,
+			qp.user_id::text,
+			qp.nickname,
+			qp.avatar_emoji,
 			COALESCE(qp.current_tier, '알') as current_tier,
 			COALESCE(qs.total_answered, 0) as total_answered,
 			COALESCE(qs.correct_answers, 0) as correct_answers,
-			COALESCE(qp.total_coins, 0) as total_coins
-		FROM (
-			SELECT DISTINCT author_id, author_nickname, author_emoji
-			FROM community.posts
-		) p
-		LEFT JOIN quiz.user_profiles qp ON qp.user_id::text = p.author_id
-		LEFT JOIN quiz.user_stats qs ON qs.user_id::text = p.author_id
+			COALESCE(qp.total_coins, 0) as total_coins,
+			COALESCE(qp.total_exp, 0) as total_exp
+		FROM quiz.user_profiles qp
+		LEFT JOIN quiz.user_stats qs ON qs.user_id = qp.user_id
 		ORDER BY COALESCE(qs.correct_answers, 0) DESC
 		LIMIT 20
 	`)
@@ -39,8 +48,8 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 	rank := int32(1)
 	for rows.Next() {
 		var userId, nickname, emoji, tier string
-		var totalAnswered, correctAnswers, totalCoins int32
-		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctAnswers, &totalCoins); err != nil {
+		var totalAnswered, correctAnswers, totalCoins, totalExp int32
+		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctAnswers, &totalCoins, &totalExp); err != nil {
 			continue
 		}
 		entries = append(entries, &pb.RankingEntry{
@@ -52,8 +61,74 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 			TotalAnswered:  totalAnswered,
 			CorrectAnswers: correctAnswers,
 			TotalCoins:     totalCoins,
+			Level:          calcLevel(tier, totalExp),
 		})
 		rank++
 	}
-	return &pb.GetRankingResponse{Entries: entries}, nil
+	result := &pb.GetRankingResponse{Entries: entries}
+
+	// 캐시 갱신
+	h.rankingCacheMu.Lock()
+	h.rankingCache = &rankingCacheEntry{data: result, expiresAt: time.Now().Add(rankingCacheTTL)}
+	h.rankingCacheMu.Unlock()
+
+	return result, nil
+}
+
+// calcLevel mirrors quiz service UserProfile.Level() logic
+func calcLevel(tier string, totalExp int32) int32 {
+	switch tier {
+	case "불사조":
+		switch {
+		case totalExp >= 8000:
+			return 5
+		case totalExp >= 6000:
+			return 4
+		case totalExp >= 4000:
+			return 3
+		case totalExp >= 2000:
+			return 2
+		default:
+			return 1
+		}
+	case "맹금닭":
+		switch {
+		case totalExp >= 3200:
+			return 5
+		case totalExp >= 2400:
+			return 4
+		case totalExp >= 1600:
+			return 3
+		case totalExp >= 800:
+			return 2
+		default:
+			return 1
+		}
+	case "삐약이":
+		switch {
+		case totalExp >= 1600:
+			return 5
+		case totalExp >= 1200:
+			return 4
+		case totalExp >= 800:
+			return 3
+		case totalExp >= 400:
+			return 2
+		default:
+			return 1
+		}
+	default: // 알
+		switch {
+		case totalExp >= 800:
+			return 5
+		case totalExp >= 600:
+			return 4
+		case totalExp >= 400:
+			return 3
+		case totalExp >= 200:
+			return 2
+		default:
+			return 1
+		}
+	}
 }

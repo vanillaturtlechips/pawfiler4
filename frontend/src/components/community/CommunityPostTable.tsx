@@ -1,8 +1,6 @@
-import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { Edit2, Trash2, Heart, MessageCircle } from "lucide-react";
 import type { CommunityPost } from "@/lib/types";
@@ -10,6 +8,7 @@ import type { CommunityPost } from "@/lib/types";
 type PostTableProps = {
   posts: CommunityPost[];
   loading: boolean;
+  initialized: boolean;
   page: number;
   pageSize: number;
   totalCount: number;
@@ -28,25 +27,16 @@ const tableStyle: React.CSSProperties = {
 const HOVER_BG = "hsl(30 70% 96%)";
 const ROW_BORDER = "1px solid hsl(var(--parchment-border))";
 
-export default function CommunityPostTable({ posts, loading, page, pageSize, totalCount, onEdit, onDelete }: PostTableProps) {
+export default function CommunityPostTable({ posts, loading, initialized, page, pageSize, totalCount, onEdit, onDelete }: PostTableProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
 
   return (
-    <div style={tableStyle}>
-      {loading ? (
-        <div className="p-4 flex flex-col gap-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4 px-3 py-2.5 rounded-lg" style={{ background: "hsl(var(--parchment-border))" }}>
-              <Skeleton className="h-4 w-10 rounded" style={{ background: "hsl(var(--muted))" }} />
-              <Skeleton className="h-4 flex-1 rounded" style={{ background: "hsl(var(--muted))" }} />
-              <Skeleton className="h-4 w-20 rounded" style={{ background: "hsl(var(--muted))" }} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          {/* 헤더 */}
+    <div
+      style={{ ...tableStyle, opacity: (loading || !initialized) ? 0 : 1, transition: "opacity 300ms ease", pointerEvents: (loading || !initialized) ? "none" : "auto" }}
+    >
+      <>
+        {/* 헤더 */}
           <div
             className="grid grid-cols-[52px_1fr_120px_88px_80px_64px] gap-3 px-4 py-2.5 font-jua text-xs"
             style={{
@@ -66,20 +56,16 @@ export default function CommunityPostTable({ posts, loading, page, pageSize, tot
           {/* 바디 */}
           <div>
             {posts.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-14 text-center">
+              <div className="py-14 text-center">
                 <div className="text-5xl mb-3">🔍</div>
                 <p className="font-jua text-base text-wood-dark opacity-60">게시글이 없습니다</p>
                 <p className="font-jua text-sm mt-1" style={{ color: "hsl(var(--wood-light))" }}>첫 번째 글을 작성해보세요!</p>
-              </motion.div>
+              </div>
             ) : (
-              <AnimatePresence mode="popLayout">
+              <div>
                 {posts.map((post, index) => (
-                  <motion.div
+                  <div
                     key={post.id}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
                     className="grid grid-cols-[52px_1fr_120px_88px_80px_64px] gap-3 px-4 py-2.5 cursor-pointer group"
                     style={{ borderBottom: ROW_BORDER, transition: "background 120ms ease" }}
                     onClick={() => navigate(`/community/${post.id}`)}
@@ -149,7 +135,7 @@ export default function CommunityPostTable({ posts, loading, page, pageSize, tot
                       className="flex items-center justify-center gap-0.5"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {user && (post.userId === user.id || post.authorNickname === user.nickname) && (
+                      {user && post.userId === user.id && (
                         <>
                           <Button
                             variant="ghost"
@@ -190,13 +176,12 @@ export default function CommunityPostTable({ posts, loading, page, pageSize, tot
                         </>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
-              </AnimatePresence>
+              </div>
             )}
           </div>
         </>
-      )}
     </div>
   );
 }

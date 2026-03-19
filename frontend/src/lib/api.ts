@@ -618,75 +618,6 @@ export const checkout = async (req: CheckoutRequest): Promise<CheckoutResponse> 
   }
 };
 
-// Community Dashboard APIs (kept here for backward compatibility with existing imports)
-export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetNotices`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch notices: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch notices:', error);
-    return [];
-  }
-};
-
-export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetTopDetective`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch top detective: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return {
-      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
-      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
-      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
-    };
-  } catch (error) {
-    console.error('Failed to fetch top detective:', error);
-    return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
-  }
-};
-
-export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetHotTopic`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch hot topic: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch hot topic:', error);
-    return { tag: "없음", count: 0 };
-  }
-};
-
 export const refillEnergy = async (): Promise<void> => {
   const userId = getUserId();
   await fetch(`${config.apiBaseUrl}/quiz.QuizService/RefillEnergy`, {
@@ -724,7 +655,23 @@ export const fetchRanking = async (sortBy: string = "correct") => {
     });
     if (!response.ok) return [];
     const data = await response.json();
-    return Array.isArray(data) ? data : (data.entries ?? []);
+    const entries: any[] = Array.isArray(data) ? data : (data.entries ?? []);
+    // quiz 서비스 snake_case/camelCase → RankingPage/CommunityDashboard 필드로 정규화
+    return entries.map((e: any) => ({
+      rank: e.rank ?? 0,
+      userId: e.userId || e.user_id || "",
+      nickname: e.nickname || "",
+      avatarEmoji: e.emoji || e.avatarEmoji || e.avatar_emoji || "🥚",
+      tier: e.tierName || e.tier_name || e.tier || "알",
+      level: e.level ?? 1,
+      totalExp: e.totalExp || e.total_exp || 0,
+      totalCoins: e.totalCoins || e.total_coins || 0,
+      totalAnswered: e.totalAnswered || e.total_answered || 0,
+      correctCount: e.correctAnswers || e.correct_answers || e.correctCount || 0,
+      accuracy: e.totalAnswered || e.total_answered
+        ? Math.round(((e.correctAnswers || e.correct_answers || 0) / (e.totalAnswered || e.total_answered)) * 100)
+        : 0,
+    }));
   } catch {
     return [];
   }

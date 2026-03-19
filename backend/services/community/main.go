@@ -88,7 +88,8 @@ func main() {
 	}()
 
 	// grpc-gateway
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if err := pb.RegisterCommunityServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {

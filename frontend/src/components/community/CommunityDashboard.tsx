@@ -10,8 +10,8 @@ type DashboardProps = {
     totalAnswered: number; correctCount: number; accuracy: number;
   }>;
   hotTopic: { tag: string; count: number };
-  topDetective: { authorNickname: string; authorEmoji: string; totalLikes: number };
   onTagClick: (tag: string) => void;
+  loading?: boolean;
 };
 
 const card: React.CSSProperties = {
@@ -28,11 +28,14 @@ const cardHeader: React.CSSProperties = {
   marginBottom: "0.875rem",
 };
 
-export default function CommunityDashboard({ featuredPosts, ranking, hotTopic, onTagClick }: DashboardProps) {
+export default function CommunityDashboard({ featuredPosts, ranking, hotTopic, onTagClick, loading }: DashboardProps) {
   const navigate = useNavigate();
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div
+      className="grid grid-cols-3 gap-4 transition-opacity duration-300"
+      style={{ opacity: loading ? 0.4 : 1, pointerEvents: loading ? "none" : "auto" }}
+    >
 
       {/* 오늘의 추천 글 */}
       <div style={card} className="p-4 flex flex-col">
@@ -41,7 +44,7 @@ export default function CommunityDashboard({ featuredPosts, ranking, hotTopic, o
           <h3 className="font-jua text-sm text-wood-darkest leading-none">오늘의 추천 글</h3>
         </div>
         <div className="flex flex-col gap-1 flex-1">
-          {featuredPosts.length > 0 ? featuredPosts.map((post, i) => (
+          {!loading && featuredPosts.length > 0 ? featuredPosts.map((post, i) => (
             <div
               key={post.id}
               onClick={() => navigate(`/community/${post.id}`)}

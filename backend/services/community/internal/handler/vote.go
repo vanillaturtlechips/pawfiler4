@@ -35,6 +35,7 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 	if prevVote != nil {
 		// 같은 값이면 변경 없음
 		if *prevVote == req.Vote {
+			tx.Rollback()
 			return &pb.VotePostResponse{Success: true, AlreadyVoted: true, XpEarned: 0}, nil
 		}
 		// 다른 값이면 UPDATE

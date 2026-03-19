@@ -215,6 +215,7 @@ message RankingEntry {
   int32 total_answered = 6;
   int32 correct_answers = 7;
   int32 total_coins = 8;
+  int32 level = 9;
 }
 message GetRankingResponse { repeated RankingEntry entries = 1; }
 
