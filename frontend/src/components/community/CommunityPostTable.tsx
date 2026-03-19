@@ -34,7 +34,7 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
 
   return (
     <div
-      style={{ ...tableStyle, opacity: (loading || !initialized) ? 0.4 : 1, transition: "opacity 300ms ease", pointerEvents: (loading || !initialized) ? "none" : "auto" }}
+      style={{ ...tableStyle, opacity: (loading || !initialized) ? 0 : 1, transition: "opacity 300ms ease", pointerEvents: (loading || !initialized) ? "none" : "auto" }}
     >
       <>
         {/* 헤더 */}
@@ -67,8 +67,6 @@ export default function CommunityPostTable({ posts, loading, initialized, page, 
                 {posts.map((post, index) => (
                   <motion.div
                     key={post.id}
-                    layout
-                    initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="grid grid-cols-[52px_1fr_120px_88px_80px_64px] gap-3 px-4 py-2.5 cursor-pointer group"

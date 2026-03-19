@@ -347,8 +347,6 @@ const CommunityPage = () => {
     >
       <motion.div
         className="flex flex-col gap-6 p-6 max-w-[1400px] mx-auto"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
       >
         {/* Header Section */}
         <header className="flex flex-col gap-2.5">
