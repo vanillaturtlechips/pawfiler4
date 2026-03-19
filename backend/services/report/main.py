@@ -16,9 +16,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.font_manager import FontProperties
 
-_F_REG  = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
-_F_BOLD = "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"
-_F_MED  = "/usr/share/fonts/truetype/nanum/NanumGothicExtraBold.ttf"
+_F_REG  = "/usr/share/fonts/NotoSansCJK.ttc"
+_F_BOLD = "/usr/share/fonts/NotoSansCJK.ttc"
+_F_MED  = "/usr/share/fonts/NotoSansCJK.ttc"
 
 def _fp(path, fallback=None):
     p = path if os.path.exists(path) else (fallback or path)

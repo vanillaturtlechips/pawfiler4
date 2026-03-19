@@ -5,7 +5,28 @@ import type {
   CommunityFeed, 
   CommunityComment 
 } from "./types";
-import { toast } from "sonner";
+
+// gRPC 응답 (snake_case/camelCase 혼재) → CommunityPost 변환
+function toPost(p: any): CommunityPost {
+  return {
+    id: p.id,
+    authorNickname: p.authorNickname || p.author_nickname || "익명",
+    authorEmoji: p.authorEmoji || p.author_emoji || "👤",
+    title: p.title,
+    body: p.body,
+    likes: p.likes || 0,
+    comments: p.comments || 0,
+    createdAt: p.createdAt || p.created_at || new Date().toISOString(),
+    tags: p.tags || [],
+    userId: p.authorId || p.author_id,
+    mediaUrl: p.mediaUrl || p.media_url,
+    mediaType: p.mediaType || p.media_type,
+    isAdminPost: p.isAdminPost || p.is_admin_post || false,
+    trueVotes: p.trueVotes || p.true_votes || 0,
+    falseVotes: p.falseVotes || p.false_votes || 0,
+    isCorrect: p.isCorrect ?? p.is_correct,
+  };
+}
 
 // Community Feed & Posts
 export const fetchCommunityFeed = async (
@@ -43,21 +64,7 @@ export const fetchCommunityFeed = async (
     const data = await response.json();
     
     // gRPC snake_case를 camelCase로 변환
-    const transformedPosts: CommunityPost[] = data.posts?.map((post: any) => ({
-      id: post.id,
-      authorNickname: post.authorNickname || post.author_nickname || "익명",
-      authorEmoji: post.authorEmoji || post.author_emoji || "👤",
-      title: post.title,
-      body: post.body,
-      likes: post.likes || 0,
-      comments: post.comments || 0,
-      createdAt: post.createdAt || post.created_at || new Date().toISOString(),
-      tags: post.tags || [],
-      userId: post.authorId || post.author_id,
-      mediaUrl: post.mediaUrl || post.media_url,
-      mediaType: post.mediaType || post.media_type,
-      isAdminPost: post.isAdminPost || post.is_admin_post || false,
-    })) || [];
+    const transformedPosts: CommunityPost[] = data.posts?.map((post: any) => toPost(post)) || [];
 
     return {
       posts: transformedPosts,
@@ -87,9 +94,12 @@ export const createCommunityPost = async (req: {
     if (req.mediaFile) {
       // 파일을 base64로 변환
       const arrayBuffer = await req.mediaFile.arrayBuffer();
-      const base64Content = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
+      const uint8 = new Uint8Array(arrayBuffer);
+      const chunks: string[] = [];
+      for (let i = 0; i < uint8.length; i += 8192) {
+        chunks.push(String.fromCharCode(...uint8.subarray(i, i + 8192)));
+      }
+      const base64Content = btoa(chunks.join(''));
 
       const uploadResponse = await fetch(`${config.communityBaseUrl}/community.CommunityService/UploadMedia`, {
         method: "POST",
@@ -146,21 +156,7 @@ export const createCommunityPost = async (req: {
     }
 
     const data = await response.json();
-    return {
-      id: data.id,
-      authorNickname: data.authorNickname || data.author_nickname || req.authorNickname,
-      authorEmoji: data.author_emoji || data.authorEmoji || req.authorEmoji,
-      title: data.title,
-      body: data.body,
-      likes: data.likes || 0,
-      comments: data.comments || 0,
-      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-      tags: data.tags || [],
-      userId: data.authorId || data.author_id || req.userId,
-      mediaUrl: data.mediaUrl || data.media_url,
-      mediaType: data.media_type || data.mediaType,
-      isAdminPost: data.isAdminPost || data.is_admin_post || false,
-    };
+    return toPost({ ...data, userId: data.authorId || data.author_id || req.userId });
   } catch (error) {
     return handleApiError(error, '게시글 작성');
   }
@@ -193,24 +189,7 @@ export const updateCommunityPost = async (req: {
     }
 
     const data = await response.json();
-    return {
-      id: data.id,
-      authorNickname: data.authorNickname || data.author_nickname || "익명",
-      authorEmoji: data.authorEmoji || data.author_emoji || "🕵️",
-      title: data.title || req.title,
-      body: data.body || req.body,
-      likes: data.likes || 0,
-      comments: data.comments || 0,
-      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-      tags: data.tags || req.tags,
-      userId: data.authorId || data.author_id || req.userId,
-      mediaUrl: data.mediaUrl || data.media_url,
-      mediaType: data.mediaType || data.media_type,
-      isAdminPost: data.isAdminPost || data.is_admin_post || false,
-      trueVotes: data.trueVotes || data.true_votes || 0,
-      falseVotes: data.falseVotes || data.false_votes || 0,
-      isCorrect: data.isCorrect ?? data.is_correct,
-    };
+    return toPost({ ...data, userId: data.authorId || data.author_id || req.userId });
   } catch (error) {
     return handleApiError(error, '게시글 수정');
   }
@@ -254,23 +233,7 @@ export const getPost = async (postId: string): Promise<CommunityPost> => {
     }
 
     const data = await response.json();
-    return {
-      id: data.id,
-      authorNickname: data.authorNickname || data.author_nickname || '익명',
-      authorEmoji: data.author_emoji || data.authorEmoji || '🐾',
-      title: data.title,
-      body: data.body,
-      likes: data.likes || 0,
-      comments: data.comments || 0,
-      createdAt: data.createdAt || data.created_at || new Date().toISOString(),
-      tags: data.tags || [],
-      userId: data.authorId || data.author_id || data.userId,
-      mediaUrl: data.mediaUrl || data.media_url,
-      mediaType: data.media_type || data.mediaType,
-      isAdminPost: data.isAdminPost || data.is_admin_post || false,
-      trueVotes: data.trueVotes || data.true_votes || 0,
-      falseVotes: data.falseVotes || data.false_votes || 0,
-    };
+    return toPost(data);
   } catch (error) {
     return handleApiError(error, '게시글 로드');
   }
@@ -344,7 +307,6 @@ export const createCommunityComment = async (req: {
       authorNickname: data.authorNickname || data.author_nickname || req.authorNickname,
       authorEmoji: data.authorEmoji || data.author_emoji || req.authorEmoji,
       body: data.body || req.body,
-      likes: data.likes || 0,
       createdAt: data.createdAt || data.created_at || new Date().toISOString(),
       userId: data.authorId || data.author_id || req.userId,
     };
@@ -353,14 +315,14 @@ export const createCommunityComment = async (req: {
   }
 };
 
-export const deleteCommunityComment = async (commentId: string): Promise<{ success: boolean }> => {
+export const deleteCommunityComment = async (commentId: string, userId: string): Promise<{ success: boolean }> => {
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/DeleteComment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ comment_id: commentId }),
+      body: JSON.stringify({ comment_id: commentId, user_id: userId }),
     });
 
     if (!response.ok) {
@@ -441,56 +403,6 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
   }
 };
 
-// Community Dashboard
-export const fetchNotices = async (): Promise<Array<{ id: string; title: string }>> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetNotices`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch notices: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const notices = data.notices || data.posts || (Array.isArray(data) ? data : []);
-    return notices.map((n: any) => ({ id: n.id, title: n.title }));
-  } catch (error) {
-    console.error('Failed to fetch notices:', error);
-    return [];
-  }
-};
-
-export const fetchTopDetective = async (): Promise<{ authorNickname: string; authorEmoji: string; totalLikes: number }> => {
-  try {
-    const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetTopDetective`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch top detective: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return {
-      authorNickname: data.authorNickname || data.author_nickname || "아직 없음",
-      authorEmoji: data.authorEmoji || data.author_emoji || "🏆",
-      totalLikes: data.totalLikes ?? data.total_likes ?? 0,
-    };
-  } catch (error) {
-    console.error('Failed to fetch top detective:', error);
-    return { authorNickname: "아직 없음", authorEmoji: "🏆", totalLikes: 0 };
-  }
-};
-
 export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> => {
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetHotTopic`, {
@@ -511,8 +423,6 @@ export const fetchHotTopic = async (): Promise<{ tag: string; count: number }> =
     return { tag: "없음", count: 0 };
   }
 };
-
-// Community Media - 이제 gRPC UploadMedia로 통합됨
 
 // Community Voting (현재 백엔드 이슈로 인해 기본값 반환)
 export const votePost = async (postId: string, userId: string, vote: boolean): Promise<{ success: boolean; alreadyVoted: boolean; xpEarned: number }> => {

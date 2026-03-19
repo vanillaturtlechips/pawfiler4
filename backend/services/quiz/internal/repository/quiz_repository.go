@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // Common repository errors
@@ -15,9 +16,9 @@ var (
 // QuizRepository defines the interface for quiz data access operations
 // Requirements: 3.1, 3.2, 3.3, 4.1, 9.1, 9.2, 9.3, 9.4, 12.1
 type QuizRepository interface {
-	// GetRandomQuestion retrieves a random question with optional filters
+	// GetRandomQuestion retrieves a random question with optional filters, excluding recently seen ones
 	// Requirements: 3.1, 3.2, 3.3
-	GetRandomQuestion(ctx context.Context, difficulty *string, questionType *QuestionType) (*Question, error)
+	GetRandomQuestion(ctx context.Context, userID string, difficulty *string, questionType *QuestionType) (*Question, error)
 
 	// GetQuestionById retrieves a specific question by ID
 	// Requirement: 4.1
@@ -49,6 +50,10 @@ type QuizRepository interface {
 
 	// UpdateUserProfile persists the current state of a UserProfile.
 	UpdateUserProfile(ctx context.Context, profile *UserProfile) error
+
+	// UpdateEnergy updates only energy fields, leaving XP/coins/tier untouched.
+	// Use this for energy deduction to prevent stale cache from overwriting AddRewards.
+	UpdateEnergy(ctx context.Context, userID string, energy int32, lastRefill time.Time) error
 
 	// UpdateNicknameAvatar updates only the nickname and avatar_emoji fields,
 	// leaving coins/exp/energy untouched to prevent stale-cache clobbering.

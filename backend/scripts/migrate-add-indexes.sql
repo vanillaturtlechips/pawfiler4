@@ -7,3 +7,6 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_community_likes_user ON community.li
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_community_comments_post ON community.comments(post_id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quiz_answers_user ON quiz.user_answers(user_id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quiz_profiles_user ON quiz.user_profiles(user_id);
+
+-- Feed 정렬 최적화: is_admin_post DESC, created_at DESC 복합 인덱스
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_posts_admin_created ON community.posts(is_admin_post DESC, created_at DESC);

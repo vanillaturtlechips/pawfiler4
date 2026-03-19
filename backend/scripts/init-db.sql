@@ -2,19 +2,16 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE SCHEMA IF NOT EXISTS auth;
 
+-- auth.users: 인증 전용 최소 스키마
+-- coins/xp/level은 quiz.user_profiles가 source of truth — 중복 제거
+-- subscription_type은 payment.subscriptions가 관리
 CREATE TABLE auth.users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    nickname VARCHAR(100) NOT NULL,
-    avatar_emoji VARCHAR(10) NOT NULL,
-    subscription_type VARCHAR(20) DEFAULT 'free',
-    coins INTEGER DEFAULT 0,
-    level INTEGER DEFAULT 1,
-    level_title VARCHAR(100) DEFAULT '초보 탐정',
-    xp INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    nickname      VARCHAR(100) NOT NULL DEFAULT '탐정',
+    avatar_emoji  VARCHAR(10)  NOT NULL DEFAULT '🦊',
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_users_email ON auth.users(email);
@@ -81,7 +78,7 @@ CREATE TABLE quiz.user_profiles (
     nickname VARCHAR(100) NOT NULL DEFAULT '탐정',
     avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🥚',
     total_exp INTEGER DEFAULT 0,
-    total_coins INTEGER DEFAULT 3000,
+    total_coins INTEGER DEFAULT 500,  -- 신규 계정 웰컴 보너스 (Go 코드와 일치)
     current_tier VARCHAR(50) DEFAULT '알',
     energy INTEGER DEFAULT 100,
     max_energy INTEGER DEFAULT 100,

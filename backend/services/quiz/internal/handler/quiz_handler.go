@@ -94,29 +94,19 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 		return nil, mapServiceError(err)
 	}
 
-	// Get updated stats to include streak count in response
-	stats, err := h.service.GetUserStats(ctx, req.UserId)
-	if err != nil {
-		// Log warning but don't fail the request
-		fmt.Printf("Warning: failed to get user stats after answer submission: %v\n", err)
-		stats = &repository.UserStats{CurrentStreak: 0}
-	}
-
-	// Get the question to include correct_index for multiple choice questions
+	// GetQuestionById는 in-memory 캐시 O(1) — DB 호출 없음
 	question, err := h.service.GetQuestionById(ctx, req.QuestionId)
 	if err != nil {
 		fmt.Printf("Warning: failed to get question for correct_index: %v\n", err)
-	} else {
-		fmt.Printf("Debug: question type=%v, correctIndex.Valid=%v, correctIndex.Int32=%v\n", 
-			question.Type, question.CorrectIndex.Valid, question.CorrectIndex.Int32)
 	}
 
+	// StreakCount는 SubmitResult에 포함 — 별도 GetUserStats DB 호출 불필요
 	response := &pb.SubmitAnswerResponse{
 		Correct:     result.IsCorrect,
 		XpEarned:    result.XPEarned,
 		CoinsEarned: result.CoinsEarned,
 		Explanation: result.Explanation,
-		StreakCount: stats.CurrentStreak,
+		StreakCount:  result.CurrentStreak,
 	}
 
 	// Include correct_index for multiple choice questions by appending to explanation
@@ -124,11 +114,12 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 		response.Explanation = fmt.Sprintf("%s||CORRECT_INDEX:%d||", result.Explanation, question.CorrectIndex.Int32)
 	}
 
-	// 최신 프로필(에너지/코인/레벨) quiz DB에서 조회 후 이번 획득분 반영
+	// 최신 프로필(에너지/코인/레벨) quiz Redis 캐시에서 조회 후 이번 획득분 반영
+	// result.XPEarned에 streak bonus 포함됨 — 별도 StreakBonus 중복 가산 금지
 	if profile, err := h.service.GetUserProfile(ctx, req.UserId); err == nil {
 		response.Energy     = profile.Energy
 		response.MaxEnergy  = profile.MaxEnergy
-		response.TotalExp   = profile.TotalExp + result.XPEarned + result.StreakBonus
+		response.TotalExp   = profile.TotalExp + result.XPEarned
 		response.TotalCoins = profile.TotalCoins + result.CoinsEarned
 		response.Level      = profile.Level()
 		response.TierName   = profile.TierName()
@@ -469,7 +460,8 @@ func (h *QuizHandler) RefillEnergy(ctx context.Context, req *pb.RefillEnergyRequ
 		return nil, status.Errorf(codes.Internal, "failed to get profile: %v", err)
 	}
 	profile.Energy = profile.MaxEnergy
-	if err := h.service.UpdateUserProfile(ctx, profile); err != nil {
+	// UpdateEnergy만 호출 — XP/코인 필드를 건드리지 않음
+	if err := h.service.UpdateEnergy(ctx, profile.UserID, profile.Energy, profile.LastEnergyRefill); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update energy: %v", err)
 	}
 	return &pb.RefillEnergyResponse{

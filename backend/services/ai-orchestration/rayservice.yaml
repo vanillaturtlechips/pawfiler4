@@ -1,0 +1,203 @@
+# =================================================================
+# KubeRay RayService — EKS 배포 매니페스트
+# =================================================================
+# 선행 조건:
+#   1. EKS 클러스터 + GPU 노드 그룹 (g5.xlarge 이상)
+#   2. KubeRay Operator 설치 (helm install kuberay-operator ...)
+#   3. EFS CSI Driver + PersistentVolume 구성
+#   4. Docker 이미지 ECR에 push
+# =================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pawfiler-models-pvc
+  namespace: pawfiler
+spec:
+  accessModes:
+    - ReadOnlyMany            # 여러 Pod에서 동시 읽기
+  storageClassName: efs-sc    # EFS StorageClass
+  resources:
+    requests:
+      storage: 20Gi           # 모델 가중치 총합
+
+---
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: pawfiler-serve
+  namespace: pawfiler
+spec:
+  serviceUnhealthySecondThreshold: 300  # 모델 로드 시간 고려 (5분)
+  deploymentUnhealthySecondThreshold: 120
+  
+  serveConfigV2: |
+    proxy_location: EveryNode
+    http_options:
+      host: 0.0.0.0
+      port: 8000
+      request_timeout_s: 30
+
+    applications:
+      - name: pawfiler
+        route_prefix: /
+        import_path: app:deployment_graph
+        runtime_env:
+          working_dir: /app
+
+        deployments:
+          - name: shared_model_worker
+            num_replicas: 1
+            ray_actor_options:
+              num_gpus: 1
+              num_cpus: 2
+            max_ongoing_requests: 32
+
+          - name: xgboost_gate
+            autoscaling_config:
+              min_replicas: 1
+              max_replicas: 2
+              target_ongoing_requests: 32
+
+          - name: video_agent
+            autoscaling_config:
+              min_replicas: 1
+              max_replicas: 2
+              target_ongoing_requests: 8
+
+          - name: audio_agent
+            autoscaling_config:
+              min_replicas: 1
+              max_replicas: 2
+              target_ongoing_requests: 8
+
+          - name: orchestrator
+            autoscaling_config:
+              min_replicas: 1
+              max_replicas: 2
+              target_ongoing_requests: 16
+
+  rayClusterConfig:
+    rayVersion: "2.41.0"
+
+    # ── Head Node (CPU only — 오케스트레이션 + API) ──
+    headGroupSpec:
+      serviceType: ClusterIP
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+        num-cpus: "4"
+      template:
+        metadata:
+          labels:
+            app: pawfiler
+            role: head
+            karpenter.sh/capacity-type: spot  # 스팟 인스턴스 사용
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "8080"
+        spec:
+          nodeSelector:
+            karpenter.sh/capacity-type: spot  # 스팟 노드에만 스케줄
+          tolerations:
+            - key: "karpenter.sh/disruption"
+              operator: "Exists"
+              effect: "NoSchedule"
+          containers:
+            - name: ray-head
+              image: <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pawfiler-serve:latest
+              ports:
+                - containerPort: 6379   # Ray GCS
+                - containerPort: 8265   # Dashboard
+                - containerPort: 8000   # Serve
+                - containerPort: 8080   # Metrics
+              resources:
+                requests:
+                  cpu: "4"
+                  memory: "8Gi"
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+              volumeMounts:
+                - name: models
+                  mountPath: /mnt/efs/models
+                  readOnly: true
+              readinessProbe:
+                httpGet:
+                  path: /-/healthz
+                  port: 8000
+                initialDelaySeconds: 120
+                periodSeconds: 15
+              livenessProbe:
+                httpGet:
+                  path: /-/healthz
+                  port: 8000
+                initialDelaySeconds: 180
+                periodSeconds: 30
+          volumes:
+            - name: models
+              persistentVolumeClaim:
+                claimName: pawfiler-models-pvc
+
+    # ── Worker Node (GPU — 모델 추론 전담) ──
+    workerGroupSpecs:
+      - replicas: 1
+        minReplicas: 1
+        maxReplicas: 2          # 최대 2개로 제한 (비용 절감)
+        groupName: gpu-workers
+        rayStartParams:
+          num-gpus: "1"
+          num-cpus: "4"
+        template:
+          metadata:
+            labels:
+              app: pawfiler
+              role: gpu-worker
+              karpenter.sh/capacity-type: spot  # 스팟 인스턴스 사용
+          spec:
+            nodeSelector:
+              karpenter.sh/capacity-type: spot  # 스팟 노드에만 스케줄
+            tolerations:
+              - key: "nvidia.com/gpu"
+                operator: "Exists"
+                effect: "NoSchedule"
+              - key: "karpenter.sh/disruption"
+                operator: "Exists"
+                effect: "NoSchedule"
+            containers:
+              - name: ray-worker
+                image: <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pawfiler-serve:latest
+                resources:
+                  requests:
+                    cpu: "4"
+                    memory: "16Gi"
+                    nvidia.com/gpu: "1"
+                  limits:
+                    cpu: "4"
+                    memory: "16Gi"
+                    nvidia.com/gpu: "1"
+                volumeMounts:
+                  - name: models
+                    mountPath: /mnt/efs/models
+                    readOnly: true
+            volumes:
+              - name: models
+                persistentVolumeClaim:
+                  claimName: pawfiler-models-pvc
+
+---
+# Prometheus ServiceMonitor (Grafana 연동)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pawfiler-metrics
+  namespace: pawfiler
+  labels:
+    release: prometheus   # Prometheus Operator selector
+spec:
+  selector:
+    matchLabels:
+      app: pawfiler
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics

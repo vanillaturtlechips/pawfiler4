@@ -28,13 +28,14 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 // CreateUser inserts a new user row and returns the generated UUID.
-func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash string) (string, error) {
+// nickname should be derived from the email prefix by the caller.
+func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash, nickname string) (string, error) {
 	var id string
 	err := r.db.QueryRowContext(ctx,
 		`INSERT INTO auth.users (id, email, password_hash, nickname, avatar_emoji, created_at)
-		 VALUES (gen_random_uuid(), $1, $2, '탐정', '🦊', NOW())
+		 VALUES (gen_random_uuid(), $1, $2, $3, '🦊', NOW())
 		 RETURNING id`,
-		email, passwordHash,
+		email, passwordHash, nickname,
 	).Scan(&id)
 	return id, err
 }

@@ -101,7 +101,7 @@ func main() {
 	// CORS - read allowed origins from env, split by comma for multiple origins.
 	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if corsOrigins == "" {
-		corsOrigins = "https://pawfiler.site"
+		corsOrigins = "https://pawfiler.site,http://pawfiler-admin-frontend.s3-website.ap-northeast-2.amazonaws.com"
 	}
 	allowedOrigins := strings.Split(corsOrigins, ",")
 	for i, o := range allowedOrigins {

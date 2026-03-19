@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"community/pb"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -45,32 +43,42 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 	if searchQuery != "" {
 		searchPattern := "%" + searchQuery + "%"
 
-		var whereClause string
-		switch searchType {
-		case "body":
-			whereClause = "body ILIKE $1"
-		case "all":
-			whereClause = "title ILIKE $1 OR body ILIKE $1"
-		default:
-			whereClause = "title ILIKE $1"
+		if searchType == "body" {
+			// body 전용: $1=pattern, $2=pageSize, $3=offset
+			rows, err = h.db.QueryContext(ctx, `
+				SELECT 
+					id, author_id, author_nickname, author_emoji, title, body, 
+					likes, comments, created_at::text, tags,
+					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+				FROM community.posts
+				WHERE body ILIKE $1
+				ORDER BY is_admin_post DESC, created_at DESC
+				LIMIT $2 OFFSET $3
+			`, searchPattern, pageSize, offset)
+		} else {
+			// title(default) / all: $1=pattern, $2=exact, $3=pageSize, $4=offset
+			var whereClause string
+			if searchType == "all" {
+				whereClause = "(title ILIKE $1 OR body ILIKE $1 OR $2 = ANY(tags))"
+			} else {
+				whereClause = "(title ILIKE $1 OR $2 = ANY(tags))"
+			}
+			rows, err = h.db.QueryContext(ctx, fmt.Sprintf(`
+				SELECT 
+					id, author_id, author_nickname, author_emoji, title, body, 
+					likes, comments, created_at::text, tags,
+					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+				FROM community.posts
+				WHERE %s
+				ORDER BY is_admin_post DESC, created_at DESC
+				LIMIT $3 OFFSET $4
+			`, whereClause), searchPattern, searchQuery, pageSize, offset)
 		}
-		whereClause += " OR $2 = ANY(tags)"
-
-		rows, err = h.db.QueryContext(ctx, fmt.Sprintf(`
-			SELECT
-				id, author_id, author_nickname, author_emoji, title, body,
-				likes, comments, created_at, tags,
-				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
-			FROM community.posts
-			WHERE %s
-			ORDER BY is_admin_post DESC, created_at DESC
-			LIMIT $3 OFFSET $4
-		`, whereClause), searchPattern, searchQuery, pageSize, offset)
 	} else {
 		rows, err = h.db.QueryContext(ctx, `
-			SELECT
-				id, author_id, author_nickname, author_emoji, title, body,
-				likes, comments, created_at, tags,
+			SELECT 
+				id, author_id, author_nickname, author_emoji, title, body, 
+				likes, comments, created_at::text, tags,
 				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
 			FROM community.posts
 			ORDER BY is_admin_post DESC, created_at DESC
@@ -89,13 +97,9 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		var tags []string
 		var mediaUrl, mediaType sql.NullString
 		var count int
-		var createdAt time.Time
 		err := rows.Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-			&post.Title, &post.Body, &post.Likes, &post.Comments, &createdAt,
+			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
 			(*pq.StringArray)(&tags), &count, &mediaUrl, &mediaType, &post.IsAdminPost)
-		if err == nil {
-			post.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-		}
 		if err != nil {
 			log.Printf("Error scanning post: %v", err)
 			continue
@@ -119,15 +123,14 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	var post pb.Post
 	var tags []string
 	var mediaUrl, mediaType sql.NullString
-	var createdAt time.Time
 
 	err := h.db.QueryRowContext(ctx, `
-		SELECT id, author_id, author_nickname, author_emoji, title, body,
-		       likes, comments, created_at, tags, media_url, media_type, is_admin_post
+		SELECT id, author_id, author_nickname, author_emoji, title, body, 
+		       likes, comments, created_at::text, tags, media_url, media_type, is_admin_post
 		FROM community.posts
 		WHERE id = $1
 	`, req.PostId).Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &createdAt,
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
 		(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost)
 
 	if err == sql.ErrNoRows {
@@ -138,7 +141,6 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 		return nil, status.Error(codes.Internal, "Failed to fetch post")
 	}
 
-	post.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	post.Tags = tags
 	post.MediaUrl = mediaUrl.String
 	post.MediaType = mediaType.String
@@ -153,6 +155,12 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 	}
 	if req.Body == "" {
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
+	}
+	if req.MediaUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "Media is required")
+	}
+	if req.IsCorrect == nil {
+		return nil, status.Error(codes.InvalidArgument, "isCorrect is required")
 	}
 
 	// user 서비스 gRPC 호출로 최신 닉네임/아바타 조회
@@ -212,19 +220,23 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 
+	if strings.TrimSpace(req.Title) == "" {
+		return nil, status.Error(codes.InvalidArgument, "Title is required")
+	}
+
 	var post pb.Post
 	var tags []string
-	var updatedCreatedAt time.Time
+	var mediaUrl, mediaType sql.NullString
 	err = tx.QueryRowContext(ctx, `
 		UPDATE community.posts
 		SET title = $1, body = $2, tags = $3, updated_at = NOW()
 		WHERE id = $4
-		RETURNING id, author_id, author_nickname, author_emoji, title, body,
-		          likes, comments, created_at, tags
+		RETURNING id, author_id, author_nickname, author_emoji, title, body, 
+		          likes, comments, created_at::text, tags, media_url, media_type
 	`, req.Title, req.Body, pq.Array(req.Tags), req.PostId).Scan(
 		&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
-		&post.Title, &post.Body, &post.Likes, &post.Comments, &updatedCreatedAt,
-		(*pq.StringArray)(&tags))
+		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
+		(*pq.StringArray)(&tags), &mediaUrl, &mediaType)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to update post")
@@ -234,8 +246,9 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to commit transaction")
 	}
 
-	post.CreatedAt = updatedCreatedAt.UTC().Format(time.RFC3339)
 	post.Tags = tags
+	post.MediaUrl = mediaUrl.String
+	post.MediaType = mediaType.String
 	return &post, nil
 }
 
@@ -260,12 +273,6 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 
-	if mediaURL != "" {
-		if err := deleteMediaFromS3(mediaURL); err != nil {
-			log.Printf("S3 delete failed (non-blocking): %v", err)
-		}
-	}
-
 	_, err = tx.ExecContext(ctx, "DELETE FROM community.posts WHERE id = $1", req.PostId)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to delete post")
@@ -275,33 +282,30 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to commit transaction")
 	}
 
+	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
+	if mediaURL != "" {
+		go func() {
+			if err := h.deleteMediaFromS3(mediaURL); err != nil {
+				log.Printf("S3 delete failed (non-blocking): %v", err)
+			}
+		}()
+	}
+
 	return &pb.DeletePostResponse{Success: true}, nil
 }
 
-func deleteMediaFromS3(mediaURL string) error {
+func (h *Handler) deleteMediaFromS3(mediaURL string) error {
+	if h.s3 == nil {
+		return fmt.Errorf("s3 client not initialized")
+	}
 	parts := strings.Split(mediaURL, "/")
 	if len(parts) < 4 {
 		return fmt.Errorf("invalid media URL format: %s", mediaURL)
 	}
 	key := strings.Join(parts[len(parts)-3:], "/")
 
-	bucket := os.Getenv("S3_COMMUNITY_BUCKET")
-	if bucket == "" {
-		bucket = "pawfiler-community-media"
-	}
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "ap-northeast-2"
-	}
-
-	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
-	if err != nil {
-		return fmt.Errorf("AWS config error: %w", err)
-	}
-
-	client := s3.NewFromConfig(cfg)
-	_, err = client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-		Bucket: aws.String(bucket),
+	_, err := h.s3.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		Bucket: aws.String(h.s3Bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
