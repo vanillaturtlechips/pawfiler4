@@ -44,19 +44,18 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		searchPattern := "%" + searchQuery + "%"
 
 		if searchType == "body" {
-			// body 전용: $1=pattern, $2=pageSize, $3=offset
 			rows, err = h.db.QueryContext(ctx, `
 				SELECT 
 					id, author_id, author_nickname, author_emoji, title, body, 
 					likes, comments, created_at::text, tags,
-					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post,
+					true_votes, false_votes, is_correct
 				FROM community.posts
 				WHERE body ILIKE $1
 				ORDER BY is_admin_post DESC, created_at DESC
 				LIMIT $2 OFFSET $3
 			`, searchPattern, pageSize, offset)
 		} else {
-			// title(default) / all: $1=pattern, $2=exact, $3=pageSize, $4=offset
 			var whereClause string
 			if searchType == "all" {
 				whereClause = "(title ILIKE $1 OR body ILIKE $1 OR $2 = ANY(tags))"
@@ -67,7 +66,8 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 				SELECT 
 					id, author_id, author_nickname, author_emoji, title, body, 
 					likes, comments, created_at::text, tags,
-					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post,
+					true_votes, false_votes, is_correct
 				FROM community.posts
 				WHERE %s
 				ORDER BY is_admin_post DESC, created_at DESC
@@ -79,7 +79,8 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 			SELECT 
 				id, author_id, author_nickname, author_emoji, title, body, 
 				likes, comments, created_at::text, tags,
-				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post
+				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post,
+				true_votes, false_votes, is_correct
 			FROM community.posts
 			ORDER BY is_admin_post DESC, created_at DESC
 			LIMIT $1 OFFSET $2
@@ -96,10 +97,12 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		var post pb.Post
 		var tags []string
 		var mediaUrl, mediaType sql.NullString
+		var isCorrect sql.NullBool
 		var count int
 		err := rows.Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
 			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
-			(*pq.StringArray)(&tags), &count, &mediaUrl, &mediaType, &post.IsAdminPost)
+			(*pq.StringArray)(&tags), &count, &mediaUrl, &mediaType, &post.IsAdminPost,
+			&post.TrueVotes, &post.FalseVotes, &isCorrect)
 		if err != nil {
 			log.Printf("Error scanning post: %v", err)
 			continue
@@ -107,6 +110,9 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		post.Tags = tags
 		post.MediaUrl = mediaUrl.String
 		post.MediaType = mediaType.String
+		if isCorrect.Valid {
+			post.IsCorrect = &isCorrect.Bool
+		}
 		totalCount = int32(count)
 		posts = append(posts, &post)
 	}
@@ -123,15 +129,18 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	var post pb.Post
 	var tags []string
 	var mediaUrl, mediaType sql.NullString
+	var isCorrect sql.NullBool
 
 	err := h.db.QueryRowContext(ctx, `
 		SELECT id, author_id, author_nickname, author_emoji, title, body, 
-		       likes, comments, created_at::text, tags, media_url, media_type, is_admin_post
+		       likes, comments, created_at::text, tags, media_url, media_type, is_admin_post,
+		       true_votes, false_votes, is_correct
 		FROM community.posts
 		WHERE id = $1
 	`, req.PostId).Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
 		&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
-		(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost)
+		(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost,
+		&post.TrueVotes, &post.FalseVotes, &isCorrect)
 
 	if err == sql.ErrNoRows {
 		return nil, status.Error(codes.NotFound, "Post not found")
@@ -144,6 +153,9 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	post.Tags = tags
 	post.MediaUrl = mediaUrl.String
 	post.MediaType = mediaType.String
+	if isCorrect.Valid {
+		post.IsCorrect = &isCorrect.Bool
+	}
 	return &post, nil
 }
 

@@ -14,7 +14,7 @@ import (
 // GetNotices - 공지사항 조회
 func (h *Handler) GetNotices(ctx context.Context, req *pb.GetNoticesRequest) (*pb.NoticesResponse, error) {
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT id, title
+		SELECT id, title, body, created_at::text, author_nickname
 		FROM community.posts
 		WHERE tags @> ARRAY['공지']
 		ORDER BY created_at DESC
@@ -28,7 +28,7 @@ func (h *Handler) GetNotices(ctx context.Context, req *pb.GetNoticesRequest) (*p
 	notices := []*pb.Notice{}
 	for rows.Next() {
 		var notice pb.Notice
-		if err := rows.Scan(&notice.Id, &notice.Title); err != nil {
+		if err := rows.Scan(&notice.Id, &notice.Title, &notice.Body, &notice.CreatedAt, &notice.AuthorNickname); err != nil {
 			log.Printf("Error scanning notice: %v", err)
 			continue
 		}

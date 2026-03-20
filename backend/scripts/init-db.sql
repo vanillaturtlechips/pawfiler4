@@ -108,6 +108,8 @@ CREATE TABLE community.posts (
     media_type VARCHAR(10) CHECK (media_type IN ('image', 'video')),
     is_admin_post BOOLEAN DEFAULT FALSE,
     is_correct BOOLEAN DEFAULT NULL,
+    true_votes INTEGER NOT NULL DEFAULT 0,
+    false_votes INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
