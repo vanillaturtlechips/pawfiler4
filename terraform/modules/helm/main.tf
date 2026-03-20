@@ -243,20 +243,14 @@ resource "helm_release" "kubecost" {
 
   # 번들 Prometheus 비활성화 → kube-prometheus-stack으로 통합
   set {
-    name  = "prometheus.enabled"
+    name  = "global.prometheus.enabled"
     value = "false"
-  }
-
-  # 기존 PVC storageClass 유지 (변경 시 immutable 에러)
-  set {
-    name  = "prometheus.server.persistentVolume.storageClass"
-    value = "gp2"
   }
 
   # 외부 Prometheus 엔드포인트 (kube-prometheus-stack)
   set {
-    name  = "prometheus.fqdn"
-    value = "http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+    name  = "global.prometheus.fqdn"
+    value = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
   }
 
 }
