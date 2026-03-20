@@ -30,26 +30,34 @@ def embed_text(client, text: str) -> list[float]:
 
 
 def chunk_markdown(file_path: Path) -> list[dict]:
-    """마크다운을 헤더(##) 기준으로 청킹"""
+    """Q&A 형식 마크다운을 Q: 기준으로 청킹. 없으면 ## 헤더 기준으로 청킹"""
     content = file_path.read_text(encoding="utf-8")
     chunks = []
 
-    # ## 헤더 기준으로 분할
-    sections = re.split(r'\n(?=## )', content)
+    # Q&A 형식 감지
+    if re.search(r'^Q:', content, re.MULTILINE):
+        pairs = re.split(r'\n(?=Q:)', content)
+        for pair in pairs:
+            pair = pair.strip()
+            if not pair or len(pair) < 20:
+                continue
+            # 첫 줄(Q:)을 section으로 사용
+            section = pair.split('\n')[0].replace('Q:', '').strip()
+            chunks.append({
+                "source_file": file_path.name,
+                "section": section,
+                "content": pair,
+            })
+        return chunks
 
+    # 기존 ## 헤더 기준 청킹
+    sections = re.split(r'\n(?=## )', content)
     for section in sections:
         section = section.strip()
-        if not section:
+        if not section or len(section) < 50:
             continue
-
-        # 헤더 추출
         lines = section.split('\n')
         header = lines[0].lstrip('#').strip() if lines[0].startswith('#') else None
-
-        # 너무 짧은 청크 제외 (50자 미만)
-        if len(section) < 50:
-            continue
-
         chunks.append({
             "source_file": file_path.name,
             "section": header,
