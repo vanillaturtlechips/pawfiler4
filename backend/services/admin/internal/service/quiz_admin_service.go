@@ -37,9 +37,9 @@ func NewQuizAdminService(repo *repository.QuizRepository) *QuizAdminService {
 	}
 }
 
-func (s *QuizAdminService) ListQuestions(page, pageSize int) ([]repository.Question, int, error) {
+func (s *QuizAdminService) ListQuestions(page, pageSize int, f repository.ListQuestionsFilter) ([]repository.Question, int, error) {
 	offset := (page - 1) * pageSize
-	return s.repo.ListQuestions(pageSize, offset)
+	return s.repo.ListQuestions(pageSize, offset, f)
 }
 
 func (s *QuizAdminService) GetQuestion(id string) (*repository.Question, error) {
