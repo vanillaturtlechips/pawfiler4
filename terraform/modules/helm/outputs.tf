@@ -32,3 +32,8 @@ output "grafana_amp_role_arn" {
   description = "ARN of the Grafana IRSA role for AMP query"
   value       = aws_iam_role.grafana_amp.arn
 }
+
+output "devops_guru_sns_topic_arn" {
+  description = "ARN of the DevOps Guru SNS topic"
+  value       = aws_sns_topic.devops_guru.arn
+}
