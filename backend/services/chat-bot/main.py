@@ -54,6 +54,34 @@ _agent = None
 # {session_id: {"msgs": [...], "ts": float}}
 session_history: dict[str, dict] = {}
 
+# ============================================================================
+# EASTER EGGS
+# ============================================================================
+
+_EASTER_EGGS = {
+    # 포리
+    "포리 정체":       "저는 PawFiler의 AI 수호자, 마법사 포리 🧙 딥페이크로부터 세상을 지키는 것이 제 사명입니다. 두 눈 크게 뜨고 가짜를 잡아내요! 🐾✨",
+    "포리야 사랑해":   "포리도 좋아해요 💕 딥페이크 탐지 계속 열심히 해주세요 🐾",
+    "포리 최고":       "포리는 그냥 포리예요 🐾 최고는 직접 가짜를 잡아내는 여러분이에요!",
+    "포리 춤":         "🕺🐾🕺\n두둠칫~ 딥페이크 탐지 댄스~\n짝짝짝~ 가짜는 내가 잡는다~\n🎵🐾🎵",
+    "비밀 명령어":     "포리를 만든 사람들의 이름을 하나씩 불러보세요 👀🐾 다섯 명이 숨어있어요!",
+    # 팀원
+    "이명일":          "오늘은 잠 좀 주무셨어요? 😴 제발 좀 쉬세요... 포리가 걱정돼요 🐾",
+    "문재윤":          "💻 포리를 만든 개발자 등장! 문재윤 님, 잘 만들어줘서 고마워요 🐾",
+    "김한식":          "오늘 저녁 뭐먹죠? 🍚 포리도 배고파요, 같이 먹어요 🐾",
+    "양정한":          "오늘은 무슨 사고를 치셨나요? 🤔 포리는 다 알고 있어요... 🐾",
+    "김재원":          "이잉 누구야 난 몰라 🙈 ... 알아요 김재원 님 맞죠? 🐾",
+    # 강사님
+    "김영철":          "포리는 롯데를 좋아해요 🎰 강사님도 그러시죠? 🐾",
+}
+
+
+def _check_easter_egg(message: str) -> str | None:
+    for keyword, response in _EASTER_EGGS.items():
+        if keyword in message:
+            return response
+    return None
+
 
 def _cleanup_sessions():
     """30분 이상 미접근 세션 정리"""
@@ -555,6 +583,10 @@ def health():
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     _cleanup_sessions()
+
+    easter_egg = _check_easter_egg(req.message)
+    if easter_egg:
+        return {"answer": easter_egg}
 
     system_prompt = build_system_prompt(req.user_id)
     history = session_history[req.session_id]["msgs"] if req.session_id in session_history else []
