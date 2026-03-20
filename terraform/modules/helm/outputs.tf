@@ -8,11 +8,6 @@ output "kubecost_role_arn" {
   value       = aws_iam_role.kubecost.arn
 }
 
-output "cluster_autoscaler_role_arn" {
-  description = "ARN of the Cluster Autoscaler IAM role"
-  value       = aws_iam_role.cluster_autoscaler.arn
-}
-
 output "amp_workspace_id" {
   description = "AMP workspace ID"
   value       = aws_prometheus_workspace.main.id

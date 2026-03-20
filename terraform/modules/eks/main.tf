@@ -71,29 +71,7 @@ resource "aws_eks_node_group" "main" {
   }
 }
 
-resource "aws_eks_node_group" "spot" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-node-group-spot"
-  node_role_arn   = var.eks_node_group_role_arn
-  subnet_ids      = var.private_subnet_ids
-  instance_types  = var.node_instance_types
-  capacity_type   = "SPOT"
-
-  scaling_config {
-    desired_size = 0
-    max_size     = 5
-    min_size     = 0
-  }
-
-  # Note: implicit dependency via node_role_arn ensures IAM policies are attached first
-  tags = {
-    Name = "${var.project_name}-eks-node-group-spot"
-  }
-
-  lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]
-  }
-}
+# node-group-spot 제거됨 (Karpenter spot NodePool로 대체)
 
 # EBS CSI Driver Addon
 resource "aws_eks_addon" "ebs_csi_driver" {

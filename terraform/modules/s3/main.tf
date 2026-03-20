@@ -256,8 +256,8 @@ resource "aws_s3_bucket_cors_configuration" "quiz_media" {
       "http://localhost:5173",
       "http://localhost:5174",
       "http://localhost:3000",
-      "https://pawfiler.com",
-      "https://dev.pawfiler.com"
+      "https://pawfiler.site",
+      "https://dev.pawfiler.site"
     ]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
@@ -529,7 +529,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "loki_chunks" {
     filter {}
 
     expiration {
-      days = 30
+      days = 3
     }
   }
 }
