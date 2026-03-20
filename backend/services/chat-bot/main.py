@@ -9,6 +9,7 @@ PawFiler AI Agent Service
 import os
 import json
 import math
+import time
 import boto3
 import psycopg2
 import psycopg2.pool
@@ -42,6 +43,7 @@ CHAT_MODEL = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
 RAG_THRESHOLD = 0.4
 RAG_TOP_K = 3
 MAX_HISTORY = 10  # 세션당 최근 메시지 보관 수
+SESSION_TTL = 1800  # 세션 유효 시간 (초, 30분)
 
 TIER_ORDER = ["알 껍데기 병아리", "삐약이 정보원", "안경 쓴 병아리", "망토 입은 닭", "불사조 탐정"]
 TIER_XP = {"알 껍데기 병아리": 0, "삐약이 정보원": 150, "안경 쓴 병아리": 400, "망토 입은 닭": 800, "불사조 탐정": 1500}
@@ -49,7 +51,16 @@ TIER_XP = {"알 껍데기 병아리": 0, "삐약이 정보원": 150, "안경 쓴
 _bedrock_client = None
 _db_pool = None
 _agent = None
-session_history: dict[str, list] = {}
+# {session_id: {"msgs": [...], "ts": float}}
+session_history: dict[str, dict] = {}
+
+
+def _cleanup_sessions():
+    """30분 이상 미접근 세션 정리"""
+    cutoff = time.time() - SESSION_TTL
+    stale = [sid for sid, data in session_history.items() if data["ts"] < cutoff]
+    for sid in stale:
+        del session_history[sid]
 
 
 def get_bedrock():
@@ -516,7 +527,12 @@ PawFiler는 AI 딥페이크 탐지 교육 플랫폼입니다.
 - get_tier_progress: 다음 티어까지 필요한 XP와 문제 수 계산 (로그인 필요)
 - get_energy_recovery_time: 에너지 완충까지 남은 시간 계산 (로그인 필요)
 
-항상 한국어로 친절하고 명확하게 답변하세요."""
+## 답변 스타일
+- 핵심만 간결하게 답변하세요. 불필요한 설명, 인사말, 마무리 문장 생략
+- 3줄 이내로 답할 수 있으면 3줄로 끝내세요
+- 목록이 필요할 때만 bullet 사용, 그 외엔 짧은 문장으로
+- "네, 안녕하세요", "도움이 되셨으면 좋겠습니다" 같은 문구 사용 금지
+항상 한국어로 답변하세요."""
 
 
 # ============================================================================
@@ -538,8 +554,10 @@ def health():
 @app.post("/chat")
 @app.post("/api/chat")
 def chat(req: ChatRequest):
+    _cleanup_sessions()
+
     system_prompt = build_system_prompt(req.user_id)
-    history = session_history.get(req.session_id, [])
+    history = session_history[req.session_id]["msgs"] if req.session_id in session_history else []
 
     messages = (
         [SystemMessage(content=system_prompt)]
@@ -555,7 +573,10 @@ def chat(req: ChatRequest):
             HumanMessage(content=req.message),
             result["messages"][-1],
         ]
-        session_history[req.session_id] = new_history[-MAX_HISTORY:]
+        session_history[req.session_id] = {
+            "msgs": new_history[-MAX_HISTORY:],
+            "ts": time.time(),
+        }
 
     return {"answer": answer}
 
