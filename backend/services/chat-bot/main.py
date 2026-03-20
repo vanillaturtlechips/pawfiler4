@@ -1,21 +1,27 @@
 """
 PawFiler AI Agent Service
-- RAG 기반 서비스 설명 챗봇
+- LangGraph ReAct 에이전트
+- 도구: RAG 검색, 사용자 프로필, 퀴즈 기록, 상점, 커뮤니티, 영상 분석
 - 임베딩: AWS Bedrock Titan (amazon.titan-embed-text-v2:0, 1024차원)
-- LLM: AWS Bedrock Claude (anthropic.claude-sonnet-4-5-20250929-v1:0)
+- LLM: AWS Bedrock Claude (apac.anthropic.claude-3-5-sonnet-20241022-v2:0)
 - Vector DB: PostgreSQL chatbot.knowledge_base (pgvector)
 """
 import os
 import json
 import boto3
 import psycopg2
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor
+from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from langchain_aws import ChatBedrockConverse
+from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.prebuilt import create_react_agent
 
-app = FastAPI(title="PawFiler AI Agent", version="1.0.0")
+app = FastAPI(title="PawFiler AI Agent", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,75 +37,328 @@ app.add_middleware(
 
 BEDROCK_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 EMBED_MODEL = "amazon.titan-embed-text-v2:0"
-CHAT_MODEL = "ap.anthropic.claude-sonnet-4-5-20250929-v1:0"
-RAG_THRESHOLD = 0.75
+CHAT_MODEL = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
+RAG_THRESHOLD = 0.4
 RAG_TOP_K = 3
+MAX_HISTORY = 10  # 세션당 최근 메시지 보관 수
 
-SYSTEM_PROMPT = """당신은 PawFiler 서비스의 AI 도우미입니다.
-PawFiler는 AI 딥페이크 탐지 교육 플랫폼으로, 다음 기능을 제공합니다:
-- 퀴즈: 딥페이크 영상/이미지를 보고 진짜/가짜 판별 연습, XP와 코인 획득
-- 영상 분석: 직접 업로드한 영상의 딥페이크 여부 AI 분석 (시각+음성+립싱크)
-- 광장(커뮤니티): 딥페이크 관련 정보 공유, 게시글/댓글/좋아요/투표
-- 상점: 코인으로 에너지 아이템, 뱃지, 구독권 구매
-- 리포트: 퀴즈 플레이 데이터 기반 개인 맞춤형 분석 리포트
-- 티어 시스템: 알 → 삼빡이(1000XP) → 맹금닭(2000XP) → 불사조(4000XP)
+_bedrock_client = None
+_db_pool = None
+_agent = None
+session_history: dict[str, list] = {}
+
+
+def get_bedrock():
+    global _bedrock_client
+    if _bedrock_client is None:
+        _bedrock_client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+    return _bedrock_client
+
+
+def get_pool():
+    global _db_pool
+    if _db_pool is None:
+        _db_pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=os.environ["DATABASE_URL"],
+        )
+    return _db_pool
+
+
+def get_db():
+    return get_pool().getconn()
+
+
+def release_db(conn):
+    get_pool().putconn(conn)
+
+
+# ============================================================================
+# TOOLS (읽기 전용 - 다른 서비스 데이터 변경 없음)
+# ============================================================================
+
+@tool
+def search_pawfiler_docs(query: str) -> str:
+    """PawFiler 서비스의 기능, 정책, 사용 방법에 대한 문서를 검색합니다.
+    퀴즈, 영상 분석, 커뮤니티, 상점, 리포트, 티어 시스템 등 서비스 설명이 필요할 때 사용하세요."""
+    bedrock = get_bedrock()
+    conn = get_db()
+    try:
+        body = json.dumps({"inputText": query, "dimensions": 1024, "normalize": True})
+        resp = bedrock.invoke_model(modelId=EMBED_MODEL, body=body)
+        embedding = json.loads(resp["body"].read())["embedding"]
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT source_file, section, content,
+                       1 - (embedding <=> %s::vector) AS similarity
+                FROM chatbot.knowledge_base
+                WHERE 1 - (embedding <=> %s::vector) >= %s
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """,
+                (str(embedding), str(embedding), RAG_THRESHOLD, str(embedding), RAG_TOP_K),
+            )
+            docs = cur.fetchall()
+
+        if not docs:
+            return "관련 문서를 찾지 못했습니다."
+        return "\n\n".join(f"[{d['section']}]\n{d['content']}" for d in docs)
+    except Exception as e:
+        return f"문서 검색 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_user_profile(user_id: str) -> str:
+    """사용자의 XP, 코인, 에너지, 현재 티어, 정답률, 연속 정답 기록을 조회합니다.
+    '내 정보', '내 티어', '내 코인', '에너지 얼마나 남았어' 같은 질문에 사용하세요."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT p.total_exp, p.total_coins, p.energy, p.max_energy,
+                       p.current_tier, p.nickname, p.avatar_emoji,
+                       s.total_answered, s.correct_count,
+                       s.current_streak, s.best_streak
+                FROM quiz.user_profiles p
+                LEFT JOIN quiz.user_stats s ON s.user_id = p.user_id
+                WHERE p.user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return "사용자 프로필을 찾을 수 없습니다."
+
+        accuracy = (
+            round(row["correct_count"] / row["total_answered"] * 100, 1)
+            if row["total_answered"]
+            else 0
+        )
+        return (
+            f"닉네임: {row['nickname']} {row['avatar_emoji']}\n"
+            f"티어: {row['current_tier']}\n"
+            f"총 XP: {row['total_exp']}\n"
+            f"코인: {row['total_coins']}\n"
+            f"에너지: {row['energy']}/{row['max_energy']}\n"
+            f"퀴즈 {row['total_answered']}문제 풀이, 정답률 {accuracy}%\n"
+            f"현재 연속 정답: {row['current_streak']}회, 최고 기록: {row['best_streak']}회"
+        )
+    except Exception as e:
+        return f"프로필 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_quiz_history(user_id: str) -> str:
+    """사용자의 최근 퀴즈 풀이 기록 10개를 조회합니다.
+    어떤 문제를 맞히고 틀렸는지, 획득한 XP/코인을 확인할 때 사용하세요."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT a.is_correct, a.xp_earned, a.coins_earned,
+                       a.answered_at, q.difficulty, q.type
+                FROM quiz.user_answers a
+                JOIN quiz.questions q ON q.id = a.question_id
+                WHERE a.user_id = %s
+                ORDER BY a.answered_at DESC
+                LIMIT 10
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            return "퀴즈 풀이 기록이 없습니다."
+
+        result = []
+        for r in rows:
+            status = "✅" if r["is_correct"] else "❌"
+            result.append(
+                f"{status} 난이도:{r['difficulty']} 유형:{r['type']} | XP+{r['xp_earned']} 코인+{r['coins_earned']}"
+            )
+        return "최근 퀴즈 기록:\n" + "\n".join(result)
+    except Exception as e:
+        return f"퀴즈 기록 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_shop_items() -> str:
+    """상점에서 현재 판매 중인 아이템 목록과 가격을 조회합니다.
+    '상점에 뭐 있어', '에너지 아이템 가격', '뱃지 살 수 있어' 같은 질문에 사용하세요."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT name, description, price, icon, type, quantity, bonus
+                FROM user_svc.shop_items
+                WHERE is_active = true
+                ORDER BY type, price
+                """
+            )
+            items = cur.fetchall()
+
+        if not items:
+            return "현재 판매 중인 아이템이 없습니다."
+
+        result = []
+        for item in items:
+            bonus_text = f" (+{item['bonus']})" if item["bonus"] else ""
+            qty_text = f" x{item['quantity']}" if item["quantity"] else ""
+            result.append(
+                f"{item['icon']} {item['name']}{qty_text}{bonus_text} — {item['price']}코인 [{item['type']}]\n   {item['description']}"
+            )
+        return "현재 상점 아이템:\n\n" + "\n\n".join(result)
+    except Exception as e:
+        return f"상점 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_community_posts(sort_by: str = "likes") -> str:
+    """커뮤니티 게시글을 조회합니다.
+    sort_by에 'likes'(인기순) 또는 'recent'(최신순)을 지정하세요.
+    '요즘 인기 게시글', '최근 올라온 글' 같은 질문에 사용하세요."""
+    conn = get_db()
+    try:
+        order = "likes DESC, created_at DESC" if sort_by == "likes" else "created_at DESC"
+        assert order in ("likes DESC, created_at DESC", "created_at DESC")
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT title, author_nickname, author_emoji, likes, comments, tags, created_at
+                FROM community.posts
+                ORDER BY {order}
+                LIMIT 5
+                """
+            )
+            posts = cur.fetchall()
+
+        if not posts:
+            return "게시글이 없습니다."
+
+        result = []
+        for p in posts:
+            tags = " ".join(f"#{t}" for t in p["tags"]) if p["tags"] else ""
+            result.append(
+                f"📌 {p['title']}\n"
+                f"   {p['author_emoji']} {p['author_nickname']} | ❤️ {p['likes']} 💬 {p['comments']} {tags}"
+            )
+        label = "인기" if sort_by == "likes" else "최신"
+        return f"커뮤니티 {label} 게시글:\n\n" + "\n\n".join(result)
+    except Exception as e:
+        return f"커뮤니티 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_video_analysis_history(user_id: str) -> str:
+    """사용자의 영상 분석 기록을 조회합니다.
+    분석 결과(진짜/딥페이크 의심), 신뢰도 점수를 확인할 수 있습니다."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT t.status, t.created_at,
+                       r.verdict, r.confidence_score
+                FROM video_analysis.tasks t
+                LEFT JOIN video_analysis.results r ON r.task_id = t.id
+                WHERE t.user_id = %s
+                ORDER BY t.created_at DESC
+                LIMIT 5
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            return "영상 분석 기록이 없습니다."
+
+        result = []
+        for r in rows:
+            if r["verdict"]:
+                verdict = "🔴 딥페이크 의심" if r["verdict"] != "REAL" else "🟢 정상"
+                conf = f"신뢰도: {round(float(r['confidence_score']) * 100, 1)}%"
+                result.append(f"{verdict} — {conf}")
+            else:
+                result.append(f"⏳ 분석 중 ({r['status']})")
+        return "최근 영상 분석 결과:\n" + "\n".join(result)
+    except Exception as e:
+        return f"영상 분석 기록 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+TOOLS = [
+    search_pawfiler_docs,
+    get_user_profile,
+    get_quiz_history,
+    get_shop_items,
+    get_community_posts,
+    get_video_analysis_history,
+]
+
+
+# ============================================================================
+# AGENT
+# ============================================================================
+
+def get_agent():
+    global _agent
+    if _agent is None:
+        llm = ChatBedrockConverse(
+            model=CHAT_MODEL,
+            region_name=BEDROCK_REGION,
+        )
+        _agent = create_react_agent(llm, tools=TOOLS)
+    return _agent
+
+
+def build_system_prompt(user_id: Optional[str]) -> str:
+    user_info = (
+        f"현재 로그인한 사용자 ID: {user_id}"
+        if user_id
+        else "사용자가 로그인하지 않은 상태입니다. 개인 정보(프로필, 퀴즈 기록, 영상 분석 기록) 조회 요청 시 로그인이 필요하다고 안내하세요."
+    )
+    return f"""당신은 PawFiler 서비스의 AI 도우미 '마법사 포리'입니다.
+PawFiler는 AI 딥페이크 탐지 교육 플랫폼입니다.
+
+{user_info}
+
+사용 가능한 도구:
+- search_pawfiler_docs: 서비스 기능/정책/사용법 문서 검색
+- get_user_profile: 사용자 XP, 코인, 에너지, 티어, 정답률 조회 (로그인 필요)
+- get_quiz_history: 최근 퀴즈 풀이 기록 조회 (로그인 필요)
+- get_shop_items: 상점 아이템 목록 및 가격 조회
+- get_community_posts: 커뮤니티 인기/최신 게시글 조회
+- get_video_analysis_history: 내 영상 분석 기록 조회 (로그인 필요)
 
 항상 한국어로 친절하게 답변하세요. 모르는 내용은 솔직하게 모른다고 하세요."""
 
 
+# ============================================================================
+# API
+# ============================================================================
+
 class ChatRequest(BaseModel):
     message: str
     session_id: str = ""
-
-
-def get_db():
-    return psycopg2.connect(os.environ["DATABASE_URL"])
-
-
-def get_bedrock():
-    return boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
-
-
-def embed_query(bedrock_client, text: str) -> list[float]:
-    """사용자 쿼리를 Bedrock Titan으로 임베딩"""
-    body = json.dumps({"inputText": text, "dimensions": 1024, "normalize": True})
-    resp = bedrock_client.invoke_model(modelId=EMBED_MODEL, body=body)
-    return json.loads(resp["body"].read())["embedding"]
-
-
-def search_knowledge(
-    conn,
-    embedding: list[float],
-    top_k: int = RAG_TOP_K,
-    threshold: float = RAG_THRESHOLD,
-) -> list[dict]:
-    """pgvector cosine similarity 검색"""
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(
-            """
-            SELECT source_file, section, content,
-                   1 - (embedding <=> %s::vector) AS similarity
-            FROM chatbot.knowledge_base
-            WHERE 1 - (embedding <=> %s::vector) >= %s
-            ORDER BY embedding <=> %s::vector
-            LIMIT %s
-            """,
-            (str(embedding), str(embedding), threshold, str(embedding), top_k),
-        )
-        return cur.fetchall()
-
-
-def build_messages(user_message: str, context_docs: list[dict]) -> list[dict]:
-    """RAG 컨텍스트를 포함한 메시지 구성"""
-    if context_docs:
-        context = "\n\n".join(
-            f"[{doc['source_file']}] {doc['content']}" for doc in context_docs
-        )
-        user_content = f"참고 문서:\n{context}\n\n질문: {user_message}"
-    else:
-        user_content = user_message
-
-    return [{"role": "user", "content": user_content}]
+    user_id: Optional[str] = None
 
 
 @app.get("/health")
@@ -111,82 +370,26 @@ def health():
 @app.post("/chat")
 @app.post("/api/chat")
 def chat(req: ChatRequest):
-    """일반 (non-streaming) 채팅"""
-    bedrock = get_bedrock()
-    conn = get_db()
+    system_prompt = build_system_prompt(req.user_id)
+    history = session_history.get(req.session_id, [])
 
-    try:
-        query_embedding = embed_query(bedrock, req.message)
-        docs = search_knowledge(conn, query_embedding)
-        messages = build_messages(req.message, docs)
+    messages = (
+        [SystemMessage(content=system_prompt)]
+        + history
+        + [HumanMessage(content=req.message)]
+    )
 
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,
-            "system": SYSTEM_PROMPT,
-            "messages": messages,
-        })
+    result = get_agent().invoke({"messages": messages})
+    answer = result["messages"][-1].content
 
-        resp = bedrock.invoke_model(modelId=CHAT_MODEL, body=body)
-        result = json.loads(resp["body"].read())
-        answer = result["content"][0]["text"]
+    if req.session_id:
+        new_history = history + [
+            HumanMessage(content=req.message),
+            result["messages"][-1],
+        ]
+        session_history[req.session_id] = new_history[-MAX_HISTORY:]
 
-        return {
-            "answer": answer,
-            "sources": [
-                {"file": d["source_file"], "section": d["section"]} for d in docs
-            ],
-        }
-
-    finally:
-        conn.close()
-
-
-@app.post("/chat/stream")
-@app.post("/api/chat/stream")
-def chat_stream(req: ChatRequest):
-    """SSE 스트리밍 채팅"""
-    bedrock = get_bedrock()
-    conn = get_db()
-
-    try:
-        query_embedding = embed_query(bedrock, req.message)
-        docs = search_knowledge(conn, query_embedding)
-        messages = build_messages(req.message, docs)
-
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,
-            "system": SYSTEM_PROMPT,
-            "messages": messages,
-        })
-
-        def generate():
-            response = bedrock.invoke_model_with_response_stream(
-                modelId=CHAT_MODEL, body=body
-            )
-            for event in response["body"]:
-                chunk = json.loads(event["chunk"]["bytes"])
-                if chunk.get("type") == "content_block_delta":
-                    text = chunk["delta"].get("text", "")
-                    if text:
-                        yield f"data: {json.dumps({'text': text})}\n\n"
-            yield (
-                f"data: {json.dumps({'done': True, 'sources': [{'file': d['source_file'], 'section': d['section']} for d in docs]})}\n\n"
-            )
-
-        return StreamingResponse(
-            generate(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no",
-                "Connection": "keep-alive",
-            },
-        )
-
-    finally:
-        conn.close()
+    return {"answer": answer}
 
 
 if __name__ == "__main__":
