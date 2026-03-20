@@ -144,6 +144,8 @@ module "helm" {
   kubecost_token        = var.kubecost_token
   argocd_admin_password = var.argocd_admin_password
 
+  enable_istio = var.enable_istio
+
   depends_on = [module.eks, module.karpenter]
 }
 

@@ -26,6 +26,12 @@ variable "enable_karpenter" {
   default     = true
 }
 
+variable "enable_istio" {
+  description = "Enable Istio service mesh (istio-base + istiod, sidecar injection on pawfiler namespace)"
+  type        = bool
+  default     = false
+}
+
 # Networking variables
 variable "vpc_cidr_block" {
   description = "CIDR block for the VPC"
