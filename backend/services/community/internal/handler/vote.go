@@ -38,20 +38,43 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 			tx.Rollback()
 			return &pb.VotePostResponse{Success: true, AlreadyVoted: true, XpEarned: 0}, nil
 		}
-		// 다른 값이면 UPDATE
+		// 다른 값이면 UPDATE + 카운터 반전
 		_, err = tx.ExecContext(ctx,
 			"UPDATE community.post_votes SET vote = $1 WHERE post_id = $2 AND user_id = $3",
 			req.Vote, req.PostId, req.UserId)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "Failed to update vote")
 		}
+		// 이전 투표 취소 + 새 투표 반영
+		if req.Vote {
+			_, err = tx.ExecContext(ctx,
+				"UPDATE community.posts SET true_votes = true_votes + 1, false_votes = GREATEST(false_votes - 1, 0) WHERE id = $1",
+				req.PostId)
+		} else {
+			_, err = tx.ExecContext(ctx,
+				"UPDATE community.posts SET false_votes = false_votes + 1, true_votes = GREATEST(true_votes - 1, 0) WHERE id = $1",
+				req.PostId)
+		}
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Failed to update vote counts")
+		}
 	} else {
-		// 첫 투표 INSERT
+		// 첫 투표 INSERT + 카운터 증가
 		_, err = tx.ExecContext(ctx,
 			"INSERT INTO community.post_votes (id, post_id, user_id, vote) VALUES ($1, $2, $3, $4)",
 			uuid.New().String(), req.PostId, req.UserId, req.Vote)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "Failed to vote")
+		}
+		if req.Vote {
+			_, err = tx.ExecContext(ctx,
+				"UPDATE community.posts SET true_votes = true_votes + 1 WHERE id = $1", req.PostId)
+		} else {
+			_, err = tx.ExecContext(ctx,
+				"UPDATE community.posts SET false_votes = false_votes + 1 WHERE id = $1", req.PostId)
+		}
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Failed to update vote counts")
 		}
 	}
 

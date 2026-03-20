@@ -40,18 +40,6 @@ func initDB() error {
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
-	// Add missing columns if not exist
-	migrations := []string{
-		`ALTER TABLE community.posts ADD COLUMN IF NOT EXISTS media_url TEXT`,
-		`ALTER TABLE community.posts ADD COLUMN IF NOT EXISTS media_type VARCHAR(10)`,
-		`ALTER TABLE community.posts ADD COLUMN IF NOT EXISTS is_admin_post BOOLEAN DEFAULT FALSE`,
-		`ALTER TABLE community.posts ADD COLUMN IF NOT EXISTS is_correct BOOLEAN DEFAULT NULL`,
-	}
-	for _, m := range migrations {
-		if _, err := db.Exec(m); err != nil {
-			log.Printf("migration warning: %v", err)
-		}
-	}
 	log.Println("Database connected successfully")
 	return nil
 }
