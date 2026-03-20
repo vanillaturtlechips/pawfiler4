@@ -156,3 +156,30 @@ resource "aws_iam_role_policy" "otel_collector" {
     ]
   })
 }
+
+# ---------------------------------------------------------------------------
+# DevOps Guru - 이상 탐지 및 운영 인사이트
+# ---------------------------------------------------------------------------
+resource "aws_sns_topic" "devops_guru" {
+  name = "${var.project_name}-devops-guru"
+
+  tags = {
+    Project = var.project_name
+    Purpose = "aiops"
+  }
+}
+
+resource "aws_devopsguru_resource_collection" "main" {
+  type = "AWS_TAGS"
+
+  tags {
+    app_boundary_key = "Project"
+    tag_values       = [var.project_name]
+  }
+}
+
+resource "aws_devopsguru_notification_channel" "main" {
+  sns {
+    topic_arn = aws_sns_topic.devops_guru.arn
+  }
+}
