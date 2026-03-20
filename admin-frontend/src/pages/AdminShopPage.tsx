@@ -11,7 +11,7 @@ import {
   uploadShopImage,
 } from "../lib/adminApi";
 
-const ITEM_TYPES = ["coin_bonus", "exp_bonus", "avatar", "badge", "etc"];
+const ITEM_TYPES = ["subscription", "coins", "item"];
 
 const emptyForm = (): ShopItemRequest => ({
   name: "",

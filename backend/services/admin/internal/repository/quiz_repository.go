@@ -58,25 +58,56 @@ type CreateQuestionRequest struct {
 	CorrectSide        *string         `json:"correct_side,omitempty"`
 }
 
-func (r *QuizRepository) ListQuestions(limit, offset int) ([]Question, int, error) {
-	// Get total count
+type ListQuestionsFilter struct {
+	Type       string
+	Difficulty string
+	Category   string
+	Search     string
+}
+
+func (r *QuizRepository) ListQuestions(limit, offset int, f ListQuestionsFilter) ([]Question, int, error) {
+	args := []interface{}{}
+	argIdx := 1
+	where := "1=1"
+
+	if f.Type != "" {
+		where += fmt.Sprintf(" AND type = $%d", argIdx)
+		args = append(args, f.Type)
+		argIdx++
+	}
+	if f.Difficulty != "" {
+		where += fmt.Sprintf(" AND difficulty = $%d", argIdx)
+		args = append(args, f.Difficulty)
+		argIdx++
+	}
+	if f.Category != "" {
+		where += fmt.Sprintf(" AND category = $%d", argIdx)
+		args = append(args, f.Category)
+		argIdx++
+	}
+	if f.Search != "" {
+		where += fmt.Sprintf(" AND explanation ILIKE $%d", argIdx)
+		args = append(args, "%"+f.Search+"%")
+		argIdx++
+	}
+
 	var total int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM quiz.questions").Scan(&total)
-	if err != nil {
+	if err := r.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM quiz.questions WHERE %s", where), args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count questions: %w", err)
 	}
 
-	// Get questions
-	query := `
+	query := fmt.Sprintf(`
 		SELECT id, type, media_type, media_url, thumbnail_emoji, difficulty, category, 
 		       explanation, options, correct_index, correct_answer, correct_regions, 
 		       tolerance, comparison_media_url, correct_side
 		FROM quiz.questions
+		WHERE %s
 		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`
+		LIMIT $%d OFFSET $%d
+	`, where, argIdx, argIdx+1)
 
-	rows, err := r.db.Query(query, limit, offset)
+	args = append(args, limit, offset)
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query questions: %w", err)
 	}

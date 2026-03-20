@@ -48,11 +48,16 @@ export interface UploadMediaResponse {
 }
 
 // List questions
-export async function listQuestions(page = 1, pageSize = 20): Promise<ListQuestionsResponse> {
-  const response = await fetch(`${ADMIN_API_URL}/admin/quiz/questions?page=${page}&page_size=${pageSize}`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch questions');
-  }
+export async function listQuestions(page = 1, pageSize = 20, filters?: {
+  type?: string; difficulty?: string; category?: string; search?: string;
+}): Promise<ListQuestionsResponse> {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (filters?.type) params.set('type', filters.type);
+  if (filters?.difficulty) params.set('difficulty', filters.difficulty);
+  if (filters?.category) params.set('category', filters.category);
+  if (filters?.search) params.set('search', filters.search);
+  const response = await fetch(`${ADMIN_API_URL}/admin/quiz/questions?${params}`);
+  if (!response.ok) throw new Error('Failed to fetch questions');
   return response.json();
 }
 
@@ -188,7 +193,7 @@ export async function uploadShopImage(file: File): Promise<UploadMediaResponse> 
   formData.append('file', file);
   formData.append('category', 'shop');
   formData.append('media_type', 'image');
-  formData.append('difficulty', 'general');
+  formData.append('difficulty', 'easy');
 
   const response = await fetch(`${ADMIN_API_URL}/admin/quiz/upload`, {
     method: 'POST',

@@ -48,27 +48,15 @@ export default function QuizManagePage() {
   const loadQuestions = async () => {
     setLoading(true);
     try {
-      const data = await listQuestions(page, 20);
-      let filtered = data.questions || [];
-      
-      // Apply filters
-      if (filterType !== "all") {
-        filtered = filtered.filter(q => q.type === filterType);
-      }
-      if (filterDifficulty !== "all") {
-        filtered = filtered.filter(q => q.difficulty === filterDifficulty);
-      }
-      if (filterCategory !== "all") {
-        filtered = filtered.filter(q => q.category === filterCategory);
-      }
-      if (searchQuery) {
-        filtered = filtered.filter(q => 
-          q.explanation.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
-      
-      setQuestions(filtered);
-      setTotal(filtered.length);
+      const filters = {
+        type: filterType !== "all" ? filterType : undefined,
+        difficulty: filterDifficulty !== "all" ? filterDifficulty : undefined,
+        category: filterCategory !== "all" ? filterCategory : undefined,
+        search: searchQuery || undefined,
+      };
+      const data = await listQuestions(page, 20, filters);
+      setQuestions(data.questions || []);
+      setTotal(data.total);
     } catch (error) {
       toast.error("문제 목록을 불러오는데 실패했습니다");
       console.error(error);
