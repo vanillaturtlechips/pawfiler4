@@ -101,3 +101,58 @@ resource "aws_iam_role_policy" "grafana_amp" {
     ]
   })
 }
+
+# ---------------------------------------------------------------------------
+# IRSA: OTEL Collector → CloudWatch Logs + X-Ray
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "otel_collector" {
+  name = "${var.project_name}-otel-collector"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:monitoring:otel-collector"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "otel_collector" {
+  name = "${var.project_name}-otel-collector-policy"
+  role = aws_iam_role.otel_collector.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "arn:aws:logs:ap-northeast-2:009946608368:log-group:/aws/eks/pawfiler-eks-cluster/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
