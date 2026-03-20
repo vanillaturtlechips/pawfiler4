@@ -183,6 +183,9 @@ resource "helm_release" "argocd" {
 }
 
 # Kubecost 설치 (비용 모니터링)
+# - 번들 Prometheus/Grafana 비활성화
+# - 외부 Prometheus: kube-prometheus-stack (AMP remote_write 담당)
+# - IRSA: CE/EC2/CloudWatch 비용 데이터 조회
 resource "helm_release" "kubecost" {
   name             = "kubecost"
   repository       = "oci://public.ecr.aws/kubecost"
@@ -193,17 +196,13 @@ resource "helm_release" "kubecost" {
   timeout          = 600
   wait             = false
 
+  # Kubecost 라이선스 토큰
   set {
     name  = "kubecostToken"
     value = var.kubecost_token
   }
 
-  set {
-    name  = "prometheus.server.global.external_labels.cluster_id"
-    value = var.cluster_name
-  }
-
-  # AWS Cloud Integration
+  # AWS 비용 데이터 연동
   set {
     name  = "kubecostProductConfigs.clusterName"
     value = var.cluster_name
@@ -214,11 +213,7 @@ resource "helm_release" "kubecost" {
     value = var.aws_region
   }
 
-  set {
-    name  = "kubecostProductConfigs.awsSpotDataBucket"
-    value = "s3://spot-data-feed-${var.account_id}"
-  }
-
+  # IRSA ServiceAccount
   set {
     name  = "serviceAccount.create"
     value = "true"
@@ -234,36 +229,28 @@ resource "helm_release" "kubecost" {
     value = aws_iam_role.kubecost.arn
   }
 
+  # Kubecost 자체 PV (cost-analyzer 데이터)
   set {
     name  = "persistentVolume.storageClass"
     value = "gp2"
   }
 
-  set {
-    name  = "prometheus.server.persistentVolume.storageClass"
-    value = "gp2"
-  }
-
-  set {
-    name  = "prometheus.server.image.repository"
-    value = "quay.io/prometheus/prometheus"
-  }
-
-  # Disable Kubecost Grafana (use standalone Grafana instead)
+  # 번들 Grafana 비활성화 (standalone Grafana 사용)
   set {
     name  = "grafana.enabled"
     value = "false"
   }
 
+  # 번들 Prometheus 비활성화 → kube-prometheus-stack으로 통합
   set {
-    name  = "prometheus.server.image.tag"
-    value = "v2.47.0"
+    name  = "global.prometheus.enabled"
+    value = "false"
   }
 
-  # Grafana 비활성화 (별도 설치)
+  # 외부 Prometheus 엔드포인트 (kube-prometheus-stack)
   set {
-    name  = "grafana.enabled"
-    value = "false"
+    name  = "global.prometheus.fqdn"
+    value = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
   }
 
 }
