@@ -216,7 +216,7 @@ def build_app():
 
     # Cascade Gate (CPU)
     cascade_gate = XGBoostGate.bind(
-        model_path="/mnt/efs/models/xgboost_cascade.json",
+        model_path="/mnt/efs/models/xgboost_cascade.pkl",
     )
 
     # Layer 2: 논리적 에이전트 (model_worker handle 주입)

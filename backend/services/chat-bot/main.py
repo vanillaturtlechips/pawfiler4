@@ -8,6 +8,8 @@ PawFiler AI Agent Service
 """
 import os
 import json
+import math
+import time
 import boto3
 import psycopg2
 import psycopg2.pool
@@ -41,11 +43,55 @@ CHAT_MODEL = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
 RAG_THRESHOLD = 0.4
 RAG_TOP_K = 3
 MAX_HISTORY = 10  # 세션당 최근 메시지 보관 수
+SESSION_TTL = 1800  # 세션 유효 시간 (초, 30분)
+
+TIER_ORDER = ["알 껍데기 병아리", "삐약이 정보원", "안경 쓴 병아리", "망토 입은 닭", "불사조 탐정"]
+TIER_XP = {"알 껍데기 병아리": 0, "삐약이 정보원": 150, "안경 쓴 병아리": 400, "망토 입은 닭": 800, "불사조 탐정": 1500}
 
 _bedrock_client = None
 _db_pool = None
 _agent = None
-session_history: dict[str, list] = {}
+# {session_id: {"msgs": [...], "ts": float}}
+session_history: dict[str, dict] = {}
+
+# ============================================================================
+# EASTER EGGS
+# ============================================================================
+
+_EASTER_EGGS = {
+    # 포리
+    "포리 정체":       "저는 PawFiler의 AI 수호자, 마법사 포리 🧙 딥페이크로부터 세상을 지키는 것이 제 사명입니다. 두 눈 크게 뜨고 가짜를 잡아내요! 🐾✨",
+    "포리야 사랑해":   "포리도 좋아해요 💕 딥페이크 탐지 계속 열심히 해주세요 🐾",
+    "포리 최고":       "포리는 그냥 포리예요 🐾 최고는 직접 가짜를 잡아내는 여러분이에요!",
+    "포리 춤":         "🕺🐾🕺\n두둠칫~ 딥페이크 탐지 댄스~\n짝짝짝~ 가짜는 내가 잡는다~\n🎵🐾🎵",
+    "비밀 명령어":     "포리를 만든 사람들의 이름을 하나씩 불러보세요 👀🐾 다섯 명이 숨어있어요!",
+    # 팀원
+    "이명일":          "오늘은 잠 좀 주무셨어요? 😴 제발 좀 쉬세요... 포리가 걱정돼요 🐾",
+    "문재윤":          "💻 포리를 만든 개발자 등장! 문재윤 님, 잘 만들어줘서 고마워요 🐾",
+    "김한식":          "오늘 저녁 뭐먹죠? 🍚 포리도 배고파요, 같이 먹어요 🐾",
+    "양정한":          "오늘은 무슨 사고를 치셨나요? 🤔 포리는 다 알고 있어요... 🐾",
+    "김재원":          "이잉 누구야 난 몰라 🙈 ... 알아요 김재원 님 맞죠? 🐾",
+    # 강사님
+    "김영철":          "포리는 롯데를 좋아해요 🎰 강사님도 그러시죠? 🐾",
+    "클라우드":        "역시 클라우드는 엘 클라우드죠 그렇죠? ☁️🐾",
+    "부트캠프":        "AWS CLOUD SCHOOL 12기 화이팅! 🔥🐾",
+    "멘토":            "그래서 자소서는 언제 봐주시는 거죠? 📝🐾",
+}
+
+
+def _check_easter_egg(message: str) -> str | None:
+    for keyword, response in _EASTER_EGGS.items():
+        if keyword in message:
+            return response
+    return None
+
+
+def _cleanup_sessions():
+    """30분 이상 미접근 세션 정리"""
+    cutoff = time.time() - SESSION_TTL
+    stale = [sid for sid, data in session_history.items() if data["ts"] < cutoff]
+    for sid in stale:
+        del session_history[sid]
 
 
 def get_bedrock():
@@ -90,18 +136,55 @@ def search_pawfiler_docs(query: str) -> str:
         embedding = json.loads(resp["body"].read())["embedding"]
 
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1. 벡터 검색 top 10
             cur.execute(
                 """
-                SELECT source_file, section, content,
+                SELECT id, source_file, section, content,
                        1 - (embedding <=> %s::vector) AS similarity
                 FROM chatbot.knowledge_base
                 WHERE 1 - (embedding <=> %s::vector) >= %s
                 ORDER BY embedding <=> %s::vector
-                LIMIT %s
+                LIMIT 10
                 """,
-                (str(embedding), str(embedding), RAG_THRESHOLD, str(embedding), RAG_TOP_K),
+                (str(embedding), str(embedding), RAG_THRESHOLD, str(embedding)),
             )
-            docs = cur.fetchall()
+            vector_rows = cur.fetchall()
+
+            # 2. FTS 키워드 검색 top 10 (tsv 컬럼 없으면 빈 결과로 fallback)
+            try:
+                cur.execute(
+                    """
+                    SELECT id, source_file, section, content
+                    FROM chatbot.knowledge_base
+                    WHERE tsv @@ plainto_tsquery('simple', %s)
+                    ORDER BY ts_rank(tsv, plainto_tsquery('simple', %s)) DESC
+                    LIMIT 10
+                    """,
+                    (query, query),
+                )
+                fts_rows = cur.fetchall()
+            except Exception:
+                conn.rollback()
+                fts_rows = []
+
+        # 3. RRF(Reciprocal Rank Fusion)로 두 결과 합산
+        K = 60
+        scores: dict = {}
+        all_docs: dict = {}
+
+        for rank, row in enumerate(vector_rows):
+            doc_id = str(row["id"])
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (K + rank + 1)
+            all_docs[doc_id] = row
+
+        for rank, row in enumerate(fts_rows):
+            doc_id = str(row["id"])
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (K + rank + 1)
+            all_docs[doc_id] = row
+
+        # 4. 점수 높은 순 top K
+        top_ids = sorted(scores, key=lambda x: scores[x], reverse=True)[:RAG_TOP_K]
+        docs = [all_docs[doc_id] for doc_id in top_ids]
 
         if not docs:
             return "관련 문서를 찾지 못했습니다."
@@ -304,6 +387,122 @@ def get_video_analysis_history(user_id: str) -> str:
         release_db(conn)
 
 
+@tool
+def analyze_quiz_weakness(user_id: str) -> str:
+    """사용자의 퀴즈 난이도별·유형별 정답률을 분석합니다.
+    '내 약점이 뭐야', '어떤 난이도를 많이 틀려', '퀴즈 실력 분석해줘' 같은 질문에 사용하세요."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT q.difficulty, q.type,
+                       COUNT(*) AS total,
+                       SUM(CASE WHEN a.is_correct THEN 1 ELSE 0 END) AS correct
+                FROM quiz.user_answers a
+                JOIN quiz.questions q ON q.id = a.question_id
+                WHERE a.user_id = %s
+                GROUP BY q.difficulty, q.type
+                ORDER BY q.difficulty, correct ASC
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            return "퀴즈 풀이 기록이 없어 분석할 수 없습니다."
+
+        result = []
+        for r in rows:
+            accuracy = round(r["correct"] / r["total"] * 100, 1) if r["total"] else 0
+            icon = "🟢" if accuracy >= 70 else "🟡" if accuracy >= 50 else "🔴"
+            result.append(f"{icon} {r['difficulty']} / {r['type']}: {r['total']}문제 중 {r['correct']}정답 ({accuracy}%)")
+        return "퀴즈 약점 분석:\n" + "\n".join(result)
+    except Exception as e:
+        return f"약점 분석 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_tier_progress(user_id: str) -> str:
+    """다음 티어까지 필요한 XP와 퀴즈 문제 수를 계산합니다.
+    '다음 티어까지 얼마나 남았어', '티어업하려면 몇 문제 더 풀어야 해' 같은 질문에 사용하세요."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT total_exp, current_tier FROM quiz.user_profiles WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return "사용자 프로필을 찾을 수 없습니다."
+
+        current_xp = row["total_exp"]
+        current_tier = row["current_tier"]
+
+        try:
+            idx = TIER_ORDER.index(current_tier)
+        except ValueError:
+            return f"현재 티어: {current_tier}, XP: {current_xp}"
+
+        if idx >= len(TIER_ORDER) - 1:
+            return f"이미 최고 티어(불사조 탐정)입니다! 현재 XP: {current_xp}"
+
+        next_tier = TIER_ORDER[idx + 1]
+        needed = TIER_XP[next_tier] - current_xp
+
+        return (
+            f"현재: {current_tier} (XP {current_xp})\n"
+            f"목표: {next_tier} (XP {TIER_XP[next_tier]} 필요)\n"
+            f"남은 XP: {needed}\n"
+            f"달성 방법: hard {math.ceil(needed / 50)}문제 또는 medium {math.ceil(needed / 25)}문제 정답"
+        )
+    except Exception as e:
+        return f"티어 진척도 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
+@tool
+def get_energy_recovery_time(user_id: str) -> str:
+    """현재 에너지에서 완충까지 남은 시간을 계산합니다.
+    '에너지 언제 다 차', '에너지 완충까지 얼마나 걸려' 같은 질문에 사용하세요."""
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT energy, max_energy FROM quiz.user_profiles WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return "사용자 프로필을 찾을 수 없습니다."
+
+        energy = row["energy"]
+        max_energy = row["max_energy"]
+
+        if energy >= max_energy:
+            return f"에너지가 이미 최대치({max_energy})입니다! 퀴즈 {max_energy // 5}문제를 풀 수 있습니다."
+
+        needed = max_energy - energy
+        total_hours = (needed / 10) * 3
+        h, m = int(total_hours), int((total_hours % 1) * 60)
+
+        return (
+            f"현재 에너지: {energy}/{max_energy}\n"
+            f"완충까지: 약 {h}시간 {m}분 (3시간마다 +10 자동 회복)\n"
+            f"지금 풀 수 있는 문제 수: {energy // 5}문제"
+        )
+    except Exception as e:
+        return f"에너지 회복 시간 조회 중 오류: {str(e)}"
+    finally:
+        release_db(conn)
+
+
 TOOLS = [
     search_pawfiler_docs,
     get_user_profile,
@@ -311,6 +510,9 @@ TOOLS = [
     get_shop_items,
     get_community_posts,
     get_video_analysis_history,
+    analyze_quiz_weakness,
+    get_tier_progress,
+    get_energy_recovery_time,
 ]
 
 
@@ -340,15 +542,28 @@ PawFiler는 AI 딥페이크 탐지 교육 플랫폼입니다.
 
 {user_info}
 
-사용 가능한 도구:
+## 답변 우선순위
+1. PawFiler 서비스 관련 질문 → 도구를 사용해 정확한 데이터로 답변
+2. 딥페이크·AI·사이버보안·미디어 리터러시 관련 질문 → 보유 지식으로 자유롭게 답변
+3. 그 외 일반 질문(계산, 번역, 상식 등) → 도움이 된다면 친절하게 답변
+
+## 사용 가능한 도구
 - search_pawfiler_docs: 서비스 기능/정책/사용법 문서 검색
-- get_user_profile: 사용자 XP, 코인, 에너지, 티어, 정답률 조회 (로그인 필요)
-- get_quiz_history: 최근 퀴즈 풀이 기록 조회 (로그인 필요)
+- get_user_profile: XP, 코인, 에너지, 티어, 정답률 조회 (로그인 필요)
+- get_quiz_history: 최근 퀴즈 풀이 기록 10개 조회 (로그인 필요)
 - get_shop_items: 상점 아이템 목록 및 가격 조회
 - get_community_posts: 커뮤니티 인기/최신 게시글 조회
-- get_video_analysis_history: 내 영상 분석 기록 조회 (로그인 필요)
+- get_video_analysis_history: 영상 분석 기록 조회 (로그인 필요)
+- analyze_quiz_weakness: 난이도·유형별 정답률 분석 및 약점 파악 (로그인 필요)
+- get_tier_progress: 다음 티어까지 필요한 XP와 문제 수 계산 (로그인 필요)
+- get_energy_recovery_time: 에너지 완충까지 남은 시간 계산 (로그인 필요)
 
-항상 한국어로 친절하게 답변하세요. 모르는 내용은 솔직하게 모른다고 하세요."""
+## 답변 스타일
+- 핵심만 간결하게 답변하세요. 불필요한 설명, 인사말, 마무리 문장 생략
+- 3줄 이내로 답할 수 있으면 3줄로 끝내세요
+- 목록이 필요할 때만 bullet 사용, 그 외엔 짧은 문장으로
+- "네, 안녕하세요", "도움이 되셨으면 좋겠습니다" 같은 문구 사용 금지
+항상 한국어로 답변하세요."""
 
 
 # ============================================================================
@@ -370,8 +585,14 @@ def health():
 @app.post("/chat")
 @app.post("/api/chat")
 def chat(req: ChatRequest):
+    _cleanup_sessions()
+
+    easter_egg = _check_easter_egg(req.message)
+    if easter_egg:
+        return {"answer": easter_egg}
+
     system_prompt = build_system_prompt(req.user_id)
-    history = session_history.get(req.session_id, [])
+    history = session_history[req.session_id]["msgs"] if req.session_id in session_history else []
 
     messages = (
         [SystemMessage(content=system_prompt)]
@@ -387,7 +608,10 @@ def chat(req: ChatRequest):
             HumanMessage(content=req.message),
             result["messages"][-1],
         ]
-        session_history[req.session_id] = new_history[-MAX_HISTORY:]
+        session_history[req.session_id] = {
+            "msgs": new_history[-MAX_HISTORY:],
+            "ts": time.time(),
+        }
 
     return {"answer": answer}
 
