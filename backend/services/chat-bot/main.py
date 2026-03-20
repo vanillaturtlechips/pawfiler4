@@ -90,18 +90,55 @@ def search_pawfiler_docs(query: str) -> str:
         embedding = json.loads(resp["body"].read())["embedding"]
 
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1. 벡터 검색 top 10
             cur.execute(
                 """
-                SELECT source_file, section, content,
+                SELECT id, source_file, section, content,
                        1 - (embedding <=> %s::vector) AS similarity
                 FROM chatbot.knowledge_base
                 WHERE 1 - (embedding <=> %s::vector) >= %s
                 ORDER BY embedding <=> %s::vector
-                LIMIT %s
+                LIMIT 10
                 """,
-                (str(embedding), str(embedding), RAG_THRESHOLD, str(embedding), RAG_TOP_K),
+                (str(embedding), str(embedding), RAG_THRESHOLD, str(embedding)),
             )
-            docs = cur.fetchall()
+            vector_rows = cur.fetchall()
+
+            # 2. FTS 키워드 검색 top 10 (tsv 컬럼 없으면 빈 결과로 fallback)
+            try:
+                cur.execute(
+                    """
+                    SELECT id, source_file, section, content
+                    FROM chatbot.knowledge_base
+                    WHERE tsv @@ plainto_tsquery('simple', %s)
+                    ORDER BY ts_rank(tsv, plainto_tsquery('simple', %s)) DESC
+                    LIMIT 10
+                    """,
+                    (query, query),
+                )
+                fts_rows = cur.fetchall()
+            except Exception:
+                conn.rollback()
+                fts_rows = []
+
+        # 3. RRF(Reciprocal Rank Fusion)로 두 결과 합산
+        K = 60
+        scores: dict = {}
+        all_docs: dict = {}
+
+        for rank, row in enumerate(vector_rows):
+            doc_id = str(row["id"])
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (K + rank + 1)
+            all_docs[doc_id] = row
+
+        for rank, row in enumerate(fts_rows):
+            doc_id = str(row["id"])
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (K + rank + 1)
+            all_docs[doc_id] = row
+
+        # 4. 점수 높은 순 top K
+        top_ids = sorted(scores, key=lambda x: scores[x], reverse=True)[:RAG_TOP_K]
+        docs = [all_docs[doc_id] for doc_id in top_ids]
 
         if not docs:
             return "관련 문서를 찾지 못했습니다."

@@ -18,3 +18,11 @@ USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 
 CREATE INDEX idx_chatbot_kb_source ON chatbot.knowledge_base(source_file);
+
+-- Hybrid Search: FTS 컬럼 추가
+ALTER TABLE chatbot.knowledge_base
+ADD COLUMN IF NOT EXISTS tsv tsvector
+GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_chatbot_kb_fts
+ON chatbot.knowledge_base USING gin(tsv);
