@@ -26,16 +26,17 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT 
 			qp.user_id::text,
-			qp.nickname,
-			qp.avatar_emoji,
+			COALESCE(p.nickname, '탐정') as nickname,
+			COALESCE(p.avatar_emoji, '🦊') as avatar_emoji,
 			COALESCE(qp.current_tier, '알') as current_tier,
 			COALESCE(qs.total_answered, 0) as total_answered,
-			COALESCE(qs.correct_answers, 0) as correct_answers,
+			COALESCE(qs.correct_count, 0) as correct_count,
 			COALESCE(qp.total_coins, 0) as total_coins,
 			COALESCE(qp.total_exp, 0) as total_exp
 		FROM quiz.user_profiles qp
+		LEFT JOIN user_svc.preferences p ON p.user_id = qp.user_id
 		LEFT JOIN quiz.user_stats qs ON qs.user_id = qp.user_id
-		ORDER BY COALESCE(qs.correct_answers, 0) DESC
+		ORDER BY COALESCE(qs.correct_count, 0) DESC
 		LIMIT 20
 	`)
 	if err != nil {
@@ -48,8 +49,8 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 	rank := int32(1)
 	for rows.Next() {
 		var userId, nickname, emoji, tier string
-		var totalAnswered, correctAnswers, totalCoins, totalExp int32
-		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctAnswers, &totalCoins, &totalExp); err != nil {
+		var totalAnswered, correctCount, totalCoins, totalExp int32
+		if err := rows.Scan(&userId, &nickname, &emoji, &tier, &totalAnswered, &correctCount, &totalCoins, &totalExp); err != nil {
 			continue
 		}
 		entries = append(entries, &pb.RankingEntry{
@@ -59,7 +60,7 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 			Emoji:          emoji,
 			TierName:       tier,
 			TotalAnswered:  totalAnswered,
-			CorrectAnswers: correctAnswers,
+			CorrectAnswers: correctCount,
 			TotalCoins:     totalCoins,
 			Level:          calcLevel(tier, totalExp),
 		})
@@ -132,3 +133,4 @@ func calcLevel(tier string, totalExp int32) int32 {
 		}
 	}
 }
+

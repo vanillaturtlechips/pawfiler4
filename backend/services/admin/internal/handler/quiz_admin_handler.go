@@ -46,7 +46,14 @@ func (h *QuizAdminHandler) ListQuestions(w http.ResponseWriter, r *http.Request)
 		pageSize = 20
 	}
 
-	questions, total, err := h.service.ListQuestions(page, pageSize)
+	f := repository.ListQuestionsFilter{
+		Type:       r.URL.Query().Get("type"),
+		Difficulty: r.URL.Query().Get("difficulty"),
+		Category:   r.URL.Query().Get("category"),
+		Search:     r.URL.Query().Get("search"),
+	}
+
+	questions, total, err := h.service.ListQuestions(page, pageSize, f)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
