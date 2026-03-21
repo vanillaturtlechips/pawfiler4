@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import WoodPanel from "@/components/WoodPanel";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
@@ -8,7 +8,7 @@ import AudioPanel from "@/components/AudioPanel";
 import FrameTimeline from "@/components/FrameTimeline";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import { useAuth } from "@/contexts/AuthContext";
-import { runVideoAnalysis, getUnifiedResult } from "@/lib/api";
+import { runVideoAnalysis, getUnifiedResult, fetchAnalysisQuota, type AnalysisQuota } from "@/lib/api";
 import type { AnalysisStage, UnifiedReport } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
 
@@ -32,14 +32,19 @@ const verdictConfig = {
 };
 
 const AnalysisPage = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [stage, setStage] = useState<AnalysisStage>("IDLE");
   const [report, setReport] = useState<UnifiedReport | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [quota, setQuota] = useState<AnalysisQuota | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user?.id) fetchAnalysisQuota(user.id).then(setQuota);
+  }, [user?.id]);
 
   const handleFileSelect = useCallback((file: File) => {
     setFileError(null);
@@ -181,6 +186,24 @@ const AnalysisPage = () => {
           {selectedFile && (
             <div className="text-sm font-gothic opacity-70 truncate" style={{ color: "hsl(var(--wood-dark))" }}>
               📹 {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(1)}MB)
+            </div>
+          )}
+
+          {/* 횟수 표시 */}
+          {quota && (
+            <div
+              className="flex items-center justify-between rounded-xl px-4 py-2 text-sm font-jua"
+              style={{ background: "white", border: "2px solid hsl(var(--parchment-border))" }}
+            >
+              <span style={{ color: "hsl(var(--wood-dark))" }}>이번 달 분석 횟수</span>
+              {quota.limit === -1 ? (
+                <span style={{ color: "hsl(var(--magic-green))" }}>👑 무제한 (프리미엄)</span>
+              ) : (
+                <span style={{ color: quota.remaining === 0 ? "hsl(var(--destructive))" : "hsl(var(--magic-green))" }}>
+                  {quota.used} / {quota.limit}
+                  {quota.remaining === 0 && ` — 코인 ${10}개로 추가 분석 가능`}
+                </span>
+              )}
             </div>
           )}
 

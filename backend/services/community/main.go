@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -96,6 +98,34 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+
+		// 내부 전용: AI 분석 결과 태그 자동 추가 (video-analysis 서비스에서 호출)
+		if r.URL.Path == "/internal/add-tags" && r.Method == http.MethodPost {
+			var req struct {
+				PostID string   `json:"post_id"`
+				Tags   []string `json:"tags"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PostID == "" {
+				http.Error(w, `{"error":"invalid payload"}`, http.StatusBadRequest)
+				return
+			}
+			_, err := db.ExecContext(r.Context(), `
+				UPDATE community.posts
+				SET tags = (
+					SELECT array_agg(DISTINCT t)
+					FROM unnest(tags || $1::text[]) t
+				)
+				WHERE id = $2
+			`, pq.Array(req.Tags), req.PostID)
+			if err != nil {
+				log.Printf("[add-tags] failed: %v", err)
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"ok":true}`))
 			return
 		}
 		origin := r.Header.Get("Origin")

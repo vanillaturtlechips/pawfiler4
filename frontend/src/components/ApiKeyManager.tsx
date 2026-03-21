@@ -1,59 +1,58 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import GameButton from "@/components/GameButton";
+import { useAuth } from "@/contexts/AuthContext";
+import { fetchApiKeys, generateApiKey, revokeApiKey, type ApiKeyItem } from "@/lib/api";
 import { toast } from "sonner";
 
-interface ApiKey {
-  id: string;
-  name: string;
-  key: string;
-  createdAt: string;
-  lastUsed: string | null;
-}
-
-// TODO: 백엔드 연결 시 실제 API 호출로 교체
-const mockGenerateKey = (name: string): ApiKey => ({
-  id: crypto.randomUUID(),
-  name,
-  key: "pf_" + Array.from(crypto.getRandomValues(new Uint8Array(24)))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join(""),
-  createdAt: new Date().toISOString(),
-  lastUsed: null,
-});
-
 const ApiKeyManager = () => {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
-  const [revealedId, setRevealedId] = useState<string | null>(null);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null); // 생성 직후 원문
+  const [loading, setLoading] = useState(false);
 
-  const handleGenerate = () => {
-    if (!newKeyName.trim()) {
+  useEffect(() => {
+    if (isOpen && user?.id) {
+      fetchApiKeys(user.id).then(setKeys);
+    }
+  }, [isOpen, user?.id]);
+
+  const handleGenerate = async () => {
+    if (!newKeyName.trim() || !user?.id) {
       toast.error("키 이름을 입력해주세요");
       return;
     }
-    const key = mockGenerateKey(newKeyName.trim());
-    setKeys((prev) => [key, ...prev]);
-    setNewKeyName("");
-    setRevealedId(key.id);
-    toast.success("API 키가 생성됐어요!");
+    setLoading(true);
+    try {
+      const created = await generateApiKey(user.id, newKeyName.trim());
+      setKeys((prev) => [created, ...prev]);
+      setRevealedKey(created.key ?? null);
+      setNewKeyName("");
+      toast.success("API 키가 생성됐어요!");
+    } catch {
+      toast.error("키 생성에 실패했어요");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCopy = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast.success("클립보드에 복사됐어요!");
-  };
-
-  const handleRevoke = (id: string) => {
-    setKeys((prev) => prev.filter((k) => k.id !== id));
+  const handleRevoke = async (keyId: string) => {
+    if (!user?.id) return;
+    await revokeApiKey(user.id, keyId);
+    setKeys((prev) => prev.filter((k) => k.id !== keyId));
     toast.success("API 키가 삭제됐어요");
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("클립보드에 복사됐어요!");
   };
 
   return (
     <ParchmentPanel className="flex flex-col gap-4">
-      {/* 헤더 토글 */}
       <button
         className="flex items-center justify-between w-full text-left"
         onClick={() => setIsOpen((v) => !v)}
@@ -77,11 +76,8 @@ const ApiKeyManager = () => {
             exit={{ opacity: 0, height: 0 }}
             className="flex flex-col gap-4 overflow-hidden"
           >
-            {/* 사용 방법 */}
-            <div
-              className="rounded-xl p-4 text-sm font-mono"
-              style={{ background: "#0a0a0a", color: "#4ade80" }}
-            >
+            {/* 사용 예시 */}
+            <div className="rounded-xl p-4 text-sm font-mono" style={{ background: "#0a0a0a", color: "#4ade80" }}>
               <div className="opacity-50 mb-1"># 사용 예시</div>
               <div>curl -X POST https://api.pawfiler.com/v1/analyze \</div>
               <div className="pl-4">-H "X-API-Key: pf_your_key_here" \</div>
@@ -92,27 +88,39 @@ const ApiKeyManager = () => {
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="키 이름 (예: my-app, test-server)"
+                placeholder="키 이름 (예: my-app)"
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
                 className="flex-1 rounded-xl border-2 px-4 py-2 font-gothic text-sm outline-none"
-                style={{
-                  borderColor: "hsl(var(--parchment-border))",
-                  color: "hsl(var(--parchment-text))",
-                }}
+                style={{ borderColor: "hsl(var(--parchment-border))", color: "hsl(var(--parchment-text))" }}
               />
               <GameButton variant="blue" className="text-sm px-4" onClick={handleGenerate}>
-                + 생성
+                {loading ? "..." : "+ 생성"}
               </GameButton>
             </div>
 
+            {/* 생성 직후 원문 표시 */}
+            {revealedKey && (
+              <div className="rounded-xl p-3 bg-green-50 border-2 border-green-400">
+                <div className="text-xs font-jua text-green-700 mb-1">⚠️ 지금만 확인 가능해요. 복사해두세요!</div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs break-all font-mono text-green-800">{revealedKey}</code>
+                  <button
+                    className="text-xs px-2 py-1 rounded-lg font-jua bg-green-500 text-white flex-shrink-0"
+                    onClick={() => handleCopy(revealedKey)}
+                  >복사</button>
+                  <button
+                    className="text-xs px-2 py-1 rounded-lg font-jua bg-gray-300 flex-shrink-0"
+                    onClick={() => setRevealedKey(null)}
+                  >닫기</button>
+                </div>
+              </div>
+            )}
+
             {/* 키 목록 */}
             {keys.length === 0 ? (
-              <div
-                className="text-center py-6 text-sm opacity-50 font-jua"
-                style={{ color: "hsl(var(--wood-dark))" }}
-              >
+              <div className="text-center py-6 text-sm opacity-50 font-jua" style={{ color: "hsl(var(--wood-dark))" }}>
                 아직 발급된 API 키가 없어요
               </div>
             ) : (
@@ -124,47 +132,27 @@ const ApiKeyManager = () => {
                     style={{ background: "white", border: "2px solid hsl(var(--parchment-border))" }}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="font-jua text-sm" style={{ color: "hsl(var(--wood-darkest))" }}>
-                        {k.name}
-                      </div>
-                      <div className="font-mono text-xs mt-0.5 truncate" style={{ color: "hsl(var(--wood-dark))" }}>
-                        {revealedId === k.id ? k.key : k.key.slice(0, 8) + "••••••••••••••••••••"}
+                      <div className="font-jua text-sm" style={{ color: "hsl(var(--wood-darkest))" }}>{k.name}</div>
+                      <div className="font-mono text-xs mt-0.5" style={{ color: "hsl(var(--wood-dark))" }}>
+                        {k.key_prefix}••••••••••••••••••••
                       </div>
                       <div className="text-xs opacity-50 mt-0.5" style={{ color: "hsl(var(--wood-dark))" }}>
-                        생성: {new Date(k.createdAt).toLocaleDateString("ko-KR")}
-                        {k.lastUsed && ` · 마지막 사용: ${new Date(k.lastUsed).toLocaleDateString("ko-KR")}`}
+                        생성: {new Date(k.created_at).toLocaleDateString("ko-KR")}
+                        {k.last_used_at && ` · 마지막 사용: ${new Date(k.last_used_at).toLocaleDateString("ko-KR")}`}
                       </div>
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button
-                        className="text-xs px-2 py-1 rounded-lg font-jua"
-                        style={{ background: "hsl(var(--parchment-border))", color: "hsl(var(--wood-darkest))" }}
-                        onClick={() => setRevealedId(revealedId === k.id ? null : k.id)}
-                      >
-                        {revealedId === k.id ? "숨기기" : "보기"}
-                      </button>
-                      <button
-                        className="text-xs px-2 py-1 rounded-lg font-jua"
-                        style={{ background: "hsl(199,97%,37%)", color: "white" }}
-                        onClick={() => handleCopy(k.key)}
-                      >
-                        복사
-                      </button>
-                      <button
-                        className="text-xs px-2 py-1 rounded-lg font-jua"
-                        style={{ background: "hsl(var(--destructive))", color: "white" }}
-                        onClick={() => handleRevoke(k.id)}
-                      >
-                        삭제
-                      </button>
-                    </div>
+                    <button
+                      className="text-xs px-2 py-1 rounded-lg font-jua flex-shrink-0"
+                      style={{ background: "hsl(var(--destructive))", color: "white" }}
+                      onClick={() => handleRevoke(k.id)}
+                    >삭제</button>
                   </div>
                 ))}
               </div>
             )}
 
             <p className="text-xs opacity-50 font-gothic" style={{ color: "hsl(var(--wood-dark))" }}>
-              ⚠️ API 키는 생성 직후에만 전체 확인 가능해요. 안전한 곳에 보관하세요.
+              ⚠️ API 키 원문은 생성 직후에만 확인 가능해요. 안전한 곳에 보관하세요.
             </p>
           </motion.div>
         )}
