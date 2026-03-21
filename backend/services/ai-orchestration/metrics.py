@@ -25,7 +25,7 @@ logger = logging.getLogger("pawfiler.metrics")
 @serve.deployment(
     name="metrics_collector",
     num_replicas=1,
-    ray_actor_options={"num_cpus": 0.5},
+    ray_actor_options={"num_cpus": 0.1},
 )
 class MetricsCollector:
     """
