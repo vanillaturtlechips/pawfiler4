@@ -29,10 +29,11 @@ logger = logging.getLogger(__name__)
 DB_DSN = os.getenv('DATABASE_URL', '')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
 S3_BUCKET = os.getenv('S3_BUCKET', 'pawfiler-videos')
+USER_SERVICE_URL = os.getenv('USER_SERVICE_URL', 'http://user-service:8083')
 
-# 월 무료 횟수 (free: 5, premium: -1 = 무제한)
+# 월 무료 횟수 (free: 5, premium: 무제한)
 FREE_MONTHLY_QUOTA = 5
-ANALYSIS_COST_COINS = 10  # 초과 시 코인 차감
+ANALYSIS_COST_COINS = 10  # 무료 횟수 초과 시 코인 차감
 
 
 def get_db():
@@ -107,7 +108,13 @@ def run_rest_server(svc):
 
         return jsonify({
             "taskId": task_id,
-            "quota": {"used": quota_result["used"], "limit": FREE_MONTHLY_QUOTA},
+            "quota": {
+                "used": quota_result.get("used", 0),
+                "limit": FREE_MONTHLY_QUOTA,
+                "premium": quota_result.get("premium", False),
+                "coin_used": quota_result.get("coin_used", False),
+                "coins_remaining": quota_result.get("coins_remaining"),
+            },
         })
 
     # ── ai-orchestration 콜백 ────────────────────────────────
@@ -167,11 +174,15 @@ def run_rest_server(svc):
         if not user_id:
             return jsonify({"error": "user_id required"}), 400
 
+        if _is_premium(user_id):
+            return jsonify({"used": 0, "limit": -1, "remaining": -1, "premium": True})
+
         used = _get_quota_used(user_id)
         return jsonify({
             "used": used,
             "limit": FREE_MONTHLY_QUOTA,
             "remaining": max(0, FREE_MONTHLY_QUOTA - used),
+            "premium": False,
         })
 
     # ── API 키 관리 ──────────────────────────────────────────
@@ -263,25 +274,44 @@ def run_rest_server(svc):
 # ── 내부 헬퍼 ────────────────────────────────────────────────
 
 def _check_and_consume_quota(user_id: str) -> dict:
-    """Redis로 월별 횟수 체크 + 소비. 키: analysis_quota:{user_id}:{YYYY-MM}"""
-    r = get_redis()
+    """
+    1. user 서비스에서 subscription_type 확인
+    2. premium → 무제한 허용
+    3. free → Redis 월별 카운터 체크
+    4. 무료 횟수 초과 → 코인 차감 시도 (user 서비스 AddRewards)
+    5. 코인도 부족 → 거부
+    """
     now = datetime.now(timezone.utc)
-    key = f"analysis_quota:{user_id}:{now.strftime('%Y-%m')}"
-
-    used = r.incr(key)
-    if used == 1:
-        # 월말까지 TTL 설정
-        import calendar
-        last_day = calendar.monthrange(now.year, now.month)[1]
-        expire_at = datetime(now.year, now.month, last_day, 23, 59, 59, tzinfo=timezone.utc)
-        r.expireat(key, int(expire_at.timestamp()))
-
     reset_at = f"{now.year}-{now.month + 1 if now.month < 12 else 1:02d}-01"
-    return {
-        "allowed": used <= FREE_MONTHLY_QUOTA,
-        "used": used,
-        "reset_at": reset_at,
-    }
+
+    # 1. 프리미엄 여부 확인 (auth DB 직접 조회)
+    if _is_premium(user_id):
+        return {"allowed": True, "used": 0, "reset_at": reset_at, "premium": True}
+
+    # 2. Redis 카운터
+    r = get_redis()
+    key = f"analysis_quota:{user_id}:{now.strftime('%Y-%m')}"
+    used = int(r.get(key) or 0)
+
+    if used < FREE_MONTHLY_QUOTA:
+        # 무료 횟수 내 → 소비
+        new_used = r.incr(key)
+        if new_used == 1:
+            import calendar
+            last_day = calendar.monthrange(now.year, now.month)[1]
+            expire_at = datetime(now.year, now.month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+            r.expireat(key, int(expire_at.timestamp()))
+        return {"allowed": True, "used": new_used, "reset_at": reset_at, "premium": False}
+
+    # 3. 무료 횟수 초과 → 코인 차감 시도
+    coin_result = _deduct_coins(user_id, ANALYSIS_COST_COINS)
+    if coin_result["success"]:
+        return {"allowed": True, "used": used, "reset_at": reset_at, "coin_used": True,
+                "coins_remaining": coin_result["total_coins"]}
+
+    # 4. 코인도 부족
+    return {"allowed": False, "used": used, "reset_at": reset_at,
+            "coins_remaining": coin_result.get("total_coins", 0)}
 
 
 def _rollback_quota(user_id: str):
@@ -296,6 +326,37 @@ def _get_quota_used(user_id: str) -> int:
     now = datetime.now(timezone.utc)
     key = f"analysis_quota:{user_id}:{now.strftime('%Y-%m')}"
     return int(r.get(key) or 0)
+
+
+def _is_premium(user_id: str) -> bool:
+    """auth.users 테이블에서 subscription_type 확인"""
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT subscription_type FROM auth.users WHERE id = %s",
+                    (user_id,)
+                )
+                row = cur.fetchone()
+                return row is not None and row["subscription_type"] == "premium"
+    except Exception as e:
+        logger.error(f"_is_premium failed: {e}")
+        return False
+
+
+def _deduct_coins(user_id: str, amount: int) -> dict:
+    """user 서비스 AddRewards(coin_delta 음수)로 코인 차감"""
+    try:
+        resp = httpx.post(
+            f"{USER_SERVICE_URL}/user.UserService/AddRewards",
+            json={"user_id": user_id, "xp_delta": 0, "coin_delta": -amount},
+            timeout=5,
+        )
+        data = resp.json()
+        return {"success": data.get("success", False), "total_coins": data.get("total_coins", 0)}
+    except Exception as e:
+        logger.error(f"_deduct_coins failed: {e}")
+        return {"success": False, "total_coins": 0}
 
 
 def _save_task(task_id: str, user_id: str, video_url: str):
