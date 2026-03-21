@@ -909,3 +909,90 @@ export const generateReport = async (days?: number | null): Promise<{ report_url
 export const downloadReport = (userId: string) => {
   window.open(`${REPORT_BASE_URL}/download/${userId}`, '_blank');
 };
+
+// ── 분석 이력 / 횟수 / API 키 ──────────────────────────────
+
+export interface AnalysisHistoryItem {
+  task_id: string;
+  final_verdict: "REAL" | "FAKE" | "UNCERTAIN";
+  confidence: number;
+  ai_model: string | null;
+  created_at: string;
+  video_url: string;
+}
+
+export interface AnalysisQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  key_prefix: string;
+  last_used_at: string | null;
+  created_at: string;
+  key?: string; // 생성 직후에만 존재
+}
+
+const VIDEO_ANALYSIS_REST = config.apiBaseUrl.replace('/api', '') + ':8080';
+
+export const fetchAnalysisHistory = async (userId: string): Promise<AnalysisHistoryItem[]> => {
+  try {
+    const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/analysis/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    const data = await res.json();
+    return data.history ?? [];
+  } catch {
+    return [];
+  }
+};
+
+export const fetchAnalysisQuota = async (userId: string): Promise<AnalysisQuota> => {
+  try {
+    const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/analysis/quota`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    return await res.json();
+  } catch {
+    return { used: 0, limit: 5, remaining: 5 };
+  }
+};
+
+export const fetchApiKeys = async (userId: string): Promise<ApiKeyItem[]> => {
+  try {
+    const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    const data = await res.json();
+    return data.keys ?? [];
+  } catch {
+    return [];
+  }
+};
+
+export const generateApiKey = async (userId: string, name: string): Promise<ApiKeyItem> => {
+  const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/keys/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, name }),
+  });
+  if (!res.ok) throw new Error('API 키 생성 실패');
+  return res.json();
+};
+
+export const revokeApiKey = async (userId: string, keyId: string): Promise<void> => {
+  await fetch(`${VIDEO_ANALYSIS_REST}/api/keys/revoke`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, key_id: keyId }),
+  });
+};
