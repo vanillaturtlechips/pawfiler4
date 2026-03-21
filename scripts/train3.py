@@ -51,13 +51,19 @@ LABEL2IDX   = {l: i for i, l in enumerate(AI_MODELS)}
 NUM_CLASSES = len(AI_MODELS)
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma, smoothing):
+    def __init__(self, gamma, smoothing, class_weights=None):
         super().__init__()
         self.gamma = gamma
         self.smoothing = smoothing
+        self.class_weights = class_weights  # Tensor or None
 
     def forward(self, logits, targets):
-        ce = nn.functional.cross_entropy(logits, targets, reduction='none', label_smoothing=self.smoothing)
+        ce = nn.functional.cross_entropy(
+            logits, targets,
+            weight=self.class_weights,
+            reduction='none',
+            label_smoothing=self.smoothing
+        )
         pt = torch.exp(-ce)
         return ((1 - pt) ** self.gamma * ce).mean()
 
@@ -180,35 +186,48 @@ def train(args):
     print(f"[DEBUG] batch_size: {args.batch_size}")
 
     # ==========================================
-    # 🚨 [스마트 미니 벤치마크 데이터 분할 전략] 🚨
-    # 전체 0~6998 샤드 중 10%만 골고루 추출하여 편향(Skew) 완벽 방지
+    # train_start/end, val_start/end 파라미터 사용
     # ==========================================
-    all_shards = get_shard_paths(SM_CHANNEL_TRAIN, 0, 6998)
-    
-    # 1. 10개 간격으로 하나씩 뽑아 전체 데이터의 10% 축소판 생성 (약 700개)
-    mini_shards = [s for i, s in enumerate(all_shards) if i % 10 == 0]
-    
-    # 2. 축소판 내에서 Train (90%) / Val (10%) 로 분할
-    train_shards = [s for i, s in enumerate(mini_shards) if i % 10 != 0]
-    val_shards   = [s for i, s in enumerate(mini_shards) if i % 10 == 0]
-    
-    print(f"[DEBUG] Mini Benchmark Mode: Train {len(train_shards)} shards, Val {len(val_shards)} shards")
+    train_shards = get_shard_paths(SM_CHANNEL_TRAIN, args.train_start, args.train_end)
+    val_shards   = get_shard_paths(SM_CHANNEL_TRAIN, args.val_start,   args.val_end)
+
+    # val 샤드가 없으면 train에서 10% 분리
+    if not val_shards:
+        print("[WARNING] val_shards empty, splitting 10% from train_shards")
+        split = max(1, len(train_shards) // 10)
+        val_shards   = train_shards[-split:]
+        train_shards = train_shards[:-split]
+
+    print(f"[DEBUG] Train shards: {len(train_shards)}, Val shards: {len(val_shards)}")
 
     if not train_shards:
         print("[ERROR] No training shards found!")
         return
-    if not val_shards:
-        print("[WARNING] No validation shards found!")
 
     # Phase 1 XGBoost 로드
     print("Loading Phase 1 XGBoost model from S3...")
     obj = s3.get_object(Bucket=BUCKET, Key='models/xgboost_phase1.pkl')
     xgb_model = pickle.load(io.BytesIO(obj['Body'].read()))
 
+    # 클래스 균형 가중치 계산 (train 샤드 일부 스캔)
+    print("[INFO] Computing class weights from sample shards...")
+    class_counts = np.zeros(NUM_CLASSES, dtype=np.float32)
+    scan_shards = train_shards[::max(1, len(train_shards)//50)]  # 최대 50개 샤드만 스캔
+    for shard in scan_shards:
+        try:
+            ds = wds.WebDataset(shard, handler=wds.warn_and_continue).map(create_decoder()).select(lambda x: x is not None)
+            for sample in ds:
+                class_counts[sample[2]] += 1
+        except Exception:
+            continue
+    class_counts = np.maximum(class_counts, 1)  # 0 방지
+    class_weights = torch.tensor(class_counts.sum() / (NUM_CLASSES * class_counts), dtype=torch.float32).to(DEVICE)
+    print(f"[INFO] Class weights computed. Min: {class_weights.min():.2f}, Max: {class_weights.max():.2f}")
+
     model = VideoAgent(NUM_CLASSES, args.dropout, args.backbone).to(DEVICE)
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.l2_lambda)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
-    criterion = FocalLoss(gamma=args.focal_gamma, smoothing=args.label_smoothing)
+    criterion = FocalLoss(gamma=args.focal_gamma, smoothing=args.label_smoothing, class_weights=class_weights)
     scaler = torch.cuda.amp.GradScaler()
     accumulation_steps = max(1, 32 // args.batch_size)
 
