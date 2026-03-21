@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuizProfile } from "@/contexts/QuizProfileContext";
 import { useNavigate } from "react-router-dom";
-import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, syncProfileToQuiz, syncAuthorToCommunity, type UserFullProfile, type UserActivity } from "@/lib/api";
+import { fetchUserFullProfile, fetchUserActivities, updateUserProfile, syncProfileToQuiz, syncAuthorToCommunity, fetchAnalysisHistory, type UserFullProfile, type UserActivity, type AnalysisHistoryItem } from "@/lib/api";
 import { toast } from "sonner";
 import ParchmentPanel from "@/components/ParchmentPanel";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,14 @@ const ProfilePage = () => {
   const { user, updateUser } = useAuth();
   const { quizProfile } = useQuizProfile();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"journey" | "stats" | "settings">("journey");
+  const [activeTab, setActiveTab] = useState<"journey" | "stats" | "settings" | "analysis">("journey");
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [editedNickname, setEditedNickname] = useState(user?.nickname || "");
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarEmoji || "🦊");
   const [isSaving, setIsSaving] = useState(false);
   const [fullProfile, setFullProfile] = useState<UserFullProfile | null>(null);
   const [activities, setActivities] = useState<UserActivity[]>([]);
+  const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportDays, setReportDays] = useState<string>("30");
@@ -47,6 +48,9 @@ const ProfilePage = () => {
       .catch(() => {});
     fetchUserActivities(userId)
       .then(setActivities)
+      .catch(() => {});
+    fetchAnalysisHistory(userId)
+      .then(setAnalysisHistory)
       .catch(() => {});
   }, [userId]);
 
@@ -318,7 +322,7 @@ const ProfilePage = () => {
           {/* Right - Large Content Area */}
           <div className="flex flex-col h-full min-h-0 gap-2">
             {/* Tab Navigation */}
-            <div className="grid grid-cols-4 gap-2 flex-shrink-0">
+            <div className="grid grid-cols-5 gap-2 flex-shrink-0">
               <Button
                 onClick={() => setActiveTab("journey")}
                 className={`font-jua text-sm py-2.5 rounded-xl border-3 transition-colors shadow-md ${
@@ -340,6 +344,16 @@ const ProfilePage = () => {
               >
                 <BarChart3 className="w-4 h-4 mr-1" />
                 통계
+              </Button>
+              <Button
+                onClick={() => setActiveTab("analysis")}
+                className={`font-jua text-sm py-2.5 rounded-xl border-3 transition-colors shadow-md ${
+                  activeTab === "analysis"
+                    ? "bg-purple-500 hover:bg-purple-600 text-white border-purple-600 shadow-lg"
+                    : "bg-white text-wood-darkest border-parchment-border hover:bg-purple-50"
+                }`}
+              >
+                🔮 분석 이력
               </Button>
               <Button
                 onClick={() => setActiveTab("settings")}
@@ -629,6 +643,55 @@ const ProfilePage = () => {
                       <p className="font-jua text-sm text-red-500">{reportError}</p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Analysis History Tab */}
+              {activeTab === "analysis" && (
+                <div className="h-full overflow-y-auto pr-1">
+                  <div className="flex items-center gap-3 mb-5">
+                    <span className="text-4xl drop-shadow-md">🔮</span>
+                    <div>
+                      <h3 className="font-jua text-2xl text-wood-darkest leading-tight">분석 이력</h3>
+                      <p className="font-jua text-sm text-purple-600">내가 분석한 영상 목록이에요</p>
+                    </div>
+                  </div>
+
+                  {analysisHistory.length === 0 ? (
+                    <div className="text-center py-12 font-jua text-wood-dark opacity-50">
+                      아직 분석한 영상이 없어요
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {analysisHistory.map((item) => {
+                        const verdictMap = {
+                          FAKE: { emoji: "🚨", label: "AI 생성", color: "text-red-500" },
+                          REAL: { emoji: "✅", label: "실제 영상", color: "text-green-500" },
+                          UNCERTAIN: { emoji: "🤔", label: "불확실", color: "text-orange-500" },
+                        };
+                        const v = verdictMap[item.final_verdict] ?? verdictMap.UNCERTAIN;
+                        return (
+                          <div
+                            key={item.task_id}
+                            className="rounded-xl p-3 flex items-center gap-3"
+                            style={{ background: "white", border: "2px solid hsl(var(--parchment-border))" }}
+                          >
+                            <span className="text-2xl">{v.emoji}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-jua text-sm ${v.color}`}>
+                                {v.label} {item.ai_model ? `(${item.ai_model})` : ""} — {(item.confidence * 100).toFixed(0)}%
+                              </div>
+                              <div className="text-xs opacity-50 font-gothic truncate">
+                                {new Date(item.created_at).toLocaleDateString("ko-KR", {
+                                  year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit"
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
