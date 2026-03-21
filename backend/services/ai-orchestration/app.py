@@ -38,8 +38,8 @@ logger = logging.getLogger("pawfiler")
 
 @serve.deployment(
     name="orchestrator",
-    num_replicas=2,
-    ray_actor_options={"num_cpus": 1},
+    num_replicas=1,
+    ray_actor_options={"num_cpus": 0.2},
     health_check_period_s=30,
     health_check_timeout_s=10,
 )
