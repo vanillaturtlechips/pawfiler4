@@ -1,133 +1,64 @@
-import os
+"""
+REST 서버 — /api/upload-video (multipart) + /internal/callback
+프론트엔드 파일 업로드 및 ai-orchestration 콜백 수신용.
+"""
+
 import logging
-import uuid
-import boto3
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from generated import video_analysis_pb2
 
 logger = logging.getLogger(__name__)
 
-S3_BUCKET = os.getenv('S3_BUCKET', 'pawfiler-videos')
-s3_client = boto3.client('s3', region_name='ap-northeast-2')
 
-
-def create_app(service):
+def run_rest_server(svc):
     app = Flask(__name__)
     CORS(app)
 
-    @app.get("/health")
+    @app.route('/health', methods=['GET'])
     def health():
-        return "", 200
+        return jsonify({"status": "ok"})
 
-    @app.route("/api/upload-video", methods=["POST", "OPTIONS"])
-    @app.route("/upload-video", methods=["POST", "OPTIONS"])
+    @app.route('/api/upload-video', methods=['POST'])
     def upload_video():
-        if request.method == "OPTIONS":
-            return "", 204
-        if 'video' not in request.files:
+        """프론트엔드 multipart 업로드 → S3 저장 → 분석 요청"""
+        import uuid, boto3, os, threading
+        from media_inspector import MediaInspector
+
+        file = request.files.get('video')
+        user_id = request.form.get('user_id', 'anonymous')
+
+        if not file:
             return jsonify({"error": "No video file"}), 400
 
-        video = request.files['video']
-        user_id = request.form.get('user_id', '')
-        key = f"uploads/{user_id}/{uuid.uuid4()}-{video.filename}"
+        task_id = str(uuid.uuid4())
+        s3_key = f"uploads/{user_id}/{task_id}-{file.filename}"
+        s3_bucket = os.getenv('S3_BUCKET', 'pawfiler-videos')
 
         try:
-            s3_client.upload_fileobj(
-                video, S3_BUCKET, key,
-                ExtraArgs={'ContentType': 'video/mp4'}
+            boto3.client('s3', region_name='ap-northeast-2').upload_fileobj(
+                file, s3_bucket, s3_key, ExtraArgs={'ContentType': 'video/mp4'}
             )
-            video_url = f"https://{S3_BUCKET}.s3.ap-northeast-2.amazonaws.com/{key}"
-
-            class FakeContext:
-                def set_code(self, c): pass
-                def set_details(self, d): pass
-
-            req = video_analysis_pb2.AnalyzeVideoRequest(
-                video_url=video_url,
-                user_id=user_id
-            )
-            resp = service.AnalyzeVideo(req, FakeContext())
-            return jsonify({
-                "taskId": resp.task_id,
-                "videoUrl": video_url,
-                "verdict": resp.verdict,
-                "message": resp.message,
-            })
         except Exception as e:
-            logger.error(f"upload-video error: {e}")
-            return jsonify({"error": str(e)}), 500
+            logger.error(f"S3 upload failed: {e}")
+            return jsonify({"error": "Upload failed"}), 500
 
-    def _analyze(data):
-        class FakeContext:
-            def set_code(self, c): pass
-            def set_details(self, d): pass
-        req = video_analysis_pb2.AnalyzeVideoRequest(
-            video_url=data.get("video_url", ""),
-            user_id=data.get("user_id", "")
-        )
-        resp = service.AnalyzeVideo(req, FakeContext())
-        return jsonify({
-            "task_id": resp.task_id,
-            "verdict": resp.verdict,
-            "confidence_score": resp.confidence_score,
-            "message": resp.message,
-        })
+        media_url = f"s3://{s3_bucket}/{s3_key}"
+        svc.tasks[task_id] = {"status": "PROCESSING", "result": None}
+        threading.Thread(
+            target=svc._request_analysis, args=(task_id, media_url), daemon=True
+        ).start()
 
-    def _get_result(data):
-        class FakeContext:
-            def set_code(self, c): pass
-            def set_details(self, d): pass
-            def abort(self, c, d): raise Exception(d)
-        req = video_analysis_pb2.GetAnalysisResultRequest(task_id=data.get("task_id", ""))
-        resp = service.GetAnalysisResult(req, FakeContext())
-        return jsonify({
-            "task_id": resp.task_id,
-            "verdict": resp.verdict,
-            "confidence_score": resp.confidence_score,
-            "manipulated_regions": list(resp.manipulated_regions),
-            "frame_samples_analyzed": resp.frame_samples_analyzed,
-            "model_version": resp.model_version,
-            "processing_time_ms": resp.processing_time_ms,
-        })
+        return jsonify({"taskId": task_id})
 
-    def _get_status(data):
-        class FakeContext:
-            def set_code(self, c): pass
-            def set_details(self, d): pass
-            def abort(self, c, d): raise Exception(d)
-        req = video_analysis_pb2.GetAnalysisStatusRequest(task_id=data.get("task_id", ""))
-        try:
-            resp = service.GetAnalysisStatus(req, FakeContext())
-            return jsonify({"task_id": resp.task_id, "stage": resp.stage})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 404
+    @app.route('/internal/callback', methods=['POST'])
+    def callback():
+        """ai-orchestration이 분석 완료 후 결과 전달"""
+        data = request.get_json()
+        task_id = data.get("task_id")
+        result = data.get("result")
+        if not task_id or not result:
+            return jsonify({"error": "Invalid payload"}), 400
+        svc.receive_callback(task_id, result)
+        return jsonify({"ok": True})
 
-    for prefix in ["", "/api"]:
-        app.add_url_rule(
-            f"{prefix}/video_analysis.VideoAnalysisService/AnalyzeVideo",
-            endpoint=f"{prefix}_analyze",
-            view_func=lambda: _analyze(request.get_json(silent=True) or {}),
-            methods=["POST", "OPTIONS"]
-        )
-        app.add_url_rule(
-            f"{prefix}/video_analysis.VideoAnalysisService/GetAnalysisResult",
-            endpoint=f"{prefix}_result",
-            view_func=lambda: _get_result(request.get_json(silent=True) or {}),
-            methods=["POST", "OPTIONS"]
-        )
-        app.add_url_rule(
-            f"{prefix}/video_analysis.VideoAnalysisService/GetAnalysisStatus",
-            endpoint=f"{prefix}_status",
-            view_func=lambda: _get_status(request.get_json(silent=True) or {}),
-            methods=["POST", "OPTIONS"]
-        )
-
-    return app
-
-
-def run_rest_server(service):
-    http_port = int(os.getenv("HTTP_PORT", "8080"))
-    app = create_app(service)
-    logger.info(f"VideoAnalysis REST server started on :{http_port}")
-    app.run(host="0.0.0.0", port=http_port, threaded=True)
+    app.run(host='0.0.0.0', port=8080, threaded=True)
