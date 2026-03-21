@@ -43,3 +43,10 @@ CREATE TABLE IF NOT EXISTS video_analysis.api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON video_analysis.api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash    ON video_analysis.api_keys(key_hash);
+
+-- ── 4. quiz.questions status 컬럼 추가 (AI 자동 생성 문제 검수 대기) ──
+ALTER TABLE quiz.questions
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active';
+-- status: 'active' (기본, 즉시 노출) | 'pending' (AI 생성, 어드민 검수 대기)
+
+CREATE INDEX IF NOT EXISTS idx_questions_status ON quiz.questions(status);

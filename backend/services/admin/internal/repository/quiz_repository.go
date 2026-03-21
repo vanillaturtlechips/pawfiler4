@@ -32,6 +32,7 @@ type Question struct {
 	Difficulty         string         `json:"difficulty"`
 	Category           string         `json:"category"`
 	Explanation        string         `json:"explanation"`
+	Status             string         `json:"status"`
 	Options            []string       `json:"options,omitempty"`
 	CorrectIndex       *int           `json:"correct_index,omitempty"`
 	CorrectAnswer      *bool          `json:"correct_answer,omitempty"`
@@ -49,6 +50,7 @@ type CreateQuestionRequest struct {
 	Difficulty         string          `json:"difficulty"`
 	Category           string          `json:"category"`
 	Explanation        string          `json:"explanation"`
+	Status             string          `json:"status"` // "active" | "pending"
 	Options            []string        `json:"options,omitempty"`
 	CorrectIndex       *int            `json:"correct_index,omitempty"`
 	CorrectAnswer      *bool           `json:"correct_answer,omitempty"`
@@ -177,15 +179,18 @@ func (r *QuizRepository) GetQuestion(id string) (*Question, error) {
 func (r *QuizRepository) CreateQuestion(req *CreateQuestionRequest) (*Question, error) {
 	id := uuid.New().String()
 
+	if req.Status == "" {
+		req.Status = "active"
+	}
+
 	query := `
 		INSERT INTO quiz.questions (
 			id, type, media_type, media_url, thumbnail_emoji, difficulty, category,
 			explanation, options, correct_index, correct_answer, correct_regions,
-			tolerance, comparison_media_url, correct_side
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			tolerance, comparison_media_url, correct_side, status
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
-	// Convert CorrectRegions to JSON
 	var correctRegions json.RawMessage
 	if len(req.CorrectRegions) > 0 {
 		regionsJSON, err := json.Marshal(req.CorrectRegions)
@@ -201,7 +206,7 @@ func (r *QuizRepository) CreateQuestion(req *CreateQuestionRequest) (*Question, 
 		id, req.Type, req.MediaType, req.MediaURL, req.ThumbnailEmoji,
 		req.Difficulty, req.Category, req.Explanation, pq.Array(req.Options),
 		req.CorrectIndex, req.CorrectAnswer, correctRegions,
-		req.Tolerance, req.ComparisonMediaURL, req.CorrectSide,
+		req.Tolerance, req.ComparisonMediaURL, req.CorrectSide, req.Status,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create question: %w", err)
