@@ -196,10 +196,14 @@ const AnalysisPage = () => {
               style={{ background: "white", border: "2px solid hsl(var(--parchment-border))" }}
             >
               <span style={{ color: "hsl(var(--wood-dark))" }}>이번 달 분석 횟수</span>
-              <span style={{ color: quota.remaining === 0 ? "hsl(var(--destructive))" : "hsl(var(--magic-green))" }}>
-                {quota.used} / {quota.limit}
-                {quota.remaining === 0 && " (소진)"}
-              </span>
+              {quota.limit === -1 ? (
+                <span style={{ color: "hsl(var(--magic-green))" }}>👑 무제한 (프리미엄)</span>
+              ) : (
+                <span style={{ color: quota.remaining === 0 ? "hsl(var(--destructive))" : "hsl(var(--magic-green))" }}>
+                  {quota.used} / {quota.limit}
+                  {quota.remaining === 0 && ` — 코인 ${10}개로 추가 분석 가능`}
+                </span>
+              )}
             </div>
           )}
 

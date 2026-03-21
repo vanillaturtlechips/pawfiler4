@@ -923,8 +923,9 @@ export interface AnalysisHistoryItem {
 
 export interface AnalysisQuota {
   used: number;
-  limit: number;
+  limit: number;   // -1 = 무제한 (premium)
   remaining: number;
+  premium?: boolean;
 }
 
 export interface ApiKeyItem {
