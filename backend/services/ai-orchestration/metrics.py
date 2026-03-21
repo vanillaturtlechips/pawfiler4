@@ -25,7 +25,7 @@ logger = logging.getLogger("pawfiler.metrics")
 @serve.deployment(
     name="metrics_collector",
     num_replicas=1,
-    ray_actor_options={"num_cpus": 0.5},
+    ray_actor_options={"num_cpus": 0.1},
 )
 class MetricsCollector:
     """
@@ -41,15 +41,15 @@ class MetricsCollector:
 
             self.cascade_hits = Counter(
                 "pawfiler_cascade_hit_total",
-                description="XGBoost cascade에서 즉시 반환된 요청 수",
+                description="Requests resolved by XGBoost cascade gate",
             )
             self.deep_path_count = Counter(
                 "pawfiler_deep_path_total",
-                description="Deep Path(GPU)로 넘어간 요청 수",
+                description="Requests forwarded to deep path (GPU agents)",
             )
             self.latency_histogram = Histogram(
                 "pawfiler_inference_latency_ms",
-                description="추론 레이턴시 (ms)",
+                description="Inference latency in milliseconds",
                 boundaries=[10, 25, 50, 100, 150, 200, 300, 500, 1000],
                 tag_keys=("path",),
             )

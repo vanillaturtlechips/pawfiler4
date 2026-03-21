@@ -30,6 +30,8 @@ DB_DSN = os.getenv('DATABASE_URL', '')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
 S3_BUCKET = os.getenv('S3_BUCKET', 'pawfiler-videos')
 USER_SERVICE_URL = os.getenv('USER_SERVICE_URL', 'http://user-service:8083')
+ADMIN_SERVICE_URL = os.getenv('ADMIN_SERVICE_URL', 'http://admin-service:8082')
+COMMUNITY_SERVICE_URL = os.getenv('COMMUNITY_SERVICE_URL', 'http://community-service:8082')
 
 # 월 무료 횟수 (free: 5, premium: 무제한)
 FREE_MONTHLY_QUOTA = 5
@@ -129,10 +131,20 @@ def run_rest_server(svc):
 
         svc.receive_callback(task_id, result)
 
-        # 이력 저장
-        user_id = svc.tasks.get(task_id, {}).get("user_id", "")
+        task = svc.tasks.get(task_id, {})
+        user_id = task.get("user_id", "")
+        video_url = task.get("video_url", "")
+        community_post_id = task.get("community_post_id")  # 커뮤니티 업로드 시 설정
+
         if user_id:
             _save_unified_result(task_id, user_id, result)
+
+        # 비동기 파이프라인 (결과 반환 블로킹 없이)
+        threading.Thread(
+            target=_run_pipelines,
+            args=(result, video_url, community_post_id),
+            daemon=True,
+        ).start()
 
         return jsonify({"ok": True})
 
@@ -432,3 +444,99 @@ def _get_user_by_api_key(raw_key: str) -> str:
                 return str(row["user_id"]) if row else ""
     except Exception:
         return ""
+
+
+# ── 파이프라인 ────────────────────────────────────────────────
+
+def _run_pipelines(result: dict, video_url: str, community_post_id: str | None):
+    """콜백 완료 후 비동기로 실행되는 파이프라인들"""
+    _quiz_pipeline(result, video_url)
+    if community_post_id:
+        _community_tagging_pipeline(result, community_post_id)
+
+
+def _quiz_pipeline(result: dict, video_url: str):
+    """
+    퀴즈 자동 생성 파이프라인.
+    조건: confidence ≥ 0.85 이고 verdict가 FAKE 또는 REAL
+    → admin 서비스 CreateQuestion API로 true_false 문제 후보 생성 (pending 상태)
+    어드민이 검수 후 활성화.
+    """
+    confidence = result.get("confidence", 0.0)
+    verdict = result.get("verdict", "").upper()
+
+    if confidence < 0.85 or verdict not in ("FAKE", "REAL"):
+        return
+
+    breakdown = result.get("breakdown", {})
+    ai_model = breakdown.get("video", {}).get("ai_model")
+
+    # 설명 생성
+    if verdict == "FAKE" and ai_model:
+        explanation = f"이 영상은 {ai_model}로 생성된 AI 영상입니다. (신뢰도 {confidence:.0%})"
+        emoji = "🤖"
+    elif verdict == "FAKE":
+        explanation = f"이 영상은 AI가 생성한 가짜 영상입니다. (신뢰도 {confidence:.0%})"
+        emoji = "🚨"
+    else:
+        explanation = f"이 영상은 실제 촬영된 진짜 영상입니다. (신뢰도 {confidence:.0%})"
+        emoji = "✅"
+
+    correct_answer = verdict == "FAKE"  # true_false: true = 가짜
+
+    payload = {
+        "type": "true_false",
+        "media_type": "video",
+        "media_url": video_url,
+        "thumbnail_emoji": emoji,
+        "difficulty": "medium" if confidence < 0.92 else "hard",
+        "category": ai_model or "deepfake",
+        "explanation": explanation,
+        "correct_answer": correct_answer,
+        "status": "pending",  # 어드민 검수 대기
+    }
+
+    try:
+        resp = httpx.post(
+            f"{ADMIN_SERVICE_URL}/admin/quiz/questions",
+            json=payload,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        logger.info(f"[quiz_pipeline] Created question candidate: {resp.json().get('id')}")
+    except Exception as e:
+        logger.error(f"[quiz_pipeline] Failed: {e}")
+
+
+def _community_tagging_pipeline(result: dict, post_id: str):
+    """
+    커뮤니티 게시글 자동 태깅.
+    분석 결과 → AI 모델명 / REAL / FAKE 태그를 게시글에 추가.
+    """
+    breakdown = result.get("breakdown", {})
+    verdict = result.get("verdict", "").upper()
+    ai_model = breakdown.get("video", {}).get("ai_model")
+
+    tags = []
+    if verdict == "FAKE":
+        tags.append("AI생성")
+        if ai_model:
+            tags.append(ai_model)  # e.g. "Sora", "Runway"
+    elif verdict == "REAL":
+        tags.append("실제영상")
+    else:
+        tags.append("분석불확실")
+
+    if breakdown.get("audio", {}).get("is_synthetic"):
+        tags.append("합성음성")
+
+    try:
+        resp = httpx.post(
+            f"{COMMUNITY_SERVICE_URL}/internal/add-tags",
+            json={"post_id": post_id, "tags": tags},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        logger.info(f"[community_tagging] Tagged post {post_id}: {tags}")
+    except Exception as e:
+        logger.error(f"[community_tagging] Failed for post {post_id}: {e}")
