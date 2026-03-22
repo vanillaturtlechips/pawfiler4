@@ -301,6 +301,12 @@ resource "helm_release" "istiod" {
     value = "512Mi"
   }
 
+  # Envoy 프록시가 ready 된 후 앱 컨테이너 시작 (DB/Redis 연결 실패 방지)
+  set {
+    name  = "global.proxy.holdApplicationUntilProxyStarts"
+    value = "true"
+  }
+
   # 사이드카 프록시 기본 리소스 (각 Pod에 주입되는 Envoy)
   set {
     name  = "global.proxy.resources.requests.cpu"
