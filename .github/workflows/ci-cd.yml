@@ -20,6 +20,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       admin_frontend: ${{ steps.filter.outputs.admin_frontend }}
       report: ${{ steps.filter.outputs.report }}
+      aiops: ${{ steps.filter.outputs.aiops }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +39,7 @@ jobs:
             admin_frontend: 'admin-frontend/**'
             report: 'backend/services/report/**'
             chat-bot: 'backend/services/chat-bot/**'
+            aiops: 'aiops/**'
 
       - name: Generate Matrix
         id: set-matrix
@@ -215,10 +217,7 @@ jobs:
   # AIOps Agent 빌드 및 ECR 푸시
   build-aiops:
     needs: detect-changes
-    if: |
-      github.event_name == 'push' &&
-      contains(github.event.commits[*].modified, 'aiops/') ||
-      contains(github.event.commits[*].added, 'aiops/')
+    if: needs.detect-changes.outputs.aiops == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
