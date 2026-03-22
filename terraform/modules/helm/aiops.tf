@@ -115,7 +115,7 @@ resource "aws_sns_topic" "aiops" {
 }
 
 # ---------------------------------------------------------------------------
-# IRSA: AIOps Agent (Bedrock + AMP query + CloudWatch Logs + SNS)
+# IRSA: AIOps Agent (Bedrock + AMP query + SNS)
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "aiops" {
   name = "${var.project_name}-aiops"
