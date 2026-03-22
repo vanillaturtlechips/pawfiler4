@@ -45,8 +45,8 @@ tools.py 함수 실행:
 
 | 파일 | 역할 |
 |------|------|
-| `aiops/analyzer.py` | Bedrock converse API tool_use 루프 (최대 10라운드) |
-| `aiops/tools.py` | AMP SigV4 쿼리, CloudWatch Logs Insights, K8s pod status, SNS 알림 |
+| `aiops/analyzer.py` | Bedrock converse API tool_use 루프 (최대 10라운드), SNS cooldown |
+| `aiops/tools.py` | AMP→in-cluster Prometheus 폴백, CloudWatch Logs Insights, K8s pod status/events, SNS 알림 |
 | `aiops/main.py` | 5분 주기 스케줄러, SIGTERM/SIGINT 핸들러 |
 | `aiops/requirements.txt` | boto3, botocore, kubernetes, requests, schedule |
 | `aiops/Dockerfile` | python:3.12-slim, pyc 캐시 제거 (~68MB) |
@@ -132,6 +132,34 @@ aiops-5b75cb99dc-xg8c8   1/1   Running   0   67s
 ```
 
 **검증 완료**: 파드 Running → tool_use 루프 정상 → 이상 감지 → SNS 발송
+
+---
+
+## 고도화 (2026-03-22)
+
+### 추가된 기능
+
+| 항목 | 내용 |
+|------|------|
+| `describe_pod_events` 툴 추가 | Pending/Error 파드 이벤트 조회 → 원인(리소스 부족, 스케줄링 실패 등) 자동 파악 |
+| In-cluster Prometheus 폴백 | AMP remoteWrite 비활성화 상태에서 `prometheus-operated.monitoring:9090` 직접 쿼리 |
+| SNS cooldown (1시간) | 동일 이상 반복 감지 시 알림 중복 차단 (`/tmp/aiops_last_alert.json`) |
+| `restart_deployment` CRD 예외처리 | RayCluster 등 CRD에 재시작 시도 시 404 대신 안내 메시지 반환 |
+
+### 분석 흐름 변경
+
+```
+Before: pod_status → prometheus → cloudwatch → (restart 시도)
+After:  pod_status → describe_pod_events(이상 파드) → prometheus → cloudwatch → (restart, Deployment만)
+```
+
+### 알려진 이슈 (해결)
+
+| 이슈 | 원인 | 해결 |
+|------|------|------|
+| `restart_deployment` 404 반복 | Bedrock이 RayCluster를 Deployment로 오인 | tool 설명에 CRD 사용 금지 명시 + 404 시 graceful 처리 |
+| 5분마다 SNS 스팸 | cooldown 없음 | 1시간 cooldown 추가 |
+| Prometheus 메트릭 빈 값 | AMP remoteWrite 비활성화 | in-cluster Prometheus 폴백 |
 
 ---
 
