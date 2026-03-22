@@ -2,7 +2,7 @@
 AIOps Agent - 5분 주기 클러스터 이상 탐지
 AWS Bedrock (Claude) + AMP + CloudWatch Logs + K8s
 """
-# .
+# ..
 import logging
 import os
 import signal
