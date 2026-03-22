@@ -1,6 +1,6 @@
 """
 AWS Bedrock converse API 기반 AIOps 분석 루프.
-Claude가 tool_use로 AMP/CloudWatch/K8s를 직접 조회해 이상 탐지.
+Claude가 tool_use로 AMP/Loki/K8s를 직접 조회해 이상 탐지.
 """
 import json
 import logging
@@ -11,7 +11,7 @@ import boto3
 
 from tools import (
     describe_pod_events,
-    get_cloudwatch_logs,
+    get_loki_logs,
     get_pod_status,
     get_prometheus_metrics,
     restart_deployment,
@@ -73,9 +73,9 @@ TOOL_CONFIG = {
         },
         {
             "toolSpec": {
-                "name": "get_cloudwatch_logs",
+                "name": "get_loki_logs",
                 "description": (
-                    "CloudWatch Logs에서 최근 로그를 조회합니다. "
+                    "Loki에서 최근 로그를 조회합니다. "
                     "에러, 패닉, 타임아웃 등 이상 로그를 검색할 수 있습니다."
                 ),
                 "inputSchema": {
@@ -85,6 +85,10 @@ TOOL_CONFIG = {
                             "filter_pattern": {
                                 "type": "string",
                                 "description": "로그 필터 패턴(대소문자 무시). 예: 'error', 'panic', 'timeout'",
+                            },
+                            "namespace": {
+                                "type": "string",
+                                "description": "조회할 네임스페이스. 기본값 pawfiler",
                             },
                             "minutes": {
                                 "type": "integer",
@@ -183,7 +187,7 @@ SYSTEM_PROMPT = [
 1. get_pod_status로 pawfiler/admin 네임스페이스 이상 파드 확인
 2. 이상 파드(Pending/Error 등) 발견 시 describe_pod_events로 원인 파악
 3. get_prometheus_metrics로 CPU/메모리/HTTP 에러율 이상 확인
-4. get_cloudwatch_logs로 최근 error/panic 로그 확인
+4. get_loki_logs로 최근 error/panic 로그 확인
 5. 이상 감지 시 원인 분석 후 필요하면 restart_deployment
 
 규칙:
@@ -199,8 +203,8 @@ def _exec_tool(name: str, tool_input: dict) -> str:
     try:
         if name == "get_prometheus_metrics":
             result = get_prometheus_metrics(**tool_input)
-        elif name == "get_cloudwatch_logs":
-            result = get_cloudwatch_logs(**tool_input)
+        elif name == "get_loki_logs":
+            result = get_loki_logs(**tool_input)
         elif name == "get_pod_status":
             result = get_pod_status(**tool_input)
         elif name == "describe_pod_events":
