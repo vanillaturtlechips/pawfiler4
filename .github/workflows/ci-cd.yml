@@ -211,3 +211,45 @@ jobs:
 
       - name: Deploy to S3
         run: aws s3 sync admin-frontend/dist s3://pawfiler-admin-frontend --delete
+
+  # AIOps Agent 빌드 및 ECR 푸시
+  build-aiops:
+    needs: detect-changes
+    if: |
+      github.event_name == 'push' &&
+      contains(github.event.commits[*].modified, 'aiops/') ||
+      contains(github.event.commits[*].added, 'aiops/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push AIOps image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./aiops
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops:latest
+
+      - name: Update ArgoCD image tag
+        run: |
+          git clone https://x-access-token:${{ secrets.ARGOCD_REPO_TOKEN }}@github.com/vanillaturtlechips/pawfiler4-argocd.git argocd-repo
+          cd argocd-repo
+          sed -i "s|image: .*/pawfiler/aiops:.*|image: ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops:${{ github.sha }}|g" \
+            infrastructure/observability/aiops/deployment.yaml
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Update aiops image to ${{ github.sha }}" || exit 0
+          git push
