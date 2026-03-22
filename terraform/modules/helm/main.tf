@@ -256,80 +256,8 @@ resource "helm_release" "kubecost" {
 }
 
 
-# Envoy Gateway - Istio 서비스 메시로 전환하여 제거
-# resource "helm_release" "envoy_gateway" { ... }
-
-# ===========================================================================
-# Istio Service Mesh (Envoy 사이드카 자동 주입)
-# - istio-base: CRDs (VirtualService, DestinationRule 등)
-# - istiod: 컨트롤 플레인 (Mutating Webhook → 사이드카 자동 주입)
-# ===========================================================================
-
-resource "helm_release" "istio_base" {
-  name             = "istio-base"
-  repository       = "https://istio-release.storage.googleapis.com/charts"
-  chart            = "base"
-  namespace        = "istio-system"
-  create_namespace = true
-  version          = "1.24.3"
-}
-
-resource "helm_release" "istiod" {
-  name       = "istiod"
-  repository = "https://istio-release.storage.googleapis.com/charts"
-  chart      = "istiod"
-  namespace  = "istio-system"
-  version    = "1.24.3"
-
-  set {
-    name  = "pilot.resources.requests.cpu"
-    value = "200m"
-  }
-
-  set {
-    name  = "pilot.resources.requests.memory"
-    value = "256Mi"
-  }
-
-  set {
-    name  = "pilot.resources.limits.cpu"
-    value = "500m"
-  }
-
-  set {
-    name  = "pilot.resources.limits.memory"
-    value = "512Mi"
-  }
-
-  # Envoy 프록시가 ready 된 후 앱 컨테이너 시작 (DB/Redis 연결 실패 방지)
-  set {
-    name  = "global.proxy.holdApplicationUntilProxyStarts"
-    value = "true"
-  }
-
-  # 사이드카 프록시 기본 리소스 (각 Pod에 주입되는 Envoy)
-  set {
-    name  = "global.proxy.resources.requests.cpu"
-    value = "50m"
-  }
-
-  set {
-    name  = "global.proxy.resources.requests.memory"
-    value = "64Mi"
-  }
-
-  set {
-    name  = "global.proxy.resources.limits.cpu"
-    value = "200m"
-  }
-
-  set {
-    name  = "global.proxy.resources.limits.memory"
-    value = "256Mi"
-  }
-
-  depends_on = [helm_release.istio_base]
-}
+# Envoy Gateway - Istio 서비스 메시로 전환하여 제거 (istio.tf로 이동)
+# Istio 설정은 istio.tf 참조
 
 # Metrics Server (HPA용)
 resource "helm_release" "metrics_server" {
