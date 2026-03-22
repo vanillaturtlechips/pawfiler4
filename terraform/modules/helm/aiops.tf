@@ -158,10 +158,10 @@ resource "aws_iam_role_policy" "otel_collector" {
 }
 
 # ---------------------------------------------------------------------------
-# DevOps Guru - 이상 탐지 및 운영 인사이트
+# AIOps SNS - Claude AI Agent 분석 결과 알림
 # ---------------------------------------------------------------------------
-resource "aws_sns_topic" "devops_guru" {
-  name = "${var.project_name}-devops-guru"
+resource "aws_sns_topic" "aiops" {
+  name = "${var.project_name}-aiops"
 
   tags = {
     Project = var.project_name
@@ -169,17 +169,78 @@ resource "aws_sns_topic" "devops_guru" {
   }
 }
 
-resource "aws_devopsguru_resource_collection" "main" {
-  type = "AWS_TAGS"
+# ---------------------------------------------------------------------------
+# IRSA: AIOps Agent (Bedrock + AMP query + CloudWatch Logs + SNS)
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "aiops" {
+  name = "${var.project_name}-aiops"
 
-  tags {
-    app_boundary_key = "Project"
-    tag_values       = [var.project_name]
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:monitoring:aiops"
+        }
+      }
+    }]
+  })
+
+  tags = {
+    Project = var.project_name
+    Purpose = "aiops"
   }
 }
 
-resource "aws_devopsguru_notification_channel" "main" {
-  sns {
-    topic_arn = aws_sns_topic.devops_guru.arn
-  }
+resource "aws_iam_role_policy" "aiops" {
+  name = "${var.project_name}-aiops-policy"
+  role = aws_iam_role.aiops.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "BedrockInvoke"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AMPQuery"
+        Effect = "Allow"
+        Action = [
+          "aps:QueryMetrics",
+          "aps:GetSeries",
+          "aps:GetLabels",
+          "aps:GetMetricMetadata"
+        ]
+        Resource = aws_prometheus_workspace.main.arn
+      },
+      {
+        Sid    = "CloudWatchLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:StartQuery",
+          "logs:GetQueryResults",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "arn:aws:logs:ap-northeast-2:009946608368:log-group:/aws/eks/pawfiler-eks-cluster/*"
+      },
+      {
+        Sid      = "SNSPublish"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
+        Resource = aws_sns_topic.aiops.arn
+      }
+    ]
+  })
 }

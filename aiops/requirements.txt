@@ -1,0 +1,5 @@
+boto3>=1.35.0
+botocore>=1.35.0
+kubernetes>=31.0.0
+requests>=2.32.0
+schedule>=1.2.0
