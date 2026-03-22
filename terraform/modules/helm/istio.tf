@@ -66,7 +66,25 @@ resource "kubectl_manifest" "pawfiler_istio_injection" {
   depends_on = [helm_release.istiod]
 }
 
-# 4. ai-orchestration 네임스페이스 사이드카 명시적 차단 (Ray 포트 충돌 방지)
+# 4. admin 네임스페이스 사이드카 주입 활성화
+resource "kubectl_manifest" "admin_istio_injection" {
+  count             = var.enable_istio ? 1 : 0
+  server_side_apply = true
+  force_conflicts   = true
+
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: admin
+      labels:
+        istio-injection: "enabled"
+  YAML
+
+  depends_on = [helm_release.istiod]
+}
+
+# 5. ai-orchestration 네임스페이스 사이드카 명시적 차단 (Ray 포트 충돌 방지)
 resource "kubectl_manifest" "ai_orchestration_istio_disabled" {
   count             = var.enable_istio ? 1 : 0
   server_side_apply = true
