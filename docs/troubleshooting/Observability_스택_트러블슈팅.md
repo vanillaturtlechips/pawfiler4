@@ -16,23 +16,28 @@
 | ArgoCD CPU | application-controller 1274m (비정상) | 317m (정상 범위) | **75% 감소**, sync 반복 실패 해소 |
 | ArgoCD Sync 안정성 | external-secrets OutOfSync 무한 반복 | Synced/Healthy 유지 | CRD 256KB annotation 한도 문제 해결 |
 | 보안 | Grafana admin 패스워드 평문 ConfigMap | Kubernetes Secret 참조 | 크리덴셜 평문 노출 제거 |
-| 로그 파이프라인 | 없음 | Fluent-bit → Loki → Grafana | 서비스 로그 실시간 조회 및 장애 대응 가능 |
+| 로그 파이프라인 | Fluent-bit → CloudWatch → Grafana | otel-collector → Loki(S3) → Grafana | CloudWatch 비용 제거, LogQL 통합 쿼리 |
 
 ---
 
 ## 스택 구성
 
 ```
-파드 로그 → Fluent-bit (DaemonSet) → Loki (S3 백엔드) → Grafana
+파드 로그 → otel-collector (DaemonSet) → Loki (S3 백엔드) → Grafana
+서비스 트레이스 → otel-collector → AWS X-Ray
 ```
 
 | 컴포넌트 | 역할 | 선택 이유 |
 |---------|------|---------|
-| Fluent-bit | 각 노드에서 파드 로그 수집 | 경량 (파드당 5~7Mi), 풍부한 필터 기능 |
+| otel-collector | 각 노드에서 파드 로그 수집 + 트레이스 수신 | 로그/트레이스 통합 파이프라인, Istio 확장 용이 |
 | Loki | 로그 저장 및 쿼리 | S3 백엔드로 저렴, Grafana 네이티브 연동 |
 | Grafana | 로그 시각화 및 쿼리 UI | Loki/Prometheus 통합 대시보드 |
 
-**설계 원칙**: 수집 범위를 서비스 네임스페이스(pawfiler)로 한정해 비용과 노이즈를 최소화.
+**설계 원칙**: 수집 범위를 서비스 네임스페이스(pawfiler, admin)로 한정해 비용과 노이즈를 최소화.
+
+> **2026-03-22 변경**: Fluent-bit → otel-collector 전환, CloudWatch Logs 제거.
+> 로그 파이프라인: `awscloudwatchlogs` exporter → `loki` exporter.
+> AIOps 로그 조회: CloudWatch Logs Insights → Loki LogQL (`get_loki_logs`).
 
 ---
 
