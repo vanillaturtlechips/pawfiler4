@@ -5,16 +5,35 @@ Claude가 tool_use로 AMP/CloudWatch/K8s를 직접 조회해 이상 탐지.
 import json
 import logging
 import os
+import time
 
 import boto3
 
 from tools import (
+    describe_pod_events,
     get_cloudwatch_logs,
     get_pod_status,
     get_prometheus_metrics,
     restart_deployment,
     send_sns_notification,
 )
+
+COOLDOWN_FILE = "/tmp/aiops_last_alert.json"
+COOLDOWN_SECONDS = 3600  # 1시간
+
+
+def _cooldown_active() -> bool:
+    try:
+        with open(COOLDOWN_FILE) as f:
+            last = json.load(f).get("last_alert", 0)
+        return (time.time() - last) < COOLDOWN_SECONDS
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+
+
+def _set_cooldown() -> None:
+    with open(COOLDOWN_FILE, "w") as f:
+        json.dump({"last_alert": time.time()}, f)
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +119,34 @@ TOOL_CONFIG = {
         },
         {
             "toolSpec": {
+                "name": "describe_pod_events",
+                "description": (
+                    "파드 이벤트를 조회합니다. Pending/Error 파드의 원인(리소스 부족, 스케줄링 실패, ImagePullBackOff 등)을 파악할 때 사용하세요."
+                ),
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": {
+                            "namespace": {
+                                "type": "string",
+                                "description": "파드가 속한 네임스페이스",
+                            },
+                            "pod_name": {
+                                "type": "string",
+                                "description": "이벤트를 조회할 파드 이름",
+                            },
+                        },
+                        "required": ["namespace", "pod_name"],
+                    }
+                },
+            }
+        },
+        {
+            "toolSpec": {
                 "name": "restart_deployment",
                 "description": (
                     "Kubernetes Deployment를 rollout restart합니다. "
+                    "Deployment 리소스 전용입니다. RayCluster, StatefulSet, DaemonSet 등 CRD/비-Deployment에는 사용하지 마세요. "
                     "파드가 CrashLoopBackOff/OOMKilled/Error 상태이고 자동 복구가 필요할 때만 사용하세요."
                 ),
                 "inputSchema": {
@@ -137,11 +181,13 @@ SYSTEM_PROMPT = [
 
 분석 순서:
 1. get_pod_status로 pawfiler/admin 네임스페이스 이상 파드 확인
-2. get_prometheus_metrics로 CPU/메모리/HTTP 에러율 이상 확인
-3. get_cloudwatch_logs로 최근 error/panic 로그 확인
-4. 이상 감지 시 원인 분석 후 필요하면 restart_deployment
+2. 이상 파드(Pending/Error 등) 발견 시 describe_pod_events로 원인 파악
+3. get_prometheus_metrics로 CPU/메모리/HTTP 에러율 이상 확인
+4. get_cloudwatch_logs로 최근 error/panic 로그 확인
+5. 이상 감지 시 원인 분석 후 필요하면 restart_deployment
 
 규칙:
+- restart_deployment는 Deployment 리소스에만 사용. RayCluster/StatefulSet/DaemonSet 등 CRD에 절대 사용 금지
 - restart_deployment는 CrashLoopBackOff/OOMKilled/Error이고 재시작 5회 이상일 때만 사용
 - 분석 결과 마지막 줄에 반드시 "이상 감지 여부: YES" 또는 "이상 감지 여부: NO" 명시
 - 이상 감지 시 원인과 조치 내용을 구체적으로 한국어로 설명"""
@@ -157,6 +203,8 @@ def _exec_tool(name: str, tool_input: dict) -> str:
             result = get_cloudwatch_logs(**tool_input)
         elif name == "get_pod_status":
             result = get_pod_status(**tool_input)
+        elif name == "describe_pod_events":
+            result = describe_pod_events(**tool_input)
         elif name == "restart_deployment":
             result = restart_deployment(**tool_input)
         else:
@@ -207,11 +255,15 @@ def run_analysis() -> None:
             logger.info(f"Analysis complete:\n{final_text}")
 
             if "이상 감지 여부: YES" in final_text:
-                send_sns_notification(
-                    subject="[AIOps] pawfiler 클러스터 이상 감지",
-                    message=final_text,
-                )
-                logger.warning("Anomaly detected! SNS sent.")
+                if _cooldown_active():
+                    logger.info("Anomaly detected but SNS suppressed (cooldown 1h active).")
+                else:
+                    send_sns_notification(
+                        subject="[AIOps] pawfiler 클러스터 이상 감지",
+                        message=final_text,
+                    )
+                    _set_cooldown()
+                    logger.warning("Anomaly detected! SNS sent.")
             else:
                 logger.info("Cluster healthy.")
             break
