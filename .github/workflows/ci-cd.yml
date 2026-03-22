@@ -45,7 +45,7 @@ jobs:
         id: set-matrix
         run: |
           SERVICES='${{ steps.filter.outputs.changes }}'
-          MATRIX=$(echo $SERVICES | jq -c 'map(select(. != "frontend" and . != "admin_frontend" and . != "report")) | map({
+          MATRIX=$(echo $SERVICES | jq -c 'map(select(. != "frontend" and . != "admin_frontend" and . != "report" and . != "aiops")) | map({
             service: .,
             ecr_name: (. + "-service")
           })')
