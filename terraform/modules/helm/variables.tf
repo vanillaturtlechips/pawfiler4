@@ -67,6 +67,12 @@ variable "karpenter_node_role_name" {
   default     = ""
 }
 
+variable "enable_istio" {
+  description = "Enable Istio service mesh (istio-base + istiod, sidecar injection on pawfiler namespace)"
+  type        = bool
+  default     = false
+}
+
 variable "kubecost_token" {
   description = "Kubecost token for cost monitoring"
   type        = string
