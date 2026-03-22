@@ -41,3 +41,8 @@ resource "aws_ecr_repository" "admin_service" {
     prevent_destroy = true
   }
 }
+
+resource "aws_ecr_repository" "aiops" {
+  name = "${var.project_name}/aiops"
+  tags = { Name = "${var.project_name}-aiops-ecr" }
+}
