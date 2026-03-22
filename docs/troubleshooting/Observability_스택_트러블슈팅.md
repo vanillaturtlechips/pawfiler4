@@ -17,6 +17,8 @@
 | ArgoCD Sync 안정성 | external-secrets OutOfSync 무한 반복 | Synced/Healthy 유지 | CRD 256KB annotation 한도 문제 해결 |
 | 보안 | Grafana admin 패스워드 평문 ConfigMap | Kubernetes Secret 참조 | 크리덴셜 평문 노출 제거 |
 | 로그 파이프라인 | Fluent-bit → CloudWatch → Grafana | otel-collector → Loki(S3) → Grafana | CloudWatch 비용 제거, LogQL 통합 쿼리 |
+| AMP 메트릭 범위 | 클러스터 전체 (node/apiserver 포함) | pawfiler/admin 네임스페이스만 | writeRelabelConfigs로 샘플 수 대폭 감소 |
+| otel-collector IAM | CloudWatch Logs + X-Ray 권한 | 권한 없음 (Loki는 in-cluster) | AWS IAM role/policy 불필요 → 삭제 |
 
 ---
 
@@ -24,20 +26,21 @@
 
 ```
 파드 로그 → otel-collector (DaemonSet) → Loki (S3 백엔드) → Grafana
-서비스 트레이스 → otel-collector → AWS X-Ray
 ```
 
 | 컴포넌트 | 역할 | 선택 이유 |
 |---------|------|---------|
-| otel-collector | 각 노드에서 파드 로그 수집 + 트레이스 수신 | 로그/트레이스 통합 파이프라인, Istio 확장 용이 |
+| otel-collector | 각 노드에서 파드 로그 수집 | Loki 단일 파이프라인, AWS IAM 불필요 |
 | Loki | 로그 저장 및 쿼리 | S3 백엔드로 저렴, Grafana 네이티브 연동 |
 | Grafana | 로그 시각화 및 쿼리 UI | Loki/Prometheus 통합 대시보드 |
 
 **설계 원칙**: 수집 범위를 서비스 네임스페이스(pawfiler, admin)로 한정해 비용과 노이즈를 최소화.
 
-> **2026-03-22 변경**: Fluent-bit → otel-collector 전환, CloudWatch Logs 제거.
-> 로그 파이프라인: `awscloudwatchlogs` exporter → `loki` exporter.
-> AIOps 로그 조회: CloudWatch Logs Insights → Loki LogQL (`get_loki_logs`).
+> **2026-03-22 변경**: Fluent-bit → otel-collector 전환, CloudWatch Logs/X-Ray 제거.
+> - 로그 파이프라인: `loki` exporter만 사용 (otlp receiver, awsxray exporter 제거)
+> - otel-collector IRSA 삭제: Loki는 cluster-internal HTTP, AWS 권한 불필요
+> - AMP writeRelabelConfigs 추가: `namespace=~"pawfiler|admin"` 필터로 비용 과금 방지
+> - AIOps 로그 조회: CloudWatch Logs Insights → Loki LogQL (`get_loki_logs`)
 
 ---
 
