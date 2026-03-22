@@ -244,3 +244,21 @@ Prefix Delegation 활성화 시 노드당 IP 소모:
 - 2 AZ 합산 최대 10대 (NodePool 리밋 32코어 기준 t3.medium 최대 16대와 차이)
 
 → 현재 프로젝트 규모(보통 3~5대)에서는 충분. 스케일아웃 시 IP 고갈 모니터링 필요.
+
+**검증 결과 (2026-03-22)**
+
+노드 롤링 교체 후 전체 spot 노드 `pods: 110` 확인:
+
+```bash
+kubectl get nodes -l karpenter.sh/nodepool=spot --no-headers | awk '{print $1}' | \
+  xargs -I{} sh -c 'echo "=== {} ===" && kubectl describe node {} | grep "pods:"'
+
+# 결과:
+# === ip-10-0-101-55.ap-northeast-2.compute.internal ===
+#   pods: 110
+# === ip-10-0-103-200.ap-northeast-2.compute.internal ===
+#   pods: 110
+```
+
+**핵심 포인트**: CPU/RAM은 여유가 있었으나 파드 슬롯 한도(17개)만으로 DaemonSet이 Pending.
+인스턴스 업그레이드(비용 2배) 없이 Prefix Delegation으로 해결.
