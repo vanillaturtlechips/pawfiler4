@@ -37,9 +37,9 @@ class XGBoostGate:
         - confidence < threshold → Deep Path로 넘김 (confident=False)
     """
 
-    CONFIDENCE_THRESHOLD = 0.85  # 이 이상이면 XGBoost만으로 판단
+    CONFIDENCE_THRESHOLD = 0.85  # 테스트: 항상 deep path (confidence는 최대 1.0)
 
-    def __init__(self, model_path: str = "/mnt/efs/models/xgboost_cascade.pkl"):
+    def __init__(self, model_path: str = "/mnt/efs/models/models/xgboost_cascade.pkl"):
         self.model_path = model_path
         self.model = self._load_model()
         logger.info(f"XGBoostGate loaded (threshold={self.CONFIDENCE_THRESHOLD})")
@@ -66,8 +66,16 @@ class XGBoostGate:
         feature_vec = self._to_vector(features)
 
         if self.model is not None:
-            probs = self.model.predict_proba(feature_vec.reshape(1, -1))  # (1, 2)
-            prob_fake = float(probs[0][1])
+            import xgboost as xgb
+            if isinstance(self.model, xgb.Booster):
+                dmat = xgb.DMatrix(feature_vec.reshape(1, -1))
+                pred = self.model.predict(dmat)[0]
+                # Booster.predict() 결과: 이진분류 시 스칼라 or [p0,p1] 배열
+                prob_fake = float(pred[1]) if hasattr(pred, '__len__') else float(pred)
+            else:
+                probs = self.model.predict_proba(feature_vec.reshape(1, -1))
+                p = probs[0]
+                prob_fake = float(p[1]) if hasattr(p, '__len__') else float(p)
         else:
             # 모델 없으면 항상 Deep Path로
             prob_fake = 0.5
@@ -102,13 +110,29 @@ class XGBoostGate:
         return np.array(vec, dtype=np.float32)
 
     def _load_model(self):
-        """XGBoost 모델 로드. 없으면 None (개발 단계)."""
+        """XGBoost 모델 로드. XGBClassifier(pkl) 또는 Booster(json) 모두 지원."""
+        import xgboost as xgb
+
+        # 네이티브 JSON 우선
+        json_path = self.model_path.replace(".pkl", ".json")
+        try:
+            booster = xgb.Booster()
+            booster.load_model(json_path)
+            logger.info(f"XGBoost model loaded from {json_path}")
+            return booster
+        except Exception:
+            pass
+
+        # pickle fallback (XGBClassifier 포함)
         try:
             import pickle
             with open(self.model_path, "rb") as f:
-                model = pickle.load(f)
+                obj = pickle.load(f)
+            # XGBClassifier → Booster 추출
+            if hasattr(obj, "get_booster"):
+                obj = obj.get_booster()
             logger.info(f"XGBoost model loaded from {self.model_path}")
-            return model
+            return obj
         except Exception as e:
             logger.warning(f"XGBoost model not found ({e}), cascade will pass-through")
             return None

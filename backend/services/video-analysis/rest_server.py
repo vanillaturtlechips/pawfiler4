@@ -17,6 +17,7 @@ import threading
 import secrets
 from datetime import datetime, timezone
 
+import httpx
 import boto3
 import psycopg2
 import psycopg2.extras
@@ -147,6 +148,56 @@ def run_rest_server(svc):
         ).start()
 
         return jsonify({"ok": True})
+
+    # ── URL 기반 분석 ─────────────────────────────────────────
+
+    @app.route('/api/video_analysis.VideoAnalysisService/AnalyzeVideo', methods=['POST'])
+    def analyze_video():
+        data = request.get_json() or {}
+        video_url = data.get("video_url")
+        user_id = data.get("user_id", "")
+        if not video_url:
+            return jsonify({"error": "video_url required"}), 400
+
+        task_id = str(uuid.uuid4())
+        svc.tasks[task_id] = {"status": "PROCESSING", "result": None, "user_id": user_id}
+        threading.Thread(
+            target=svc._request_analysis, args=(task_id, video_url), daemon=True
+        ).start()
+        return jsonify({"taskId": task_id, "task_id": task_id})
+
+    # ── 결과 조회 ────────────────────────────────────────────
+
+    @app.route('/api/video_analysis.VideoAnalysisService/GetAnalysisResult', methods=['POST'])
+    def get_analysis_result():
+        data = request.get_json() or {}
+        task_id = data.get("task_id")
+        if not task_id:
+            return jsonify({"error": "task_id required"}), 400
+
+        task = svc.tasks.get(task_id)
+        if not task:
+            return jsonify({"task_id": task_id, "verdict": "NOT_FOUND", "confidence_score": 0.0,
+                            "manipulated_regions": [], "frame_samples_analyzed": 0,
+                            "model_version": "", "processing_time_ms": 0})
+
+        if task["status"] != "COMPLETED" or not task["result"]:
+            return jsonify({"task_id": task_id, "verdict": "PROCESSING", "confidence_score": 0.0,
+                            "manipulated_regions": [], "frame_samples_analyzed": 0,
+                            "model_version": "", "processing_time_ms": 0})
+
+        r = task["result"]
+        return jsonify({
+            "task_id": task_id,
+            "verdict": r.get("verdict", "UNCERTAIN").upper(),
+            "confidence_score": r.get("confidence", 0.0),
+            "manipulated_regions": [],
+            "frame_samples_analyzed": r.get("meta", {}).get("frames_analyzed", 0),
+            "model_version": "ai-orchestration-v1",
+            "processing_time_ms": int(r.get("meta", {}).get("latency_ms", 0)),
+            "breakdown": r.get("breakdown", {}),
+            "explanation": r.get("explanation", ""),
+        })
 
     # ── 분석 이력 ────────────────────────────────────────────
 

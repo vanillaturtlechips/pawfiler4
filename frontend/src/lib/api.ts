@@ -480,24 +480,28 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
   
   try {
     if (typeof videoFile === 'string') {
-      // URL로 분석
-      const response = await request<{task_id: string, verdict: string, confidence_score: number, message: string}>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
+      const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           video_url: videoFile,
           user_id: localStorage.getItem(config.storageKeys.quizUserId) || ''
         }),
       });
-      
-      return {
-        task_id: response.task_id,
-        verdict: response.verdict,
-        confidence_score: response.confidence_score,
-        manipulated_regions: [],
-        frame_samples_analyzed: 0,
-        model_version: 'v1',
-        processing_time_ms: 0
-      };
+      const data = await pollRes.json();
+      const taskId = data.taskId || data.task_id;
+
+      for (let i = 0; i < 60; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const r = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task_id: taskId }),
+        });
+        const result: DeepfakeReport = await r.json();
+        if (result.verdict !== 'PROCESSING' && result.verdict !== 'NOT_FOUND') return { ...result, taskId };
+      }
+      throw new Error('Analysis timeout');
     } else {
       // 파일 크기 체크 (100MB)
       if (videoFile.size > 100 * 1024 * 1024) {
@@ -510,7 +514,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       formData.append('video', videoFile);
       formData.append('user_id', userId);
       
-      const response = await fetch(`${config.apiBaseUrl}/api/upload-video`, {
+      const response = await fetch(`${config.apiBaseUrl}/upload-video`, {
         method: 'POST',
         body: formData,
       });
@@ -526,13 +530,15 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       for (let i = 0; i < 60; i++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        const resultResponse = await request<DeepfakeReport>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
+        const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ task_id: taskId }),
         });
+        const resultResponse: DeepfakeReport = await pollRes.json();
         
         if (resultResponse.verdict !== 'PROCESSING' && resultResponse.verdict !== 'NOT_FOUND') {
-          return resultResponse;
+          return { ...resultResponse, taskId };
         }
       }
       
@@ -575,11 +581,35 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
   }
   
   try {
-    const response = await request<UnifiedReport>(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetUnifiedResult`, {
+    const response = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ task_id: taskId }),
     });
-    return response;
+    const data = await response.json();
+    // DeepfakeReport → UnifiedReport 변환
+    return {
+      taskId,
+      finalVerdict: data.verdict || "UNCERTAIN",
+      confidence: data.confidence_score || 0,
+      visual: data.breakdown?.video ? {
+        verdict: data.breakdown.video.is_fake ? "FAKE" : "REAL",
+        confidence: data.breakdown.video.confidence || 0,
+        aiModel: data.breakdown.video.ai_model ? {
+          modelName: data.breakdown.video.ai_model,
+          confidence: data.breakdown.video.confidence || 0,
+          candidates: []
+        } : undefined,
+        framesAnalyzed: data.frame_samples_analyzed || 0,
+      } : undefined,
+      audio: data.breakdown?.audio ? {
+        isSynthetic: data.breakdown.audio.is_synthetic || false,
+        confidence: data.breakdown.audio.confidence || 0,
+        method: data.breakdown.audio.voice_model || "unknown",
+      } : undefined,
+      warnings: [],
+      totalProcessingTimeMs: data.processing_time_ms || 0,
+    };
   } catch (error) {
     return handleApiError(error, '통합 결과 조회');
   }
@@ -882,10 +912,16 @@ export const adminDeleteShopItem = async (id: string): Promise<void> =>
 // Report Service
 const REPORT_BASE_URL = import.meta.env.VITE_REPORT_BASE_URL || '';
 
-export const generateReport = async (days?: number | null): Promise<{ report_url: string }> => {
+export const generateReport = async (days?: number | null, quizProfile?: { totalExp?: number; totalCoins?: number; tierName?: string } | null): Promise<{ report_url: string }> => {
   const userId = getUserId();
   const savedUser = localStorage.getItem('auth_user');
   const user = savedUser ? JSON.parse(savedUser) : null;
+
+  // Lambda cold start 워밍업 — /health ping 후 2초 대기
+  try {
+    await fetch(`${REPORT_BASE_URL}/health`, { method: "GET" });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  } catch { /* 워밍업 실패해도 본 요청 진행 */ }
 
   const response = await fetch(`${REPORT_BASE_URL}/generate`, {
     method: "POST",
@@ -897,6 +933,10 @@ export const generateReport = async (days?: number | null): Promise<{ report_url
       avatar_emoji: user?.avatarEmoji || null,
       email: user?.email || null,
       subscription_type: user?.subscriptionType || "free",
+      // 프론트 최신값 전달 — user 서비스 비동기 지연 우회
+      total_exp: quizProfile?.totalExp ?? null,
+      total_coins: quizProfile?.totalCoins ?? null,
+      tier_name: quizProfile?.tierName ?? null,
     }),
   });
   if (!response.ok) {

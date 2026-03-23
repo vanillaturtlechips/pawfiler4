@@ -49,4 +49,20 @@ ALTER TABLE quiz.questions
     ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active';
 -- status: 'active' (기본, 즉시 노출) | 'pending' (AI 생성, 어드민 검수 대기)
 
-CREATE INDEX IF NOT EXISTS idx_questions_status ON quiz.questions(status);
+-- ── 5. analysis_cases (pgvector similar_cases 조회용) ──────
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS video_analysis.analysis_cases (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id        UUID REFERENCES video_analysis.tasks(id) ON DELETE SET NULL,
+    verdict        VARCHAR(10) NOT NULL,   -- REAL / FAKE
+    ai_model       VARCHAR(50),
+    confidence     NUMERIC(5,4) NOT NULL,
+    feature_vector vector(256),            -- VideoAgent feature_dim=256
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_cases_vector
+    ON video_analysis.analysis_cases
+    USING ivfflat (feature_vector vector_cosine_ops)
+    WITH (lists = 100);

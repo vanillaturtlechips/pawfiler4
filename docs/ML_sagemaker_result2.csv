@@ -1,0 +1,57 @@
+timestamp,message
+1774160495855,39200 samples processed...
+1774160754925,40000 samples processed...
+1774160966977,40800 samples processed...
+1774161209042,41600 samples processed...
+1774161485116,42400 samples processed...
+1774161712185,43200 samples processed...
+1774161953256,44000 samples processed...
+1774162173313,44800 samples processed...
+1774162437387,45600 samples processed...
+1774162648449,46400 samples processed...
+1774162875516,47200 samples processed...
+1774163086574,48000 samples processed...
+1774163365650,48800 samples processed...
+1774163527696,✅ 평가 루프 완료! 총 데이터 개수: 49172
+1774163527696,'"============================================================"
+1774163527696,🏆 [최종 전체 데이터 평가 결과 (도플갱어 통합판!)] 🏆
+1774163527696,"precision    recall  f1-score   support
+                   AccVideo     0.9214    0.6994    0.7952      2029
+                AnimateDiff     0.9790    0.8732    0.9231      1972
+               Cogvideox1.5     0.9612    0.9285    0.9445      1972
+                EasyAnimate     0.9507    0.5963    0.7329      1972
+                       Gen2     0.9756    1.0000    0.9877       200
+                       Gen3     0.5471    0.9254    0.6876       201
+               HunyuanVideo     0.9217    0.6447    0.7587      1973
+                       IPOC     0.9530    0.9098    0.9309      2029
+                     Jimeng     0.7835    0.9900    0.8747       201
+                        LTX     0.9955    0.8640    0.9251      2029
+                       Luma     0.9801    0.9801    0.9801       201
+                  Open-Sora     0.9890    0.9295    0.9583      2029
+ OpenSource_I2V_EasyAnimate     0.6221    0.9122    0.7397      2028
+         OpenSource_I2V_LTX     0.6237    0.8732    0.7277      1972"
+1774163527696,"OpenSource_I2V_Pyramid-Flow     0.7889    0.9377    0.8569      1973
+       OpenSource_I2V_SEINE     0.8676    0.9800    0.9203      3944
+         OpenSource_I2V_SVD     0.9673    0.9906    0.9788      3945"
+1774163527696,OpenSource_I2V_VideoCrafter     0.8382    0.9709    0.8997      2028
+1774163527696,"OpenSource_V2V_Cogvideox1.5     0.9159    0.9393    0.9275      2028
+         OpenSource_V2V_LTX     0.7132    0.7283    0.7207      2028
+                   Opensora     0.9802    0.9900    0.9851       200
+               Pyramid-Flow     0.9783    0.8674    0.9195      2028
+                       Real     0.4622    0.2429    0.3184      2063
+                   RepVideo     0.9823    0.8164    0.8917      1972
+                       Sora     0.9797    0.9650    0.9723       200
+               VideoCrafter     0.9316    0.9394    0.9355      2029
+                     Wan2.1     0.5508    0.9030    0.6842      2030
+              causvid_24fps     0.9393    1.0000    0.9687       201
+                       vidu     0.9187    0.9600    0.9389       200
+                        wan     0.9108    0.9700    0.9395       200
+                  micro avg     0.8428    0.8526    0.8477     47877
+                  macro avg     0.8643    0.8776    0.8608     47877
+               weighted avg     0.8590    0.8526    0.8453     47877"
+1774163527696,Macro F1   : 0.8561
+1774163527696,Weighted F1: 0.8419
+1774163527696,'"============================================================"
+1774163528696,"2026-03-22 07:12:08,163 sagemaker-training-toolkit INFO     Waiting for the process to finish and give a return code."
+1774163528696,"2026-03-22 07:12:08,163 sagemaker-training-toolkit INFO     Done waiting for a return code. Received 0 from exiting process."
+1774163528696,"2026-03-22 07:12:08,163 sagemaker-training-toolkit INFO     Reporting training SUCCESS"

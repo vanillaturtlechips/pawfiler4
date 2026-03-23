@@ -329,9 +329,10 @@ def build_html(
     wrong_answers=None, weak_labels=None,
     nickname='탐정', avatar_emoji='🐱', email='-',
     subscription_type='free', level=1, tier_name='Lv.1',
-    total_coins=0, total_exp=0,
+    total_coins=0, total_exp=0, days=30,
 ):
     today=datetime.utcnow().strftime('%Y년 %m월 %d일')
+    period_label = f'최근 {days}일 분석 기준' if days else '전체 기간 분석 기준'
     total=int(stats['total'] or 0); correct=int(stats['correct'] or 0)
     rate=round(correct/max(total,1)*100,1); xp=int(stats['total_xp'] or 0)
     grade,grade_hex,grade_comment=get_grade(rate)
@@ -572,7 +573,7 @@ body{{font-family:'Noto Sans KR',sans-serif;font-size:14px;color:#2d1a0e;
     <span class="hdr-logo">🐾 PawFiler</span>
     <span class="hdr-title">딥페이크 탐지 역량 리포트</span>
   </div>
-  <div class="sub-hdr">생성일: {today}&nbsp;|&nbsp;최근 30일 분석 기준&nbsp;|&nbsp;User ID: {user_id[:14]}...</div>
+  <div class="sub-hdr">생성일: {today}&nbsp;|&nbsp;{period_label}&nbsp;|&nbsp;User ID: {user_id[:14]}...</div>
   <div class="body-wrap">
     <div class="profile-card">
       <div class="p-left">
@@ -715,13 +716,16 @@ def fetch_user_report_data(user_id: str, days: Optional[int] = 30):
     def params(*base):
         return (*base, since) if since else base
 
-    cur.execute(f"""
-        SELECT COUNT(*) as total,
-               SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct,
-               SUM(xp_earned) as total_xp
-        FROM quiz.user_answers
-        WHERE user_id = %s {date_filter}
-    """, params(user_id))
+    # 총 횟수/정답률/XP는 항상 user_stats + user_profiles에서 읽음
+    # (Redis 배치 지연 없이 즉시 반영된 값 — days 기간 필터와 무관)
+    cur.execute("""
+        SELECT us.total_answered as total,
+               us.correct_count as correct,
+               up.total_exp as total_xp
+        FROM quiz.user_stats us
+        JOIN quiz.user_profiles up ON us.user_id = up.user_id
+        WHERE us.user_id = %s
+    """, (user_id,))
     stats = cur.fetchone()
 
     cur.execute(f"""
@@ -803,6 +807,10 @@ class ReportRequest(BaseModel):
     avatar_emoji: Optional[str] = None
     email: Optional[str] = None
     subscription_type: Optional[str] = "free"
+    # 프론트에서 최신 quizProfile 값을 직접 전달 (user 서비스 비동기 지연 우회)
+    total_exp: Optional[int] = None
+    total_coins: Optional[int] = None
+    tier_name: Optional[str] = None
 
 
 @app.post("/generate")
@@ -826,9 +834,10 @@ def generate_report(req: ReportRequest):
             email=req.email or '-',
             subscription_type=req.subscription_type or 'free',
             level=1,
-            tier_name=profile['current_tier'] if profile else '알',
-            total_coins=int(profile['total_coins']) if profile else 0,
-            total_exp=int(profile['total_exp']) if profile else 0,
+            tier_name=req.tier_name or (profile['current_tier'] if profile else '알'),
+            total_coins=req.total_coins if req.total_coins is not None else (int(profile['total_coins']) if profile else 0),
+            total_exp=req.total_exp if req.total_exp is not None else (int(profile['total_exp']) if profile else 0),
+            days=req.days,
         )
 
         # S3 버킷이 설정된 경우 S3에 저장, 아니면 로컬 /tmp 저장 (로컬 개발용)

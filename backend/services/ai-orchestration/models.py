@@ -25,9 +25,80 @@ from ray import serve
 
 logger = logging.getLogger("pawfiler.models")
 
+from typing import Optional
+
 # ── 상수 ──
 NUM_CLASSES = 35  # AIGVDBench 23종 + real/fake/audio_fake + 여유
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+# ============================================================
+# SyncNet (립싱크 일치도)
+# ============================================================
+
+# ============================================================
+# SyncNet (원본 아키텍처 — Chung et al. 2017)
+# https://github.com/joonson/syncnet_python
+# ============================================================
+
+class SyncNet(nn.Module):
+    """
+    원본 SyncNet 아키텍처.
+    입술 영역 5프레임(grayscale) + 오디오 MFCC 20프레임을 각각 인코딩 후
+    L2 distance → confidence score 반환.
+
+    입력:
+        frames: (B, 1, 5, 112, 112) — 입술 영역 grayscale 5프레임 (채널 축에 T 합침)
+        mfcc:   (B, 1, 20, 13)      — MFCC 20프레임
+    출력:
+        score: (B,) — 0~1 (높을수록 립싱크 일치)
+    """
+
+    def __init__(self):
+        super().__init__()
+        # 영상 인코더
+        self.video_encoder = nn.Sequential(
+            nn.Conv3d(1, 96, (5, 7, 7), stride=(1, 2, 2), padding=0), nn.BatchNorm3d(96), nn.ReLU(),
+            nn.MaxPool3d((1, 3, 3), stride=(1, 2, 2)),
+            nn.Conv3d(96, 256, (1, 5, 5), stride=(1, 2, 2), padding=(0, 1, 1)), nn.BatchNorm3d(256), nn.ReLU(),
+            nn.MaxPool3d((1, 3, 3), stride=(1, 2, 2)),
+            nn.Conv3d(256, 256, (1, 3, 3), padding=(0, 1, 1)), nn.BatchNorm3d(256), nn.ReLU(),
+            nn.Conv3d(256, 256, (1, 3, 3), padding=(0, 1, 1)), nn.BatchNorm3d(256), nn.ReLU(),
+            nn.Conv3d(256, 256, (1, 3, 3), padding=(0, 1, 1)), nn.BatchNorm3d(256), nn.ReLU(),
+            nn.MaxPool3d((1, 3, 3), stride=(1, 2, 2)),
+            nn.Conv3d(256, 512, (1, 6, 6), padding=0), nn.BatchNorm3d(512), nn.ReLU(),
+        )
+        self.video_fc = nn.Sequential(nn.Linear(512, 512), nn.BatchNorm1d(512))
+
+        # 오디오 인코더
+        self.audio_encoder = nn.Sequential(
+            nn.Conv2d(1, 96, (3, 7), stride=(1, 2), padding=0), nn.BatchNorm2d(96), nn.ReLU(),
+            nn.MaxPool2d((3, 1), stride=(2, 1)),
+            nn.Conv2d(96, 256, (3, 5), stride=(2, 1), padding=(1, 1)), nn.BatchNorm2d(256), nn.ReLU(),
+            nn.MaxPool2d((3, 1), stride=(2, 1)),
+            nn.Conv2d(256, 256, (3, 3), padding=(1, 1)), nn.BatchNorm2d(256), nn.ReLU(),
+            nn.Conv2d(256, 256, (3, 3), padding=(1, 1)), nn.BatchNorm2d(256), nn.ReLU(),
+            nn.Conv2d(256, 256, (3, 3), padding=(1, 1)), nn.BatchNorm2d(256), nn.ReLU(),
+            nn.MaxPool2d((3, 1), stride=(2, 1)),
+            nn.Conv2d(256, 512, (4, 1), padding=0), nn.BatchNorm2d(512), nn.ReLU(),
+        )
+        self.audio_fc = nn.Sequential(nn.Linear(512, 512), nn.BatchNorm1d(512))
+
+    def forward(self, frames: torch.Tensor, mfcc: torch.Tensor) -> torch.Tensor:
+        """
+        frames: (B, 1, 5, 112, 112)
+        mfcc:   (B, 1, 20, 13)
+        """
+        v = self.video_encoder(frames).squeeze(-1).squeeze(-1).squeeze(-1)  # (B, 512)
+        v = self.video_fc(v)
+
+        a = self.audio_encoder(mfcc).squeeze(-1).squeeze(-1)  # (B, 512)
+        a = self.audio_fc(a)
+
+        # L2 distance → confidence (원본 방식)
+        dist = torch.nn.functional.pairwise_distance(v, a)
+        score = torch.exp(-dist)  # 가까울수록 1에 가까움
+        return score.clamp(0, 1)
 
 
 # ============================================================
@@ -85,7 +156,7 @@ class VideoModel(nn.Module):
     num_replicas=1,  # ★ 싱글톤: 반드시 1개
     ray_actor_options={
         "num_gpus": 1,  # GPU 1장 점유
-        "num_cpus": 2,
+        "num_cpus": 1,
     },
     max_ongoing_requests=32,  # 동시 추론 요청 상한
     health_check_period_s=30,
@@ -99,7 +170,7 @@ class SharedModelWorker:
     → VRAM에 모델이 중복 로드되지 않음.
     """
 
-    def __init__(self, model_dir: str = "/mnt/efs/models"):
+    def __init__(self, model_dir: str = "/mnt/efs/models/models"):
         self.model_dir = Path(model_dir)
         self.device = torch.device(DEVICE)
         self._ready = False
@@ -158,15 +229,45 @@ class SharedModelWorker:
     def sync_inference(self, frames_np: np.ndarray, audio_np: np.ndarray) -> dict:
         """
         SyncAgent가 호출. 립싱크 일치도 계산.
-        
+
+        원본 SyncNet 입력 포맷으로 변환:
+            frames_np: (T, C, H, W) → 입술 영역 crop → (1, 1, 5, 112, 112)
+            audio_np:  (samples,)   → MFCC 추출     → (1, 1, 20, 13)
+
         Returns:
-            {"sync_score": float}  # 0~1
+            {"sync_score": float}  # 0~1, 높을수록 일치
         """
+        import librosa
         with torch.inference_mode():
-            # SyncNet은 입술 영역 + 오디오를 받아 일치도 산출
-            # 실제 구현은 SyncNet 논문의 forward pass
-            sync_score = 0.5  # TODO: 실제 SyncNet 추론
-            return {"sync_score": sync_score}
+            # ── 영상: 중앙 하단 입술 영역 crop, grayscale, 5프레임 ──
+            T = frames_np.shape[0]
+            indices = np.linspace(0, T - 1, 5, dtype=int)
+            lips = []
+            for i in indices:
+                frame = frames_np[i]  # (C, H, W)
+                gray = (frame[0] * 0.299 + frame[1] * 0.587 + frame[2] * 0.114)  # (H, W)
+                import cv2
+                h, w = gray.shape
+                lip = gray[h // 2:, w // 4: 3 * w // 4]  # 하단 중앙 크롭
+                lip = cv2.resize(lip, (112, 112))
+                lips.append(lip)
+            # (1, 1, 5, 112, 112)
+            lip_tensor = torch.from_numpy(
+                np.stack(lips)[np.newaxis, np.newaxis].astype(np.float32)
+            ).to(self.device)
+
+            # ── 오디오: MFCC (1, 1, 20, 13) ──
+            mfcc = librosa.feature.mfcc(y=audio_np, sr=16000, n_mfcc=13, n_fft=512, hop_length=160)
+            # mfcc: (13, T_frames) → 20프레임 균등 샘플링 → (20, 13)
+            t_frames = mfcc.shape[1]
+            idx = np.linspace(0, t_frames - 1, 20, dtype=int)
+            mfcc_sampled = mfcc[:, idx].T  # (20, 13)
+            mfcc_tensor = torch.from_numpy(
+                mfcc_sampled[np.newaxis, np.newaxis].astype(np.float32)
+            ).to(self.device)  # (1, 1, 20, 13)
+
+            score = self.sync_model(lip_tensor, mfcc_tensor)
+            return {"sync_score": float(score.item())}
 
     # ── Health Check ──
     def check_health(self):
@@ -176,7 +277,7 @@ class SharedModelWorker:
     # ── Private: 모델 로드 ──
 
     def _load_video_model(self) -> VideoModel:
-        model = VideoModel(backbone_name="mobilevitv2_100")
+        model = VideoModel(backbone_name="efficientnet_b4")
         ckpt_path = self.model_dir / "video_backbone.pt"
         if ckpt_path.exists():
             checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
@@ -187,6 +288,9 @@ class SharedModelWorker:
             # Case 2: {"model_state_dict": ..., "optimizer": ..., "epoch": ...}
             elif isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
                 state = checkpoint["model_state_dict"]
+            # Case 3-a: {"model": ..., "optimizer": ..., "epoch": ...} (train3.py 저장 포맷)
+            elif isinstance(checkpoint, dict) and "model" in checkpoint:
+                state = checkpoint["model"]
             # Case 3: torch.save(model, path) — 전체 모델 객체
             elif isinstance(checkpoint, nn.Module):
                 logger.info("Loaded full model object, extracting state_dict")
@@ -225,9 +329,30 @@ class SharedModelWorker:
             logger.warning("transformers not installed, audio model unavailable")
             return None
 
-    def _load_sync_model(self):
-        """SyncNet 로드."""
+    def _load_sync_model(self) -> "SyncNet":
+        """SyncNet 원본 pretrained 가중치 로드."""
+        import urllib.request
+        SYNCNET_URL = "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/syncnet_v2.model"
         ckpt_path = self.model_dir / "syncnet.pt"
-        # TODO: SyncNet 구현체 로드
-        logger.info("SyncNet placeholder loaded")
-        return None
+
+        # EFS read-only면 /tmp로 fallback
+        if not ckpt_path.exists():
+            tmp_path = Path("/tmp/syncnet.pt")
+            if not tmp_path.exists():
+                logger.info("Downloading SyncNet pretrained weights...")
+                try:
+                    urllib.request.urlretrieve(SYNCNET_URL, ckpt_path)
+                except OSError:
+                    urllib.request.urlretrieve(SYNCNET_URL, tmp_path)
+                    ckpt_path = tmp_path
+            else:
+                ckpt_path = tmp_path
+
+        model = SyncNet()
+        state = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+        if isinstance(state, dict) and "model_state_dict" in state:
+            state = state["model_state_dict"]
+        model.load_state_dict(state, strict=False)
+        model.to(self.device).eval()
+        logger.info("SyncNet loaded")
+        return model

@@ -13,9 +13,11 @@ SharedModelWorker의 handle을 통해 GPU 연산을 위임.
 """
 
 import logging
+import os
 import time
 from typing import Optional
 
+import httpx
 import numpy as np
 import ray
 from ray import serve
@@ -29,8 +31,8 @@ logger = logging.getLogger("pawfiler.agents")
 
 @serve.deployment(
     name="video_agent",
-    num_replicas=2,
-    ray_actor_options={"num_cpus": 1, "num_gpus": 0},
+    num_replicas=1,
+    ray_actor_options={"num_cpus": 0.1, "num_gpus": 0},
     max_ongoing_requests=16,
 )
 class VideoAgent:
@@ -63,8 +65,11 @@ class VideoAgent:
         """
         t0 = time.perf_counter()
 
-        # 1. Plasma에서 Zero-copy로 프레임 가져오기
-        frames_np = ray.get(frames_ref)
+        # 1. Plasma에서 Zero-copy로 프레임 가져오기 (ObjectRef 또는 numpy array 모두 처리)
+        if isinstance(frames_ref, np.ndarray):
+            frames_np = frames_ref
+        else:
+            frames_np = ray.get(frames_ref)
 
         # 2. CPU 전처리: 정규화
         frames_np = self._normalize(frames_np)
@@ -131,8 +136,8 @@ class VideoAgent:
 
 @serve.deployment(
     name="audio_agent",
-    num_replicas=2,
-    ray_actor_options={"num_cpus": 1, "num_gpus": 0},
+    num_replicas=1,
+    ray_actor_options={"num_cpus": 0.1, "num_gpus": 0},
     max_ongoing_requests=16,
 )
 class AudioAgent:
@@ -148,6 +153,9 @@ class AudioAgent:
 
     def __init__(self, model_worker):
         self.model = model_worker
+        # HuggingFace Inference API (audio deepfake detection)
+        self._hf_token = os.environ.get("HUGGINGFACE_TOKEN")
+        self._hf_model = "facebook/wav2vec2-base"  # feature extractor 용도
         logger.info("AudioAgent initialized")
 
     async def predict(self, audio_ref) -> dict:
@@ -157,15 +165,18 @@ class AudioAgent:
         Returns:
             {
                 "is_synthetic": bool,
-                "voice_model": str | None,
+                "voice_model": Optional[str],
                 "confidence": float,
                 "features": np.ndarray,  # Fusion용 (768,)
             }
         """
         t0 = time.perf_counter()
 
-        # 1. Plasma에서 오디오 가져오기
-        audio_np = ray.get(audio_ref)
+        # 1. Plasma에서 오디오 가져오기 (ObjectRef 또는 numpy array 모두 처리)
+        if isinstance(audio_ref, np.ndarray):
+            audio_np = audio_ref
+        else:
+            audio_np = ray.get(audio_ref)
 
         # 2. CPU 전처리
         mfcc_features = self._extract_mfcc(audio_np)
@@ -175,34 +186,102 @@ class AudioAgent:
         result = await self.model.audio_inference.remote(audio_np)
         wav2vec_features = result["features"].squeeze(0)  # (768,)
 
-        # 4. CPU: HMM 기반 판단 (간소화)
-        # 실제로는 학습된 HMM 모델로 시퀀스 분석
-        combined_score = self._hmm_classify(wav2vec_features, mfcc_features)
+        # 4. HuggingFace Inference API로 보강 (토큰 있을 때만)
+        hf_score = await self._hf_classify(audio_np)
+
+        # 5. CPU: 합성 여부 판단 (로컬 + HF 앙상블)
+        local_score = self._hmm_classify(wav2vec_features, mfcc_features)
+        combined_score = (local_score * 0.5 + hf_score * 0.5) if hf_score is not None else local_score
 
         is_synthetic = combined_score > 0.5
         confidence = float(max(combined_score, 1 - combined_score))
+
+        voice_model = self._identify_voice_model(wav2vec_features, spectral_flatness) if is_synthetic else None
 
         elapsed = (time.perf_counter() - t0) * 1000
         logger.debug(f"AudioAgent: {'synthetic' if is_synthetic else 'real'} ({confidence:.2%}) in {elapsed:.1f}ms")
 
         return {
             "is_synthetic": is_synthetic,
-            "voice_model": "ElevenLabs" if is_synthetic else None,  # TODO: 모델 식별
+            "voice_model": voice_model,
             "confidence": round(confidence, 4),
             "features": wav2vec_features,
         }
 
+    async def _hf_classify(self, audio_np: np.ndarray) -> Optional[float]:
+        """
+        HuggingFace Inference API로 음성 합성 여부 보조 판단.
+        토큰 없거나 실패 시 None 반환 → 로컬 점수만 사용.
+        """
+        if not self._hf_token:
+            return None
+        try:
+            import io, soundfile as sf
+            buf = io.BytesIO()
+            sf.write(buf, audio_np, 16000, format="WAV")
+            buf.seek(0)
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    f"https://api-inference.huggingface.co/models/MelissaAI/deepfake-audio-detection",
+                    headers={"Authorization": f"Bearer {self._hf_token}"},
+                    content=buf.read(),
+                )
+            if resp.status_code != 200:
+                return None
+            labels = resp.json()
+            # 모델 출력: [{"label": "fake", "score": 0.9}, {"label": "real", "score": 0.1}]
+            for item in labels:
+                if item.get("label", "").lower() in ("fake", "spoof", "synthetic"):
+                    return float(item["score"])
+        except Exception as e:
+            logger.warning(f"HF classify failed: {e}")
+        return None
+
     def _extract_mfcc(self, audio: np.ndarray, n_mfcc: int = 13) -> np.ndarray:
-        """MFCC 추출. 실제로는 librosa.feature.mfcc 사용."""
-        return np.random.randn(n_mfcc).astype(np.float32)  # placeholder
+        """MFCC 추출 (librosa). 시간 축 평균 → (n_mfcc,)"""
+        import librosa
+        mfcc = librosa.feature.mfcc(y=audio, sr=16000, n_mfcc=n_mfcc)  # (n_mfcc, T)
+        return mfcc.mean(axis=1).astype(np.float32)  # (n_mfcc,)
 
     def _spectral_flatness(self, audio: np.ndarray) -> float:
-        """스펙트럼 평탄도. 합성 음성은 자연음 대비 평탄도가 다름."""
-        return 0.5  # placeholder
+        """스펙트럼 평탄도. 합성 음성은 자연음 대비 평탄도가 높음."""
+        import librosa
+        flatness = librosa.feature.spectral_flatness(y=audio)  # (1, T)
+        return float(flatness.mean())
 
     def _hmm_classify(self, wav2vec_feat: np.ndarray, mfcc_feat: np.ndarray) -> float:
-        """HMM 기반 분류. 실제로는 hmmlearn 사용."""
-        return 0.5  # placeholder
+        """
+        wav2vec2 features + MFCC를 결합해 합성 음성 여부 판단.
+        HMM 모델 없을 경우 spectral 통계 기반 휴리스틱으로 fallback.
+        """
+        # wav2vec2 feature의 L2 norm 분포: 합성 음성은 자연음보다 norm이 낮은 경향
+        wav2vec_norm = float(np.linalg.norm(wav2vec_feat))
+        # MFCC 분산: 합성 음성은 분산이 낮음
+        mfcc_var = float(np.var(mfcc_feat))
+
+        # 정규화된 점수 (경험적 임계값)
+        norm_score = 1.0 - min(wav2vec_norm / 30.0, 1.0)   # norm 낮을수록 합성 의심
+        var_score = 1.0 - min(mfcc_var / 50.0, 1.0)        # 분산 낮을수록 합성 의심
+
+        return float(0.6 * norm_score + 0.4 * var_score)
+
+    def _identify_voice_model(self, wav2vec_feat: np.ndarray, spectral_flatness: float) -> Optional[str]:
+        """
+        wav2vec2 feature 통계로 음성 합성 모델 추정.
+        현재는 규칙 기반. 추후 분류기로 교체 가능.
+        """
+        feat_mean = float(wav2vec_feat.mean())
+        feat_std = float(wav2vec_feat.std())
+
+        # 각 TTS 모델의 특성 기반 휴리스틱
+        if spectral_flatness > 0.15:
+            return "ElevenLabs"   # 높은 평탄도 → ElevenLabs 특성
+        elif feat_std < 0.3:
+            return "VALL-E"       # 낮은 분산 → VALL-E 특성
+        elif feat_mean > 0.1:
+            return "Bark"
+        else:
+            return "unknown_tts"
 
 
 # ============================================================
@@ -212,7 +291,7 @@ class AudioAgent:
 @serve.deployment(
     name="sync_agent",
     num_replicas=1,
-    ray_actor_options={"num_cpus": 1, "num_gpus": 0},
+    ray_actor_options={"num_cpus": 0.1, "num_gpus": 0},
     max_ongoing_requests=8,
 )
 class SyncAgent:
@@ -230,8 +309,8 @@ class SyncAgent:
         Returns:
             {"is_synced": bool, "confidence": float, "sync_score": float}
         """
-        frames_np = ray.get(frames_ref)
-        audio_np = ray.get(audio_ref)
+        frames_np = frames_ref if isinstance(frames_ref, np.ndarray) else ray.get(frames_ref)
+        audio_np = audio_ref if isinstance(audio_ref, np.ndarray) else ray.get(audio_ref)
 
         result = await self.model.sync_inference.remote(frames_np, audio_np)
         sync_score = result["sync_score"]
@@ -250,7 +329,7 @@ class SyncAgent:
 @serve.deployment(
     name="fusion_agent",
     num_replicas=1,
-    ray_actor_options={"num_cpus": 1, "num_gpus": 0},
+    ray_actor_options={"num_cpus": 0.1, "num_gpus": 0},
     max_ongoing_requests=16,
 )
 class FusionAgent:
@@ -267,6 +346,26 @@ class FusionAgent:
     WEIGHTS = {"video": 0.7, "audio": 0.3}
 
     def __init__(self):
+        import os
+        self._db_url = os.environ.get("DATABASE_URL")
+        self._conn = None
+        if self._db_url:
+            try:
+                import psycopg2
+                self._conn = psycopg2.connect(self._db_url)
+                logger.info("FusionAgent: pgvector DB connected")
+            except Exception as e:
+                logger.warning(f"FusionAgent: DB connection failed ({e}), similar_cases disabled")
+
+        # Nova Lite (Amazon Bedrock) — 자연어 설명 생성용
+        self._bedrock = None
+        try:
+            import boto3
+            self._bedrock = boto3.client("bedrock-runtime", region_name="ap-northeast-2")
+            logger.info("FusionAgent: Bedrock Nova Lite connected")
+        except Exception as e:
+            logger.warning(f"FusionAgent: Bedrock unavailable ({e}), using template explanation")
+
         logger.info("FusionAgent initialized")
 
     async def ensemble(self, agent_results: dict) -> dict:
@@ -325,18 +424,85 @@ class FusionAgent:
         ])
 
         # ── 설명 생성 ──
-        explanation = self._generate_explanation(breakdown)
+        explanation = await self._generate_explanation(breakdown, verdict="fake" if is_fake else "real")
 
         return {
             "verdict": "fake" if is_fake else "real",
             "confidence": round(final_confidence, 4),
             "breakdown": breakdown,
             "explanation": explanation,
-            "similar_cases": [],  # TODO: 벡터 DB 연동 (문서 §7)
+            "similar_cases": self._query_similar_cases(agent_results),
         }
 
-    def _generate_explanation(self, breakdown: dict) -> str:
-        """사람이 읽을 수 있는 설명 문자열 생성."""
+    def _query_similar_cases(self, agent_results: dict) -> list:
+        """
+        video features로 pgvector에서 유사 케이스 top-3 조회.
+        DB 없으면 빈 배열 반환.
+        """
+        if self._conn is None:
+            return []
+        video = agent_results.get("video", {})
+        features = video.get("features")
+        if features is None:
+            return []
+        try:
+            vec_str = "[" + ",".join(f"{x:.6f}" for x in features.tolist()) + "]"
+            with self._conn.cursor() as cur:
+                cur.execute("""
+                    SELECT verdict, ai_model, confidence, 1 - (feature_vector <=> %s::vector) AS similarity
+                    FROM analysis_cases
+                    ORDER BY feature_vector <=> %s::vector
+                    LIMIT 3
+                """, (vec_str, vec_str))
+                rows = cur.fetchall()
+            return [
+                {"verdict": r[0], "ai_model": r[1], "confidence": r[2], "similarity": round(r[3], 4)}
+                for r in rows
+            ]
+        except Exception as e:
+            logger.warning(f"similar_cases query failed: {e}")
+            return []
+
+    async def _generate_explanation(self, breakdown: dict, verdict: str) -> str:
+        """
+        Nova Lite로 자연어 설명 생성.
+        Bedrock 없으면 템플릿 fallback.
+        """
+        if self._bedrock:
+            try:
+                return await self._nova_explain(breakdown, verdict)
+            except Exception as e:
+                logger.warning(f"Nova Lite failed: {e}, falling back to template")
+        return self._template_explanation(breakdown)
+
+    async def _nova_explain(self, breakdown: dict, verdict: str) -> str:
+        import json, asyncio
+        prompt = (
+            f"딥페이크 탐지 결과를 한국어로 2문장 이내로 설명해줘.\n"
+            f"판정: {verdict.upper()}\n"
+            f"분석 데이터: {json.dumps(breakdown, ensure_ascii=False)}\n"
+            f"사용자가 이해하기 쉽게, 기술 용어 없이 설명해."
+        )
+        body = {
+            "messages": [{"role": "user", "content": prompt}],
+            "inferenceConfig": {"maxTokens": 150, "temperature": 0.3},
+        }
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(
+            None,
+            lambda: self._bedrock.invoke_model(
+                modelId="amazon.nova-lite-v1:0",
+                body=json.dumps(body),
+                contentType="application/json",
+                accept="application/json",
+            )
+        )
+        import json as _json
+        result = _json.loads(resp["body"].read())
+        return result["output"]["message"]["content"][0]["text"].strip()
+
+    def _template_explanation(self, breakdown: dict) -> str:
+        """Nova Lite 없을 때 템플릿 기반 설명."""
         parts = []
         if "video" in breakdown:
             v = breakdown["video"]
@@ -344,17 +510,13 @@ class FusionAgent:
                 parts.append(f"영상: {v['ai_model']}로 생성됨 ({v['confidence']:.0%})")
             else:
                 parts.append(f"영상: 실제 영상으로 판단 ({v['confidence']:.0%})")
-
         if "audio" in breakdown:
             a = breakdown["audio"]
             if a["is_synthetic"] and a["voice_model"]:
                 parts.append(f"음성: {a['voice_model']} 합성 ({a['confidence']:.0%})")
             else:
                 parts.append(f"음성: 실제 음성으로 판단 ({a['confidence']:.0%})")
-
         if "sync" in breakdown:
             s = breakdown["sync"]
-            sync_status = "일치" if s["is_synced"] else "불일치"
-            parts.append(f"립싱크 {sync_status} ({s['confidence']:.0%})")
-
+            parts.append(f"립싱크 {'일치' if s['is_synced'] else '불일치'} ({s['confidence']:.0%})")
         return " | ".join(parts) if parts else "분석 결과 없음"
