@@ -127,6 +127,25 @@ BASHRC
   }
 }
 
+# EKS Access Entry - Bastion Host IAM Role
+resource "aws_eks_access_entry" "bastion" {
+  cluster_name  = var.cluster_name
+  principal_arn = aws_iam_role.bastion.arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "bastion" {
+  cluster_name  = var.cluster_name
+  principal_arn = aws_iam_role.bastion.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.bastion]
+}
+
 # Allow HTTPS from Bastion to EKS Control Plane
 resource "aws_security_group_rule" "eks_allow_bastion" {
   type                     = "ingress"
