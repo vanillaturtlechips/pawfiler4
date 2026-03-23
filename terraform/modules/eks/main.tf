@@ -56,9 +56,9 @@ resource "aws_eks_node_group" "main" {
   capacity_type   = "ON_DEMAND"
 
   scaling_config {
-    desired_size = 2
-    max_size     = 4
-    min_size     = 2
+    desired_size = var.node_desired_size
+    max_size     = var.node_max_size
+    min_size     = var.node_min_size
   }
 
   # Note: implicit dependency via node_role_arn ensures IAM policies are attached first
