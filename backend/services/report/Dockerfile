@@ -10,7 +10,9 @@ RUN curl -L --retry 3 --retry-delay 2 -o /usr/share/fonts/NotoSansCJKkr-Regular.
     && fc-cache -fv
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# contourpy를 먼저 고정 설치 후 나머지 설치 (matplotlib의 contourpy>=1.0.1 의존성 override)
+RUN pip install --no-cache-dir contourpy==1.2.1 \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
