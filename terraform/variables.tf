@@ -160,9 +160,3 @@ variable "argocd_admin_password" {
   default     = ""
   sensitive   = true
 }
-
-variable "key_name" {
-  description = "EC2 Key Pair name for preprocessing instance"
-  type        = string
-  default     = ""
-}
