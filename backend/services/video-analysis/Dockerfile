@@ -15,9 +15,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN wget -qO /bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.24/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
 
-# Proto 먼저 복사 (미리 생성된 파일 사용)
+# Proto 복사 후 gRPC 코드 생성
 COPY proto ./proto
-COPY generated ./generated
+RUN mkdir -p generated && \
+    python -m grpc_tools.protoc \
+        -I./proto \
+        --python_out=./generated \
+        --grpc_python_out=./generated \
+        proto/*.proto && \
+    touch generated/__init__.py
 
 # 나머지 코드 복사
 COPY . .
