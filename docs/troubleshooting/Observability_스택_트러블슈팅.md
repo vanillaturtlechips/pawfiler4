@@ -16,23 +16,32 @@
 | ArgoCD CPU | application-controller 1274m (비정상) | 317m (정상 범위) | **75% 감소**, sync 반복 실패 해소 |
 | ArgoCD Sync 안정성 | external-secrets OutOfSync 무한 반복 | Synced/Healthy 유지 | CRD 256KB annotation 한도 문제 해결 |
 | 보안 | Grafana admin 패스워드 평문 ConfigMap | Kubernetes Secret 참조 | 크리덴셜 평문 노출 제거 |
-| 로그 파이프라인 | 없음 | Fluent-bit → Loki → Grafana | 서비스 로그 실시간 조회 및 장애 대응 가능 |
+| 로그 파이프라인 | Fluent-bit → CloudWatch → Grafana | otel-collector → Loki(S3) → Grafana | CloudWatch 비용 제거, LogQL 통합 쿼리 |
+| AMP 메트릭 범위 | 클러스터 전체 ~24,000 시리즈 | pawfiler/admin ~800 시리즈 | **샘플 수 97% 감소**, 예상 $3,700 → $31/월 |
+| AMP 스크랩 주기 | 15s (기본) | 60s | **샘플 수 추가 4배 감소** |
+| otel-collector IAM | CloudWatch Logs + X-Ray 권한 | 권한 없음 (Loki는 in-cluster) | AWS IAM role/policy 삭제 |
 
 ---
 
 ## 스택 구성
 
 ```
-파드 로그 → Fluent-bit (DaemonSet) → Loki (S3 백엔드) → Grafana
+파드 로그 → otel-collector (DaemonSet) → Loki (S3 백엔드) → Grafana
 ```
 
 | 컴포넌트 | 역할 | 선택 이유 |
 |---------|------|---------|
-| Fluent-bit | 각 노드에서 파드 로그 수집 | 경량 (파드당 5~7Mi), 풍부한 필터 기능 |
+| otel-collector | 각 노드에서 파드 로그 수집 | Loki 단일 파이프라인, AWS IAM 불필요 |
 | Loki | 로그 저장 및 쿼리 | S3 백엔드로 저렴, Grafana 네이티브 연동 |
 | Grafana | 로그 시각화 및 쿼리 UI | Loki/Prometheus 통합 대시보드 |
 
-**설계 원칙**: 수집 범위를 서비스 네임스페이스(pawfiler)로 한정해 비용과 노이즈를 최소화.
+**설계 원칙**: 수집 범위를 서비스 네임스페이스(pawfiler, admin)로 한정해 비용과 노이즈를 최소화.
+
+> **2026-03-22 변경**: Fluent-bit → otel-collector 전환, CloudWatch Logs/X-Ray 제거, AMP 비용 최적화.
+> - 로그 파이프라인: `loki` exporter만 사용 (otlp receiver, awsxray exporter 제거)
+> - otel-collector IRSA 삭제: Loki는 cluster-internal HTTP, AWS 권한 불필요
+> - AMP 비용 최적화: scrapeInterval 60s + writeRelabelConfigs(`namespace=~"pawfiler|admin"`) + nodeExporter/kubeStateMetrics 비활성 → 예상 ~97% 비용 절감
+> - AIOps 로그 조회: CloudWatch Logs Insights → Loki LogQL (`get_loki_logs`)
 
 ---
 
@@ -267,6 +276,55 @@ ignoreDifferences:
 syncOptions:
   - RespectIgnoreDifferences=true
 ```
+
+### 7. AMP 비용 폭탄 - kube-prometheus-stack 기본 설정
+
+**재현 방법**
+```bash
+# AMP 콘솔 또는 Grafana에서 활성 시리즈 수 확인
+curl -s "https://aps-workspaces.../api/v1/query?query=prometheus_tsdb_head_series" | jq '.data.result[0].value[1]'
+# 10,000 이상이면 즉시 비용 발생
+```
+
+**원인**
+
+kube-prometheus-stack 기본 설정은 클러스터 전체를 스크랩한다. AMP는 **샘플 수 기준 과금** 구조라 필터 없이 remoteWrite하면 비용이 폭발한다.
+
+| 컴포넌트 | 시리즈 수 | 주요 원인 |
+|---------|---------|---------|
+| kubelet/cadvisor | ~18,000 | 전체 90파드 × 컨테이너당 200시리즈 |
+| kubeStateMetrics | ~2,000 | 클러스터 전체 오브젝트 상태 |
+| nodeExporter | ~1,500 | 노드당 500시리즈 × 3노드 |
+| 합계 | ~24,000 | 15s 스크랩 → **$3,700/월** |
+
+Karpenter로 노드가 동적으로 추가/삭제될수록 `pod`, `node` 라벨 카디널리티가 증가하며, inactive 시리즈도 과금돼 복리로 증가한다.
+
+**해결 - 3단계 필터링**
+
+```yaml
+# 1. scrapeInterval: 60s  →  샘플 수 4배 감소 (15s 기본 대비)
+scrapeInterval: 60s
+
+# 2. nodeExporter/kubeStateMetrics 비활성화
+#    (AIOps는 kubelet container 메트릭으로 충분)
+nodeExporter:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+
+# 3. writeRelabelConfigs  →  pawfiler/admin 네임스페이스만 AMP 전송
+writeRelabelConfigs:
+  - sourceLabels: [namespace]
+    regex: "^(pawfiler|admin)$"
+    action: keep
+```
+
+| 조치 | 효과 |
+|------|------|
+| scrapeInterval 60s | 4배 감소 |
+| nodeExporter/kubeStateMetrics 비활성 | ~19,000시리즈 제거 |
+| writeRelabelConfigs | 남은 것 중 90% 추가 제거 |
+| **합계** | **~24,000 → ~800 시리즈, $3,700 → ~$31/월 (99% 절감)** |
 
 ---
 

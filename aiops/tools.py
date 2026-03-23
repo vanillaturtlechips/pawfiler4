@@ -1,5 +1,5 @@
 """
-AIOps Tools - AMP, CloudWatch Logs, Kubernetes 연동
+AIOps Tools - AMP, Loki, Kubernetes 연동
 """
 import datetime
 import logging
@@ -23,8 +23,8 @@ AMP_ENDPOINT = os.environ.get(
 PROMETHEUS_LOCAL = os.environ.get(
     "PROMETHEUS_LOCAL", "http://prometheus-operated.monitoring:9090"
 )
-CW_LOG_GROUP = os.environ.get(
-    "CW_LOG_GROUP", "/aws/eks/pawfiler-eks-cluster/pods"
+LOKI_ENDPOINT = os.environ.get(
+    "LOKI_ENDPOINT", "http://loki.monitoring.svc.cluster.local:3100"
 )
 SNS_TOPIC_ARN = os.environ.get(
     "SNS_TOPIC_ARN",
@@ -83,34 +83,31 @@ def get_prometheus_metrics(query: str, time_range_minutes: int = 30) -> dict:
     return {"source": "local", "query": query, "series_count": len(results), "results": results[:20]}
 
 
-def get_cloudwatch_logs(filter_pattern: str, minutes: int = 30) -> dict:
-    """CloudWatch Logs Insights로 최근 로그 조회"""
-    client = boto3.client("logs", region_name=REGION)
-    end_ts = int(time.time())
-    start_ts = end_ts - (minutes * 60)
+def get_loki_logs(filter_pattern: str, namespace: str = "pawfiler", minutes: int = 30) -> dict:
+    """Loki에서 최근 로그 조회. LogQL로 에러/패닉/타임아웃 등 이상 로그 검색."""
+    end_ns = int(time.time() * 1e9)
+    start_ns = end_ns - (minutes * 60 * int(1e9))
+    logql = f'{{namespace="{namespace}"}} |~ "(?i){filter_pattern}"'
 
-    query_id = client.start_query(
-        logGroupName=CW_LOG_GROUP,
-        startTime=start_ts,
-        endTime=end_ts,
-        queryString=(
-            f"fields @timestamp, @message "
-            f"| filter @message like /(?i){filter_pattern}/ "
-            f"| sort @timestamp desc | limit 20"
-        ),
-    )["queryId"]
+    resp = requests.get(
+        f"{LOKI_ENDPOINT}/loki/api/v1/query_range",
+        params={"query": logql, "start": str(start_ns), "end": str(end_ns), "limit": 20},
+        timeout=30,
+    )
+    resp.raise_for_status()
 
-    for _ in range(30):
-        result = client.get_query_results(queryId=query_id)
-        if result["status"] in ("Complete", "Failed", "Cancelled"):
-            break
-        time.sleep(1)
-
-    logs = [
-        {f["field"]: f["value"] for f in row}
-        for row in result.get("results", [])
-    ]
-    return {"filter_pattern": filter_pattern, "log_count": len(logs), "logs": logs}
+    logs = []
+    for stream in resp.json().get("data", {}).get("result", []):
+        labels = stream.get("stream", {})
+        for ts_ns, line in stream.get("values", []):
+            logs.append({
+                "timestamp": datetime.datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "pod": labels.get("pod", ""),
+                "container": labels.get("container", ""),
+                "message": line,
+            })
+    logs.sort(key=lambda x: x["timestamp"], reverse=True)
+    return {"filter_pattern": filter_pattern, "namespace": namespace, "log_count": len(logs), "logs": logs[:20]}
 
 
 def get_pod_status(namespace: str = "pawfiler") -> dict:

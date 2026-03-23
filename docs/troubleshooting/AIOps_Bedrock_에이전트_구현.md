@@ -9,7 +9,7 @@
 
 | 항목 | Before | After | 효과 |
 |------|--------|-------|------|
-| 이상 감지 방식 | DevOps Guru (2~3주 학습 필요, CloudWatch만 분석) | Bedrock Claude + tool_use 루프 | 즉시 동작, AMP/CloudWatch/K8s 통합 분석 |
+| 이상 감지 방식 | DevOps Guru (2~3주 학습 필요, CloudWatch만 분석) | Bedrock Claude + tool_use 루프 | 즉시 동작, AMP/Loki/K8s 통합 분석 |
 | 인증 방식 | API 키 관리 필요 | IRSA (IAM Roles for Service Accounts) | API 키 없이 AWS 자격증명 자동 처리 |
 | 분석 주기 | DevOps Guru 자체 스케줄 | 5분 주기 자율 실행 | 실시간에 가까운 이상 감지 |
 | Lambda/EventBridge | DevOps Guru 전용 Lambda + EventBridge 운영 | 제거 | 불필요한 리소스 정리 |
@@ -26,10 +26,11 @@ analyzer.py → Bedrock converse API 호출 (us.anthropic.claude-3-5-haiku-20241
 Bedrock이 tool_use로 도구 선택
     ↓
 tools.py 함수 실행:
-  - get_pod_status       : K8s 파드 상태 조회
-  - get_prometheus_metrics: AMP SigV4 쿼리
-  - get_cloudwatch_logs  : CloudWatch Logs Insights
-  - restart_deployment   : 디플로이먼트 재시작 (자동 조치)
+  - get_pod_status        : K8s 파드 상태 조회
+  - describe_pod_events   : Pending/Error 파드 이벤트 원인 조회
+  - get_prometheus_metrics: AMP SigV4 쿼리 (폴백: in-cluster Prometheus)
+  - get_loki_logs         : Loki LogQL 쿼리 (otel-collector가 수집한 로그)
+  - restart_deployment    : 디플로이먼트 재시작 (자동 조치, Deployment 전용)
     ↓
 결과 피드백 → Bedrock 재분석 (최대 10라운드)
     ↓
@@ -45,8 +46,8 @@ tools.py 함수 실행:
 
 | 파일 | 역할 |
 |------|------|
-| `aiops/analyzer.py` | Bedrock converse API tool_use 루프 (최대 10라운드) |
-| `aiops/tools.py` | AMP SigV4 쿼리, CloudWatch Logs Insights, K8s pod status, SNS 알림 |
+| `aiops/analyzer.py` | Bedrock converse API tool_use 루프 (최대 10라운드), SNS cooldown |
+| `aiops/tools.py` | AMP→in-cluster Prometheus 폴백, Loki LogQL 쿼리, K8s pod status/events, SNS 알림 |
 | `aiops/main.py` | 5분 주기 스케줄러, SIGTERM/SIGINT 핸들러 |
 | `aiops/requirements.txt` | boto3, botocore, kubernetes, requests, schedule |
 | `aiops/Dockerfile` | python:3.12-slim, pyc 캐시 제거 (~68MB) |
@@ -67,7 +68,7 @@ tools.py 함수 실행:
 module.helm:
   + aws_sns_topic.aiops          (pawfiler-aiops)
   + aws_iam_role.aiops           (pawfiler-aiops)
-  + aws_iam_role_policy.aiops    (Bedrock, AMP, CloudWatch, SNS 권한)
+  + aws_iam_role_policy.aiops    (Bedrock, AMP, SNS 권한)
   - aws_sns_topic.devops_guru    (삭제)
   - aws_devopsguru_notification_channel.main  (삭제)
   - aws_devopsguru_resource_collection.main   (삭제)
@@ -132,6 +133,43 @@ aiops-5b75cb99dc-xg8c8   1/1   Running   0   67s
 ```
 
 **검증 완료**: 파드 Running → tool_use 루프 정상 → 이상 감지 → SNS 발송
+
+---
+
+## 고도화 (2026-03-22)
+
+### 추가된 기능
+
+| 항목 | 내용 |
+|------|------|
+| `describe_pod_events` 툴 추가 | Pending/Error 파드 이벤트 조회 → 원인(리소스 부족, 스케줄링 실패 등) 자동 파악 |
+| In-cluster Prometheus 폴백 | AMP remoteWrite 비활성화 상태에서 `prometheus-operated.monitoring:9090` 직접 쿼리 |
+| SNS cooldown (1시간) | 동일 이상 반복 감지 시 알림 중복 차단 (`/tmp/aiops_last_alert.json`) |
+| `restart_deployment` CRD 예외처리 | RayCluster 등 CRD에 재시작 시도 시 404 대신 안내 메시지 반환 |
+
+### 분석 흐름 변경
+
+```
+Before: pod_status → prometheus → cloudwatch → (restart 시도)
+After:  pod_status → describe_pod_events(이상 파드) → prometheus → loki → (restart, Deployment만)
+```
+
+### 로그 파이프라인 전환 (2026-03-22)
+
+| 항목 | Before | After |
+|------|--------|-------|
+| 로그 수집기 | Fluent-bit | otel-collector (로그+트레이스 통합) |
+| 로그 저장소 | CloudWatch Logs | Loki (S3 백엔드) |
+| AIOps 로그 조회 | `get_cloudwatch_logs` (CW Insights) | `get_loki_logs` (LogQL) |
+| 환경변수 | `CW_LOG_GROUP` | `LOKI_ENDPOINT` |
+
+### 알려진 이슈 (해결)
+
+| 이슈 | 원인 | 해결 |
+|------|------|------|
+| `restart_deployment` 404 반복 | Bedrock이 RayCluster를 Deployment로 오인 | tool 설명에 CRD 사용 금지 명시 + 404 시 graceful 처리 |
+| 5분마다 SNS 스팸 | cooldown 없음 | 1시간 cooldown 추가 |
+| Prometheus 메트릭 빈 값 | AMP remoteWrite 비활성화 | in-cluster Prometheus 폴백 |
 
 ---
 
