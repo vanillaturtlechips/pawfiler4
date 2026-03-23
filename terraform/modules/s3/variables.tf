@@ -3,8 +3,8 @@ variable "project_name" {
   type        = string
 }
 
-variable "envoy_alb_domain" {
-  description = "Envoy ALB domain for CloudFront origin (get from kubectl get ingress)"
+variable "alb_domain" {
+  description = "ALB domain for CloudFront origin (Route53: api.pawfiler.site → ALB)"
   type        = string
-  default     = ""
+  default     = "api.pawfiler.site"
 }
