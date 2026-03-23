@@ -101,7 +101,11 @@ const ProfilePage = () => {
     setReportError(null);
     try {
       const days = reportDays === "all" ? null : parseInt(reportDays, 10);
-      const { report_url } = await generateReport(days);
+      const { report_url } = await generateReport(days, quizProfile ? {
+        totalExp: quizProfile.totalExp,
+        totalCoins: quizProfile.totalCoins,
+        tierName: quizProfile.tierName,
+      } : null);
       if (report_url?.startsWith("http")) {
         window.open(report_url, "_blank");
       } else {
