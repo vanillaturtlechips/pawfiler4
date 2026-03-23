@@ -1,5 +1,6 @@
 psycopg2-binary==2.9.9
-matplotlib==3.8.4
+matplotlib==3.9.4
+contourpy==1.2.1
 numpy==1.26.4
 fastapi==0.111.0
 mangum==0.17.0

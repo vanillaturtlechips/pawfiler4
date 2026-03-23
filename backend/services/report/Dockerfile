@@ -1,7 +1,7 @@
 FROM public.ecr.aws/lambda/python:3.11
 
-# 한글 폰트 + matplotlib C extension 빌드용 gcc
-RUN yum install -y fontconfig gcc gcc-c++ \
+# 한글 폰트 + gcc (psycopg2-binary는 pre-compiled, contourpy wheel 사용으로 불필요)
+RUN yum install -y fontconfig \
     && yum clean all
 
 # Noto Sans CJK KR OTF (~4MB) — OTC 전체 파일(~50MB) 대신 KR 서브셋만 사용
