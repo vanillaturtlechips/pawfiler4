@@ -143,7 +143,7 @@ variable "bastion_instance_type" {
 variable "bastion_key_name" {
   description = "EC2 Key Pair name for Bastion Host SSH access"
   type        = string
-  default     = ""
+  default     = "pawfiler"
 }
 
 # Helm variables
