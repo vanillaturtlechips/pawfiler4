@@ -171,7 +171,7 @@ resource "helm_release" "argocd" {
     yamlencode({
       server = {
         service = {
-          type = "LoadBalancer"
+          type = "ClusterIP"
         }
         extraArgs = [
           "--insecure"

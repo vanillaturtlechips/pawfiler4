@@ -41,8 +41,8 @@ module "ecr" {
 module "s3" {
   source = "./modules/s3"
 
-  project_name     = var.project_name
-  envoy_alb_domain = var.envoy_alb_domain
+  project_name = var.project_name
+  alb_domain   = var.alb_domain
 }
 
 # ---------------------------------------------------------------------------
