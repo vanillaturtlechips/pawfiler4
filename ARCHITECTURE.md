@@ -4,488 +4,314 @@
 
 ```mermaid
 graph TB
-    subgraph "Frontend Layer"
+    subgraph "Client"
         Browser[웹 브라우저]
-        React[React SPA<br/>Vite + TypeScript]
     end
 
-    subgraph "API Gateway Layer"
-        Envoy[Envoy Proxy<br/>:8080<br/>gRPC-JSON Transcoding]
+    subgraph "CDN / Static"
+        CF_FE[CloudFront<br/>pawfiler.site<br/>프론트엔드]
+        CF_ADMIN[CloudFront<br/>어드민 프론트엔드]
+        CF_MEDIA[CloudFront<br/>미디어 CDN]
+        S3_FE[S3<br/>pawfiler-frontend]
+        S3_ADMIN[S3<br/>pawfiler-admin-frontend]
+        S3_QUIZ[S3<br/>pawfiler-quiz-media]
+        S3_COMMUNITY[S3<br/>pawfiler-community-media]
     end
 
-    subgraph "Backend Services"
-        QuizService[Quiz Service<br/>:50052<br/>Go + gRPC]
-        CommunityService[Community Service<br/>:50053<br/>Go + gRPC]
-        VideoService[Video Analysis Service<br/>:50054<br/>Python + gRPC]
-        AuthService[Auth Service<br/>미구현]
-        PaymentService[Payment Service<br/>미구현]
+    subgraph "AWS EKS - pawfiler namespace"
+        ALB[ALB Ingress<br/>api.pawfiler.site]
+        AuthSvc[Auth Service<br/>:8084]
+        UserSvc[User Service<br/>:8083 / :50054]
+        QuizSvc[Quiz Service<br/>:8080 / :50052]
+        CommunitySvc[Community Service<br/>:8080 / :50053]
+        VideoSvc[Video Analysis<br/>:8080 / :50054]
+        ChatBot[Chat Bot Service<br/>:8088]
+        Redis[Redis 7<br/>:6379]
+    end
+
+    subgraph "AWS EKS - admin namespace"
+        AdminSvc[Admin Service<br/>:8082<br/>NLB LoadBalancer]
     end
 
     subgraph "Data Layer"
-        PostgreSQL[(PostgreSQL<br/>:5432)]
-        Redis[(Redis<br/>캐싱<br/>미구현)]
+        RDSProxy[RDS Proxy]
+        RDS[(RDS PostgreSQL<br/>db.t3.micro)]
     end
 
-    subgraph "External Services"
-        SageMaker[AWS SageMaker<br/>딥페이크 탐지 모델]
+    subgraph "AI / ML"
+        AIOrcSvc[AI Orchestration<br/>Ray Serve<br/>namespace: pawfiler]
+        SageMaker[SageMaker<br/>딥페이크 탐지]
+        Bedrock[AWS Bedrock<br/>Claude Haiku<br/>us-east-1]
     end
 
-    Browser --> React
-    React --> Envoy
-    
-    Envoy --> QuizService
-    Envoy --> CommunityService
-    Envoy --> VideoService
-    
-    QuizService --> PostgreSQL
-    CommunityService --> PostgreSQL
-    VideoService --> SageMaker
-    
-    style AuthService fill:#ddd,stroke:#999,stroke-dasharray: 5 5
-    style PaymentService fill:#ddd,stroke:#999,stroke-dasharray: 5 5
-    style Redis fill:#ddd,stroke:#999,stroke-dasharray: 5 5
-```
-
-## 서비스별 상세 아키텍처
-
-### 1. Quiz Service (퀴즈 서비스)
-
-```mermaid
-graph LR
-    subgraph "Quiz Service :50052"
-        QH[gRPC Handler]
-        QS[Quiz Service]
-        QV[Answer Validator]
-        QST[Stats Tracker]
-        QR[Quiz Repository]
+    subgraph "Observability - monitoring namespace"
+        Prometheus[Prometheus]
+        Grafana[Grafana]
+        Loki[Loki]
+        OtelCollector[OTel Collector]
+        AMP[AWS AMP]
+        XRay[AWS X-Ray]
+        AIOps[AIOps Agent]
+        SNS[SNS 알림]
     end
-    
-    Client[Client] --> QH
-    QH --> QS
-    QS --> QV
-    QS --> QST
-    QS --> QR
-    QR --> DB[(PostgreSQL)]
-```
 
-**기능**:
-- 4가지 퀴즈 타입 (객관식, OX, 영역선택, 비교)
-- 답변 검증 및 보상 계산
-- 사용자 통계 추적 (정답률, 연속 정답, 생명)
-
-**기술 스택**: Go, gRPC, PostgreSQL
-
-**상태**: ✅ 구현 완료 (테스트 미완)
-
----
-
-### 2. Community Service (커뮤니티 서비스)
-
-```mermaid
-graph LR
-    subgraph "Community Service :50053"
-        CH[gRPC Handler]
-        CS[Community Service]
-        TX[Transaction Manager]
+    subgraph "GitOps"
+        ArgoCD[ArgoCD]
+        GitHub[GitHub<br/>pawfiler4-argocd]
     end
-    
-    Client[Client] --> CH
-    CH --> CS
-    CS --> TX
-    TX --> DB[(PostgreSQL)]
-```
 
-**기능**:
-- 게시글 CRUD (생성, 조회, 수정, 삭제)
-- 댓글 작성/삭제
-- 좋아요/좋아요 취소
-- 검색 (제목, 본문, 태그)
-- 페이지네이션
-- 공지사항 조회
-- 탐정 랭킹 (월간 좋아요 수)
-- 인기 토픽 (일간 태그 통계)
+    Browser --> CF_FE --> S3_FE
+    Browser --> CF_ADMIN --> S3_ADMIN
+    CF_FE --> ALB
+    CF_MEDIA --> S3_QUIZ
+    CF_MEDIA --> S3_COMMUNITY
 
-**기술 스택**: Go, gRPC, PostgreSQL
+    ALB --> AuthSvc
+    ALB --> UserSvc
+    ALB --> QuizSvc
+    ALB --> CommunitySvc
+    ALB --> VideoSvc
+    ALB --> ChatBot
 
-**상태**: ✅ 완전 구현 (DB 연동, 트랜잭션 처리 완료)
+    AuthSvc --> RDSProxy
+    UserSvc --> RDSProxy
+    QuizSvc --> RDSProxy
+    QuizSvc --> Redis
+    CommunitySvc --> RDSProxy
+    CommunitySvc --> S3_COMMUNITY
+    VideoSvc --> RDSProxy
+    VideoSvc --> AIOrcSvc
+    ChatBot --> RDSProxy
 
----
+    AIOrcSvc --> SageMaker
+    AIOrcSvc --> Bedrock
+    RDSProxy --> RDS
 
-### 3. Video Analysis Service (영상 분석 서비스)
+    OtelCollector --> Loki
+    OtelCollector --> XRay
+    Prometheus --> AMP
+    Grafana --> AMP
+    Grafana --> Loki
+    AIOps --> AMP
+    AIOps --> SNS
 
-```mermaid
-graph LR
-    subgraph "Video Analysis Service :50054"
-        VH[gRPC Handler]
-        VD[Deepfake Detector]
-    end
-    
-    Client[Client] --> VH
-    VH --> VD
-    VD --> SM[AWS SageMaker]
-    VH --> DB[(PostgreSQL)]
-```
-
-**기능**:
-- 영상 스트리밍 업로드
-- 비동기 딥페이크 분석
-- 분석 상태 추적 (로그)
-- 결과 리포트 생성
-
-**기술 스택**: Python, gRPC, AWS SageMaker, PostgreSQL
-
-**상태**: ✅ 구현 완료 (프론트엔드는 Mock API 사용 중)
-
-**참고**: 
-- DB 스키마: `video_analysis.tasks`, `video_analysis.results`
-- 프론트엔드는 현재 Mock API 사용 (`VITE_USE_MOCK_API=true`)
-- 실제 연동을 위해서는 Envoy 설정 및 프론트엔드 API 호출 수정 필요
-
----
-
-## 데이터 흐름
-
-### Quiz 플로우
-
-```mermaid
-sequenceDiagram
-    participant F as Frontend
-    participant E as Envoy Proxy
-    participant QS as Quiz Service
-    participant DB as PostgreSQL
-
-    F->>E: POST /api/quiz.QuizService/GetRandomQuestion
-    E->>QS: GetRandomQuestion (gRPC)
-    QS->>DB: SELECT random question
-    DB-->>QS: Question data
-    QS-->>E: QuizQuestion
-    E-->>F: JSON response
-    
-    F->>E: POST /api/quiz.QuizService/SubmitAnswer
-    E->>QS: SubmitAnswer (gRPC)
-    QS->>DB: Save answer + Update stats
-    QS-->>E: SubmitAnswerResponse
-    E-->>F: JSON response (correct, xp, coins)
-```
-
-### Community 플로우
-
-```mermaid
-sequenceDiagram
-    participant F as Frontend
-    participant E as Envoy Proxy
-    participant CS as Community Service
-    participant DB as PostgreSQL
-
-    F->>E: POST /api/community.CommunityService/GetFeed
-    E->>CS: GetFeed (gRPC)
-    CS->>DB: SELECT posts with pagination
-    DB-->>CS: Posts + comment counts
-    CS-->>E: Feed response
-    E-->>F: JSON response
-    
-    F->>E: POST /api/community.CommunityService/CreatePost
-    E->>CS: CreatePost (gRPC)
-    CS->>DB: INSERT new post
-    DB-->>CS: Created post
-    CS-->>E: Post response
-    E-->>F: JSON response
-```
-
-### Video Analysis 플로우
-
-```mermaid
-sequenceDiagram
-    participant F as Frontend
-    participant E as Envoy Proxy
-    participant VS as Video Service
-    participant SM as SageMaker
-
-    F->>E: UploadVideo (stream)
-    E->>VS: UploadVideo (gRPC)
-    VS->>VS: Save video chunks
-    VS-->>E: task_id
-    E-->>F: task_id
-    
-    VS->>SM: Analyze video
-    SM-->>VS: Detection result
-    
-    F->>E: GetAnalysisResult
-    E->>VS: GetAnalysisResult (gRPC)
-    VS-->>E: DeepfakeReport
-    E-->>F: JSON response
+    GitHub --> ArgoCD
+    ArgoCD --> ALB
+    ArgoCD --> AuthSvc
+    ArgoCD --> UserSvc
+    ArgoCD --> QuizSvc
+    ArgoCD --> CommunitySvc
+    ArgoCD --> VideoSvc
+    ArgoCD --> ChatBot
+    ArgoCD --> AdminSvc
 ```
 
 ---
 
-## 데이터베이스 스키마
-
-### Quiz Schema
-
-```sql
-quiz.questions
-├── id (PK)
-├── type (multiple_choice, true_false, region_select, comparison)
-├── media_type (video, image)
-├── media_url
-├── thumbnail_emoji
-├── difficulty (easy, medium, hard)
-├── category
-├── explanation
-├── options (JSONB)
-├── correct_index
-├── correct_answer (boolean)
-├── correct_regions (JSONB)
-├── tolerance
-├── comparison_media_url
-└── correct_side
-
-quiz.user_answers
-├── id (PK)
-├── user_id (FK)
-├── question_id (FK)
-├── answer_data (JSONB)
-├── is_correct
-├── xp_earned
-├── coins_earned
-└── answered_at
-
-quiz.user_stats
-├── user_id (PK)
-├── total_answered
-├── correct_count
-├── current_streak
-├── best_streak
-└── lives
-```
-
-### Community Schema
-
-```sql
-community.posts
-├── id (PK)
-├── user_id
-├── author_nickname
-├── author_emoji
-├── title
-├── body
-├── tags (JSONB)
-├── likes
-├── created_at
-└── updated_at
-
-community.comments
-├── id (PK)
-├── post_id (FK)
-├── user_id
-├── author_nickname
-├── author_emoji
-├── body
-└── created_at
-
-community.post_likes
-├── post_id (FK)
-├── user_id
-└── created_at
-```
-
----
-
-## 배포 아키텍처 (AWS)
+## AWS 인프라 구조
 
 ```mermaid
 graph TB
-    subgraph "AWS Cloud"
-        subgraph "VPC"
+    subgraph "AWS ap-northeast-2"
+        subgraph "VPC 10.0.0.0/16"
             subgraph "Public Subnet"
-                ALB[Application Load Balancer]
-                Bastion[Bastion Host]
+                ALB[ALB<br/>api.pawfiler.site]
+                Bastion[Bastion Host<br/>t3.micro<br/>key: pawfiler]
+                NLB[NLB<br/>admin-service]
             end
-            
+
             subgraph "Private Subnet"
-                EKS[EKS Cluster]
-                subgraph "EKS Pods"
-                    QuizPod[Quiz Service Pods]
-                    CommunityPod[Community Service Pods]
-                    VideoPod[Video Service Pods]
-                    EnvoyPod[Envoy Proxy Pods]
+                subgraph "EKS Cluster"
+                    NodeGroup[On-Demand Node Group<br/>t3.medium]
+                    Karpenter[Karpenter<br/>Spot 자동 프로비저닝]
                 end
-            end
-            
-            subgraph "Data Subnet"
-                RDS[(RDS PostgreSQL)]
+                RDSProxy[RDS Proxy]
+                RDS[(RDS PostgreSQL<br/>db.t3.micro)]
+                Lambda[Lambda<br/>pawfiler-report]
             end
         end
-        
-        ECR[ECR<br/>Container Registry]
-        SageMaker[SageMaker<br/>ML Endpoint]
-        S3[S3<br/>Video Storage]
-    end
-    
-    Internet[Internet] --> ALB
-    ALB --> EnvoyPod
-    EnvoyPod --> QuizPod
-    EnvoyPod --> CommunityPod
-    EnvoyPod --> VideoPod
-    
-    QuizPod --> RDS
-    CommunityPod --> RDS
-    VideoPod --> SageMaker
-    VideoPod --> S3
-    
-    ECR -.-> QuizPod
-    ECR -.-> CommunityPod
-    ECR -.-> VideoPod
-```
 
-**인프라 구성**:
-- **EKS**: Kubernetes 클러스터 (서비스 오케스트레이션)
-- **RDS**: PostgreSQL 관리형 데이터베이스
-- **ECR**: Docker 이미지 저장소
-- **ALB**: 로드 밸런서
-- **SageMaker**: 딥페이크 탐지 ML 모델
-- **S3**: 영상 파일 저장소
-- **Bastion**: SSH 접근용 호스트
+        subgraph "Storage"
+            S3_FE[S3 pawfiler-frontend]
+            S3_ADMIN[S3 pawfiler-admin-frontend]
+            S3_QUIZ[S3 pawfiler-quiz-media]
+            S3_COMMUNITY[S3 pawfiler-community-media]
+            S3_LOKI[S3 pawfiler-loki-chunks]
+            S3_VIDEOS[S3 pawfiler-videos]
+        end
+
+        subgraph "CDN"
+            CF1[CloudFront<br/>pawfiler.site]
+            CF2[CloudFront<br/>어드민]
+            CF3[CloudFront<br/>미디어]
+        end
+
+        subgraph "AI / ML"
+            SageMaker[SageMaker<br/>딥페이크 탐지]
+            Bedrock[Bedrock<br/>us-east-1]
+        end
+
+        subgraph "Observability"
+            AMP[AMP<br/>Prometheus 장기 저장]
+            XRay[X-Ray]
+            SNS[SNS pawfiler-aiops]
+        end
+
+        ECR[ECR<br/>컨테이너 레지스트리]
+        SecretsManager[Secrets Manager<br/>DB / JWT 시크릿]
+        Route53[Route53<br/>api.pawfiler.site]
+    end
+
+    Internet --> Route53 --> ALB
+    Bastion -->|SSH 터널 + kubectl| EKS Cluster
+    CF1 --> S3_FE
+    CF1 --> ALB
+    CF2 --> S3_ADMIN
+    CF3 --> S3_QUIZ
+    CF3 --> S3_COMMUNITY
+```
 
 ---
 
-## 로컬 개발 환경
+## 서비스별 상세
+
+### API 라우팅 (ALB Ingress)
+
+| Path | Service | Port |
+|------|---------|------|
+| `/api/auth` | auth-service | 8084 |
+| `/api/user.UserService` | user-service | 8083 |
+| `/api/quiz.QuizService` | quiz-service | 8080 |
+| `/api/community.CommunityService` | community-service | 8080 |
+| `/api/video_analysis.VideoAnalysisService` | video-analysis | 8080 |
+| `/api/upload-video` | video-analysis | 8080 |
+| `/api/chat` | chat-bot-service | 8088 |
+
+> gRPC-Web 사용. 각 서비스는 HTTP(:8080/8083/8084/8088) + gRPC(:50052~50054) 듀얼 포트.
+
+### 서비스 목록
+
+| 서비스 | 언어 | Namespace | 포트 | 상태 |
+|--------|------|-----------|------|------|
+| auth-service | Go | pawfiler | 8084 | ✅ |
+| user-service | Go | pawfiler | 8083 / 50054 | ✅ |
+| quiz-service | Go | pawfiler | 8080 / 50052 | ✅ |
+| community-service | Go | pawfiler | 8080 / 50053 | ✅ |
+| video-analysis | Python | pawfiler | 8080 / 50054 | ✅ |
+| chat-bot-service | Python | pawfiler | 8088 | ✅ |
+| admin-service | Go | admin | 8082 (NLB) | ✅ (개발용 공개) |
+| ai-orchestration | Python | pawfiler | Ray Serve (GPU) | ✅ |
+| redis | - | pawfiler | 6379 (ClusterIP) | ✅ (emptyDir, 재시작 시 초기화) |
+
+---
+
+## GitOps 구조 (ArgoCD)
 
 ```mermaid
-graph TB
-    subgraph "Docker Compose"
-        Frontend[Frontend<br/>npm run dev<br/>:5173]
-        Envoy[Envoy<br/>:8080]
-        Quiz[Quiz Service<br/>:50052]
-        Community[Community Service<br/>:50053]
-        Admin[Admin Service<br/>:8082]
-        Postgres[(PostgreSQL<br/>:5432)]
+graph LR
+    subgraph "pawfiler4-argocd repo"
+        AppSet1[ApplicationSet<br/>pawfiler-services<br/>apps/base + apps/services/*]
+        AppSet2[ApplicationSet<br/>pawfiler-ingress<br/>infrastructure/ingress]
+        AppSet3[ApplicationSet<br/>pawfiler-karpenter<br/>infrastructure/karpenter]
+        AppSet4[ApplicationSet<br/>pawfiler-monitoring<br/>loki/grafana/aiops]
+        AppSet5[ApplicationSet<br/>pawfiler-system<br/>prometheus/otel-collector/external-secrets]
     end
-    
-    Frontend --> Envoy
-    Frontend --> Admin
-    Envoy --> Quiz
-    Envoy --> Community
-    Quiz --> Postgres
-    Community --> Postgres
-    Admin --> Postgres
+
+    AppSet1 -->|namespace: pawfiler| Services[서비스 파드들]
+    AppSet2 -->|namespace: pawfiler| Ingress[ALB Ingress]
+    AppSet3 -->|namespace: karpenter| Karpenter[Karpenter CRD]
+    AppSet4 -->|namespace: monitoring| Monitoring[모니터링 스택]
+    AppSet5 -->|namespace: argocd| SystemHelm[Helm 앱들]
 ```
 
-**실행 명령어**:
+**시크릿 관리**: External Secrets Operator → AWS Secrets Manager
+
+---
+
+## 옵저버빌리티 스택
+
+```mermaid
+graph LR
+    subgraph "EKS Pods"
+        App[서비스 파드]
+    end
+
+    subgraph "Log / Trace Pipeline"
+        OTel[OTel Collector<br/>DaemonSet] --> Loki[Loki<br/>S3 백엔드]
+        OTel --> XRay[X-Ray]
+    end
+
+    subgraph "Metrics Pipeline"
+        Prometheus[Prometheus] --> AMP[AWS AMP]
+        Grafana[Grafana] --> AMP
+        Grafana --> Loki
+    end
+
+    subgraph "AI 분석"
+        AIOps[AIOps Agent] --> AMP
+        AIOps --> SNS[SNS 알림]
+    end
+
+    App --> OTel
+    App --> Prometheus
+```
+
+> 현재 비용 절감을 위해 replicas=0 (Prometheus, Grafana, Loki, AIOps). 재개 시 각 yaml에서 replicas 수정.
+
+---
+
+## 어드민 접근 방법
+
+admin-service는 현재 NLB로 공개 노출 (개발 단계). 추후 Bastion SSH 터널로 전환 예정.
+
+**현재 (개발)**:
+```
+브라우저 → NLB → admin-service:8082
+```
+
+**추후 (운영)**:
 ```bash
-# Backend 시작
-cd backend
-docker-compose up -d
+# bastion에서
+kubectl port-forward svc/admin-service 8082:80 -n admin
 
-# Frontend 시작 (루트 디렉토리에서)
-cd frontend
-npm run dev
-
-# Admin Frontend 시작
-cd admin-frontend
-npm run dev
+# 로컬에서
+ssh -i pawfiler.pem -L 8082:localhost:8082 ec2-user@<bastion-ip> -N
+# 브라우저: http://localhost:8082
 ```
 
 ---
 
-## 기술 스택 요약
+## IaC 구조 (Terraform)
+
+| 모듈 | 역할 |
+|------|------|
+| networking | VPC, Subnet, IGW, Route Table |
+| iam | EKS Cluster/Node IAM Role |
+| eks | EKS Cluster, Node Group, OIDC, EBS CSI, Access Entry |
+| bastion | Bastion EC2, IAM Role, SG, EKS Access Entry |
+| rds | RDS PostgreSQL, RDS Proxy, SG |
+| s3 | S3 버킷 + CloudFront 배포 |
+| ecr | ECR 레포지토리 |
+| helm | ALB Controller, ArgoCD, Karpenter, External Secrets, Metrics Server |
+| irsa | 서비스별 IRSA IAM Role |
+| karpenter | Karpenter IAM, SQS, EventBridge |
+| lambda_report | Lambda + SQS + S3 (EDA 리포트) |
+
+---
+
+## 기술 스택
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React, TypeScript, Vite, TailwindCSS, Shadcn UI |
-| **API Gateway** | Envoy Proxy (gRPC-JSON Transcoding) |
-| **Backend** | Go (Quiz, Community, Admin), Python (Video Analysis) |
-| **Protocol** | gRPC, REST API |
-| **Database** | PostgreSQL 16 |
-| **ML Platform** | AWS SageMaker |
-| **Container** | Docker, Docker Compose |
-| **Orchestration** | Kubernetes (EKS) |
-| **IaC** | Terraform |
-
----
-
-## 현재 구현 상태
-
-| 서비스 | 구현 | DB 연결 | 테스트 | Docker | 프론트 연동 |
-|--------|------|---------|--------|--------|------------|
-| Quiz Service | ✅ | ✅ | ⚠️ | ✅ | ✅ |
-| Community Service | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Admin Service | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Video Analysis | ✅ | ✅ | ❌ | ✅ | ⚠️ (Mock) |
-| Auth Service | ❌ | ✅ (스키마) | ❌ | ❌ | ⚠️ (Mock) |
-| Payment Service | ❌ | ✅ (스키마) | ❌ | ❌ | ⚠️ (Mock) |
-
-**범례**:
-- ✅ 완료
-- ⚠️ 부분 완료 (기능은 있으나 실제 연동 안됨)
-- ❌ 미구현
-
----
-
-## 서비스별 상세 구현 상태
-
-### ✅ Quiz Service (완전 구현)
-- gRPC 서버 구현 완료
-- 4가지 퀴즈 타입 지원
-- 답변 검증 및 보상 계산
-- 사용자 통계 추적
-- PostgreSQL 완전 연동
-- Docker Compose 등록
-- 프론트엔드 연동 완료
-
-### ✅ Community Service (완전 구현)
-- gRPC 서버 구현 완료
-- 게시글/댓글/좋아요 CRUD
-- 트랜잭션 처리 완료
-- 검색 및 페이지네이션
-- 대시보드 API (공지, 랭킹, 인기 토픽)
-- PostgreSQL 완전 연동
-- Docker Compose 등록
-- 프론트엔드 연동 완료
-
-### ✅ Admin Service (완전 구현)
-- REST API 서버 (gRPC 아님)
-- 퀴즈 문제 CRUD
-- S3 미디어 업로드
-- PostgreSQL 연동
-- Docker Compose 등록
-- 관리자 프론트엔드 연동 완료
-
-### ⚠️ Video Analysis Service (부분 구현)
-- gRPC 서버 구현 완료
-- 스트리밍 업로드 지원
-- 비동기 분석 처리
-- PostgreSQL 스키마 준비됨
-- **미완성**: 프론트엔드가 Mock API 사용 중 (실제 연동 필요)
-
-### ❌ Auth Service (미구현)
-- DB 스키마만 준비됨
-- 프론트엔드는 Mock 인증 사용 (`localStorage` 기반)
-- 실제 JWT 인증 시스템 구현 필요
-
-### ❌ Payment Service (미구현)
-- DB 스키마만 준비됨
-- 프론트엔드는 Mock 결제 사용
-- 실제 결제 게이트웨이 연동 필요
-
----
-
-## 주요 이슈 및 개선 사항
-
-### 🚨 Critical
-1. **Quiz Handler 보안**: 정답 인덱스를 explanation에 숨겨서 보내는 방식 개선 필요
-2. **Video Analysis 프론트엔드 연동**: Mock API에서 실제 gRPC 연동으로 전환 필요
-3. **Auth Service 구현**: 실제 JWT 기반 인증 시스템 구현 필요
-
-### ⚠️ Important
-1. **Community Service 검색 최적화**: ILIKE 대신 Full-text search 또는 GIN 인덱스 사용
-2. **테스트**: 모든 서비스에 유닛/통합 테스트 추가
-3. **모니터링**: 로깅, 메트릭, 트레이싱 시스템 추가
-4. **gRPC Health Check**: 모든 gRPC 서비스에 health check 엔드포인트 추가
-
-### 💡 Enhancement
-1. **Redis**: 캐싱 레이어 추가 (퀴즈 문제, 사용자 통계)
-2. **Rate Limiting**: API 호출 제한
-3. **CDN**: S3 미디어 파일 CloudFront 배포
-4. **CI/CD**: GitHub Actions 자동화 파이프라인
-5. **Admin Service gRPC 전환**: REST API를 gRPC로 통일 (선택사항)
+| Frontend | React, TypeScript, Vite, TailwindCSS, Shadcn UI |
+| Backend | Go (auth/user/quiz/community/admin), Python (video/chatbot/ai-orchestration) |
+| Protocol | gRPC-Web + HTTP |
+| Database | PostgreSQL 16 (RDS), Redis (EKS 파드) |
+| ML | AWS SageMaker (딥페이크), AWS Bedrock Claude Haiku (AI Orchestration) |
+| Container | Docker, ECR |
+| Orchestration | EKS 1.31, Karpenter |
+| IaC | Terraform |
+| GitOps | ArgoCD + ApplicationSet |
+| Observability | Prometheus, Grafana, Loki, OTel Collector, AMP, X-Ray |
+| Secret | AWS Secrets Manager + External Secrets Operator |
+| CDN | CloudFront (프론트엔드 + 미디어) |
