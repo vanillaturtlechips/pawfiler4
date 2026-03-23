@@ -912,10 +912,16 @@ export const adminDeleteShopItem = async (id: string): Promise<void> =>
 // Report Service
 const REPORT_BASE_URL = import.meta.env.VITE_REPORT_BASE_URL || '';
 
-export const generateReport = async (days?: number | null): Promise<{ report_url: string }> => {
+export const generateReport = async (days?: number | null, quizProfile?: { totalExp?: number; totalCoins?: number; tierName?: string } | null): Promise<{ report_url: string }> => {
   const userId = getUserId();
   const savedUser = localStorage.getItem('auth_user');
   const user = savedUser ? JSON.parse(savedUser) : null;
+
+  // Lambda cold start 워밍업 — /health ping 후 2초 대기
+  try {
+    await fetch(`${REPORT_BASE_URL}/health`, { method: "GET" });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  } catch { /* 워밍업 실패해도 본 요청 진행 */ }
 
   const response = await fetch(`${REPORT_BASE_URL}/generate`, {
     method: "POST",
@@ -927,6 +933,10 @@ export const generateReport = async (days?: number | null): Promise<{ report_url
       avatar_emoji: user?.avatarEmoji || null,
       email: user?.email || null,
       subscription_type: user?.subscriptionType || "free",
+      // 프론트 최신값 전달 — user 서비스 비동기 지연 우회
+      total_exp: quizProfile?.totalExp ?? null,
+      total_coins: quizProfile?.totalCoins ?? null,
+      tier_name: quizProfile?.tierName ?? null,
     }),
   });
   if (!response.ok) {
