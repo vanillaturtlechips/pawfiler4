@@ -90,7 +90,6 @@ class Orchestrator:
             cascade_result = await self.cascade.predict.remote(
                 preprocessed["hand_crafted_features"]
             )
-            cascade_result = await cascade_result
 
             if cascade_result["confident"]:
                 # ~80% 케이스: 즉시 반환
@@ -135,7 +134,6 @@ class Orchestrator:
 
         # ── 6. Fusion ──
         verdict = await self.fusion.ensemble.remote(results)
-        verdict = await verdict
 
         elapsed = (time.perf_counter() - t0) * 1000
         await self.metrics.record.remote("deep_path", elapsed_ms=elapsed)
@@ -152,22 +150,111 @@ class Orchestrator:
     async def _preprocess(self, media_url: str, modality: str) -> dict:
         """
         영상 URL → 프레임 추출 + 오디오 분리 + hand-crafted features.
-        실제 구현 시 ffmpeg/decord 사용.
+        decord로 프레임 추출, ffmpeg로 오디오 분리.
         """
-        # TODO: 실제 전처리 로직
-        # frames: (T, C, H, W) np.ndarray
-        # audio: (samples,) np.ndarray
-        # hand_crafted: dict of XGBoost features
+        import tempfile, os, subprocess, urllib.request
+        import cv2
+        from scipy.fft import dct
+
+        # ── 1. 파일 다운로드 (S3 presigned URL or http) ──
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_path = os.path.join(tmpdir, "input.mp4")
+            if media_url.startswith("s3://"):
+                import boto3
+                s3 = boto3.client("s3")
+                bucket, key = media_url[5:].split("/", 1)
+                s3.download_file(bucket, key, video_path)
+            else:
+                urllib.request.urlretrieve(media_url, video_path)
+
+            # ── 2. 프레임 추출 (decord, 16프레임 균등 샘플링) ──
+            frames_np = None
+            if modality in ("video", "both"):
+                try:
+                    from decord import VideoReader, cpu
+                    vr = VideoReader(video_path, ctx=cpu(0))
+                    total = len(vr)
+                    indices = np.linspace(0, total - 1, 16, dtype=int)
+                    frames = vr.get_batch(indices).asnumpy()  # (16, H, W, C)
+                    # (16, H, W, C) → resize → (16, C, H, W)
+                    resized = np.stack([
+                        cv2.resize(f, (224, 224)).transpose(2, 0, 1)
+                        for f in frames
+                    ]).astype(np.float32) / 255.0
+                    frames_np = resized  # (16, 3, 224, 224)
+                except Exception as e:
+                    logger.error(f"Frame extraction failed: {e}")
+
+            # ── 3. 오디오 추출 (ffmpeg, 16kHz mono wav) ──
+            audio_np = None
+            if modality in ("audio", "both"):
+                try:
+                    audio_path = os.path.join(tmpdir, "audio.wav")
+                    subprocess.run([
+                        "ffmpeg", "-y", "-i", video_path,
+                        "-ac", "1", "-ar", "16000",
+                        "-vn", audio_path
+                    ], check=True, capture_output=True)
+                    import soundfile as sf
+                    audio_np, _ = sf.read(audio_path, dtype="float32")
+                except Exception as e:
+                    logger.error(f"Audio extraction failed: {e}")
+
+            # ── 4. Hand-crafted features (XGBoost용) ──
+            hand_crafted = self._extract_hand_crafted(frames_np)
+
         return {
-            "frames": np.random.randn(16, 3, 224, 224).astype(np.float32),
-            "audio": np.random.randn(16000 * 5).astype(np.float32),
-            "hand_crafted_features": {
-                "laplacian_var": 0.0,
-                "dct_ratio": 0.0,
+            "frames": frames_np,
+            "audio": audio_np,
+            "hand_crafted_features": hand_crafted,
+        }
+
+    def _extract_hand_crafted(self, frames_np: np.ndarray) -> dict:
+        """
+        frames_np: (T, C, H, W) float32 [0,1]
+        """
+        if frames_np is None:
+            return {
+                "laplacian_var": 0.0, "dct_ratio": 0.0,
                 "channel_stats": [0.0] * 6,
-                "temporal_diff_mean": 0.0,
-                "temporal_diff_std": 0.0,
-            },
+                "temporal_diff_mean": 0.0, "temporal_diff_std": 0.0,
+            }
+        import cv2
+        from scipy.fft import dct as scipy_dct
+
+        # 중간 프레임 기준으로 계산
+        mid = frames_np[len(frames_np) // 2]  # (C, H, W)
+        gray = (mid[0] * 0.299 + mid[1] * 0.587 + mid[2] * 0.114)  # (H, W)
+        gray_uint8 = (gray * 255).astype(np.uint8)
+
+        # laplacian variance (고주파 성분)
+        lap = cv2.Laplacian(gray_uint8, cv2.CV_64F)
+        laplacian_var = float(lap.var())
+
+        # DCT 저주파 비율
+        dct_coeffs = scipy_dct(scipy_dct(gray, axis=0), axis=1)
+        h, w = dct_coeffs.shape
+        low_freq = float(np.abs(dct_coeffs[:h//8, :w//8]).sum())
+        total_freq = float(np.abs(dct_coeffs).sum()) + 1e-8
+        dct_ratio = low_freq / total_freq
+
+        # RGB 채널별 mean/std (6개)
+        channel_stats = []
+        for c in range(3):
+            channel_stats.append(float(frames_np[:, c].mean()))
+            channel_stats.append(float(frames_np[:, c].std()))
+
+        # 프레임 간 temporal diff
+        diffs = np.abs(np.diff(frames_np, axis=0)).mean(axis=(1, 2, 3))
+        temporal_diff_mean = float(diffs.mean())
+        temporal_diff_std = float(diffs.std())
+
+        return {
+            "laplacian_var": laplacian_var,
+            "dct_ratio": dct_ratio,
+            "channel_stats": channel_stats,
+            "temporal_diff_mean": temporal_diff_mean,
+            "temporal_diff_std": temporal_diff_std,
         }
 
     def _format_response(self, result: dict, elapsed_ms: float, deep: bool) -> dict:
@@ -211,12 +298,12 @@ def build_app():
     """
     # Layer 1: GPU 싱글톤
     model_worker = SharedModelWorker.bind(
-        model_dir="/mnt/efs/models",
+        model_dir="/mnt/efs/models/models",
     )
 
     # Cascade Gate (CPU)
     cascade_gate = XGBoostGate.bind(
-        model_path="/mnt/efs/models/xgboost_cascade.pkl",
+        model_path="/mnt/efs/models/models/xgboost_cascade.pkl",
     )
 
     # Layer 2: 논리적 에이전트 (model_worker handle 주입)

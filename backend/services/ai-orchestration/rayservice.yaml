@@ -96,6 +96,7 @@ spec:
             prometheus.io/scrape: "true"
             prometheus.io/port: "8080"
         spec:
+          serviceAccountName: ai-orchestration-sa
           nodeSelector:
             karpenter.sh/capacity-type: spot  # 스팟 노드에만 스케줄
           tolerations:
@@ -154,6 +155,7 @@ spec:
               role: gpu-worker
               karpenter.sh/capacity-type: spot  # 스팟 인스턴스 사용
           spec:
+            serviceAccountName: ai-orchestration-sa
             nodeSelector:
               karpenter.sh/capacity-type: spot  # 스팟 노드에만 스케줄
             tolerations:

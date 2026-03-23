@@ -20,12 +20,13 @@ import webdataset as wds
 import boto3
 import xgboost as xgb
 import cv2
+cv2.setNumThreads(0)  # 워커 간 CPU 자원 경합 방지 (data_wait 병목 핵심 원인)
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from timm import create_model
-from sklearn.metrics import f1_score, recall_score
+from sklearn.metrics import f1_score
 
 # SageMaker 환경 변수
 SM_MODEL_DIR      = os.environ.get('SM_MODEL_DIR', './models')
@@ -37,6 +38,8 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 BUCKET = 'ai-preprocessing'
 s3     = boto3.client('s3', region_name='ap-northeast-2')
 
+# ⚠️ 'real', 'fake' 유지 - 실제 .cls 레이블 확인 전까지 건드리지 말 것
+# 확인 명령: python3 -c "import webdataset as wds, collections; ..."
 AI_MODELS = [
     'AccVideo', 'AnimateDiff', 'Cogvideox1.5', 'EasyAnimate',
     'Gen2', 'Gen3', 'HunyuanVideo', 'IPOC', 'Jimeng', 'LTX',
@@ -45,21 +48,29 @@ AI_MODELS = [
     'OpenSource_I2V_VideoCrafter', 'OpenSource_V2V_Cogvideox1.5',
     'OpenSource_V2V_LTX', 'Opensora', 'Pyramid-Flow', 'Real',
     'RepVideo', 'SEINE', 'SVD', 'Sora', 'VideoCrafter', 'Wan2.1',
-    'causvid_24fps', 'vidu', 'wan', 'real', 'fake', 'audio_fake',
+    'causvid_24fps', 'vidu', 'wan', 'real', 'fake',
 ]
 LABEL2IDX   = {l: i for i, l in enumerate(AI_MODELS)}
 NUM_CLASSES = len(AI_MODELS)
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma, smoothing):
+    def __init__(self, gamma, smoothing, class_weights=None):
         super().__init__()
         self.gamma = gamma
         self.smoothing = smoothing
+        self.class_weights = class_weights
 
     def forward(self, logits, targets):
-        ce = nn.functional.cross_entropy(logits, targets, reduction='none', label_smoothing=self.smoothing)
+        ce = nn.functional.cross_entropy(
+            logits, targets,
+            reduction='none',
+            label_smoothing=self.smoothing
+        )
         pt = torch.exp(-ce)
-        return ((1 - pt) ** self.gamma * ce).mean()
+        focal_loss = (1 - pt) ** self.gamma * ce
+        if self.class_weights is not None:
+            focal_loss = focal_loss * self.class_weights[targets]
+        return focal_loss.mean()
 
 LAP_KERNEL = np.array([[0,1,0],[1,-4,1],[0,1,0]], dtype=np.float32)
 
@@ -72,7 +83,6 @@ def extract_features(frames: np.ndarray) -> np.ndarray:
         dct = cv2.dct(gray)
         dct_ratio = (dct[:8,:8]**2).sum() / ((dct**2).sum() + 1e-8)
         feats.append([lap_var, dct_ratio] + ch_stats)
-
     feats = np.array(feats)
     if len(feats) > 1:
         diff = np.diff(feats, axis=0)
@@ -84,7 +94,7 @@ def extract_features(frames: np.ndarray) -> np.ndarray:
 class VideoAgent(nn.Module):
     def __init__(self, num_classes, dropout, backbone_name='mobilevitv2_100'):
         super().__init__()
-        self.backbone = create_model(backbone_name, pretrained=True, num_classes=0)
+        self.backbone = create_model(backbone_name, pretrained=False, num_classes=0)
         self.lstm = nn.LSTM(self.backbone.num_features, 256, batch_first=True, dropout=dropout)
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(256, num_classes))
 
@@ -103,32 +113,52 @@ def create_decoder():
             npz_data = sample.get('npz') or sample.get('npz.gz')
             cls_data = sample.get('cls') or sample.get('txt')
             if npz_data is None or cls_data is None: return None
-
+            
             label_str = cls_data.decode().strip() if isinstance(cls_data, bytes) else str(cls_data).strip()
             label = LABEL2IDX.get(label_str, -1)
+            if label == -1: return None
             
-            if label == -1: 
-                return None
+            # --- 🛠️ 여기가 핵심 수정 포인트! ---
+            buffer = io.BytesIO(npz_data) if isinstance(npz_data, bytes) else npz_data
+            with np.load(buffer) as data:
+                frames = data['frames']
+            # with 블록을 빠져나오면 NpzFile과 버퍼가 깔끔하게 닫힘!
+            # ------------------------------------
 
-            frames = np.load(io.BytesIO(npz_data) if isinstance(npz_data, bytes) else npz_data)['frames']
             if frames.ndim == 2: frames = np.stack([frames]*3, axis=-1)[np.newaxis]
             frames = frames[:16]
-
+            
+            # 주의: 리스트 컴프리헨션 대신 메모리 효율 좋은 numpy 연산을 권장하지만 일단 냅둠 ㅋ
             resized = np.stack([cv2.resize(f, (224, 224), interpolation=cv2.INTER_LINEAR) for f in frames])
             hc = extract_features(resized)
-
             t = torch.from_numpy(resized).float() / 255.0
             t = (t.permute(0, 3, 1, 2) - MEAN) / STD
             return hc, t, label
-        except Exception as e:
+        except Exception:
             return None
     return decode_sample
 
+def create_label_only_decoder():
+    def decode_label(sample):
+        try:
+            cls_data = sample.get('cls') or sample.get('txt')
+            if cls_data is None: return None
+            label_str = cls_data.decode().strip() if isinstance(cls_data, bytes) else str(cls_data).strip()
+            label = LABEL2IDX.get(label_str, -1)
+            return label if label != -1 else None
+        except:
+            return None
+    return decode_label
+
 def collate_fn(samples):
+    # None 방어
+    samples = [s for s in samples if s is not None]
+    if not samples:
+        return np.array([]), torch.empty(0), torch.tensor([])
     hc, frames_list, labels = zip(*samples)
     valid = [(h, f, l) for h, f, l in zip(hc, frames_list, labels) if f.numel() > 0]
     if not valid:
-        return np.array(hc), torch.empty(0), torch.tensor(labels)
+        return np.array([]), torch.empty(0), torch.tensor([])
     hc, frames_list, labels = zip(*valid)
     max_t  = max(f.shape[0] for f in frames_list)
     padded = torch.zeros(len(frames_list), max_t, 3, 224, 224)
@@ -140,12 +170,12 @@ def make_dataloader(shards, batch_size, num_workers=24):
         wds.WebDataset(shards, shardshuffle=5000, handler=wds.warn_and_continue)
         .map(create_decoder())
         .select(lambda x: x is not None)
+        .shuffle(2000)
         .batched(batch_size, collation_fn=collate_fn)
     )
-    return wds.WebLoader(dataset, batch_size=None, num_workers=num_workers, prefetch_factor=2)
+    return wds.WebLoader(dataset, batch_size=None, num_workers=num_workers, prefetch_factor=8)
 
 def get_shard_paths(data_dir, start_idx, end_idx):
-    """FastFile로 마운트된 디렉토리에서 샤드 경로 목록 생성"""
     shards = []
     for i in range(start_idx, end_idx + 1):
         path = os.path.join(data_dir, f'dataset_{i:05d}.tar')
@@ -176,39 +206,41 @@ def train(args):
     print(f"[DEBUG] GPU count: {torch.cuda.device_count()}")
     print(f"[DEBUG] DEVICE: {DEVICE}")
     print(f"[DEBUG] SM_NUM_GPUS: {SM_NUM_GPUS}")
-    print(f"[DEBUG] backbone: {args.backbone}")
-    print(f"[DEBUG] batch_size: {args.batch_size}")
 
-    # ==========================================
-    # 🚨 [스마트 미니 벤치마크 데이터 분할 전략] 🚨
-    # 전체 0~6998 샤드 중 10%만 골고루 추출하여 편향(Skew) 완벽 방지
-    # ==========================================
-    all_shards = get_shard_paths(SM_CHANNEL_TRAIN, 0, 6998)
-    
-    # 1. 10개 간격으로 하나씩 뽑아 전체 데이터의 10% 축소판 생성 (약 700개)
-    mini_shards = [s for i, s in enumerate(all_shards) if i % 10 == 0]
-    
-    # 2. 축소판 내에서 Train (90%) / Val (10%) 로 분할
-    train_shards = [s for i, s in enumerate(mini_shards) if i % 10 != 0]
-    val_shards   = [s for i, s in enumerate(mini_shards) if i % 10 == 0]
-    
-    print(f"[DEBUG] Mini Benchmark Mode: Train {len(train_shards)} shards, Val {len(val_shards)} shards")
+    all_shards = get_shard_paths(SM_CHANNEL_TRAIN, args.train_start, args.train_end)
+    val_shards   = [s for i, s in enumerate(all_shards) if i % 10 == 0]
+    train_shards = [s for i, s in enumerate(all_shards) if i % 10 != 0]
+    print(f"[DEBUG] Train shards: {len(train_shards)}, Val shards: {len(val_shards)}")
 
     if not train_shards:
         print("[ERROR] No training shards found!")
         return
-    if not val_shards:
-        print("[WARNING] No validation shards found!")
 
-    # Phase 1 XGBoost 로드
     print("Loading Phase 1 XGBoost model from S3...")
     obj = s3.get_object(Bucket=BUCKET, Key='models/xgboost_phase1.pkl')
     xgb_model = pickle.load(io.BytesIO(obj['Body'].read()))
 
+    # 전체 샤드의 10% 스캔 (희귀 클래스 누락 방지)
+    print("[INFO] Computing class weights (Fast Label Scan ~10% of shards)...")
+    class_counts = np.zeros(NUM_CLASSES, dtype=np.float32)
+    scan_shards = train_shards[::10]
+    for shard in scan_shards:
+        try:
+            ds = (wds.WebDataset(shard, shardshuffle=False, handler=wds.warn_and_continue)
+                  .map(create_label_only_decoder())
+                  .select(lambda x: x is not None))
+            for label in ds:
+                class_counts[label] += 1
+        except Exception:
+            continue
+    class_counts = np.maximum(class_counts, 1)
+    class_weights = torch.tensor(class_counts.sum() / (NUM_CLASSES * class_counts), dtype=torch.float32).to(DEVICE)
+    print(f"[INFO] Class weights - Min: {class_weights.min():.2f}, Max: {class_weights.max():.2f}")
+
     model = VideoAgent(NUM_CLASSES, args.dropout, args.backbone).to(DEVICE)
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.l2_lambda)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
-    criterion = FocalLoss(gamma=args.focal_gamma, smoothing=args.label_smoothing)
+    criterion = FocalLoss(gamma=args.focal_gamma, smoothing=args.label_smoothing, class_weights=class_weights)
     scaler = torch.cuda.amp.GradScaler()
     accumulation_steps = max(1, 32 // args.batch_size)
 
@@ -222,10 +254,13 @@ def train(args):
         loader = make_dataloader(train_shards, args.batch_size)
         total_loss, correct, total = 0.0, 0, 0
         optimizer.zero_grad()
-        _last_time = None
+        _last_gpu_end = None
 
         for step_idx, (hc_feats, frames, labels) in enumerate(loader):
             t_data = time.time()
+
+            if frames.numel() == 0:
+                continue
 
             if global_step < args.warmup_steps:
                 lr_scale = min(1.0, float(global_step + 1) / args.warmup_steps)
@@ -233,10 +268,11 @@ def train(args):
 
             proba = xgb_model.predict_proba(hc_feats)
             uncertain = proba.max(axis=1) < args.cascade_threshold
-            if uncertain.sum() == 0: continue
+            if uncertain.sum() == 0:
+                global_step += 1
+                continue
 
             frames, labels = frames[uncertain].to(DEVICE), labels[uncertain].to(DEVICE)
-            t_gpu_start = time.time()
 
             with torch.cuda.amp.autocast():
                 logits = model(frames)
@@ -266,77 +302,52 @@ def train(args):
                 total_loss, correct, total = 0.0, 0, 0
 
             if global_step % 50 == 0:
-                gpu_time = t_gpu_end - t_gpu_start
-                if _last_time is not None:
-                    data_time = t_data - _last_time
-                    print(f"[TIMING] step={global_step} data_wait={data_time:.2f}s gpu={gpu_time:.2f}s")
-                _last_time = t_gpu_end
+                gpu_time = t_gpu_end - t_data  # GPU 연산 시간
+                if _last_gpu_end is not None:
+                    data_wait = t_data - _last_gpu_end  # 데이터 대기 시간
+                    print(f"[TIMING] step={global_step} data_wait={data_wait:.2f}s gpu={gpu_time:.2f}s")
+                _last_gpu_end = t_gpu_end
 
             if global_step % 1000 == 0:
                 save_checkpoint(model, optimizer, epoch, global_step)
 
         scheduler.step()
 
-        # ==========================================
-        # 검증 (Validation) 루프 - XGBoost Cascade 로직 통합
-        # ==========================================
         if val_shards:
             model.eval()
             all_preds, all_labels = [], []
             val_loader = make_dataloader(val_shards, args.batch_size)
-            
             with torch.no_grad():
                 for hc_feats, frames, labels in val_loader:
                     if frames.numel() == 0:
                         continue
-                    
                     labels_np = labels.numpy()
-                    batch_size_cur = len(labels_np)
-                    batch_preds = np.zeros(batch_size_cur, dtype=int)
-                    
-                    # 1. XGBoost 예측
+                    batch_preds = np.zeros(len(labels_np), dtype=int)
                     proba = xgb_model.predict_proba(hc_feats)
                     xgb_preds = proba.argmax(axis=1)
-                    xgb_max = proba.max(axis=1)
-                    
-                    # 2. 불확실성 필터링 (Cascade)
-                    uncertain = xgb_max < args.cascade_threshold
-                    certain = ~uncertain
-                    
-                    # 3. 확실한 샘플은 XGBoost 예측 채택
-                    if certain.sum() > 0:
-                        batch_preds[certain] = xgb_preds[certain]
-                        
-                    # 4. 불확실한 샘플만 DL 모델 통과
+                    uncertain = proba.max(axis=1) < args.cascade_threshold
+                    batch_preds[~uncertain] = xgb_preds[~uncertain]
                     if uncertain.sum() > 0:
-                        u_frames = frames[uncertain].to(DEVICE)
                         with torch.cuda.amp.autocast():
-                            logits = model(u_frames)
-                        dl_preds = logits.argmax(1).cpu().numpy()
-                        batch_preds[uncertain] = dl_preds
-                        
+                            logits = model(frames[uncertain].to(DEVICE))
+                        batch_preds[uncertain] = logits.argmax(1).cpu().numpy()
                     all_preds.extend(batch_preds)
                     all_labels.extend(labels_np)
-                    
-                    # 미니 벤치마크에서는 수집 샘플 제한을 여유있게 혹은 없애도 됩니다.
-                    if len(all_labels) >= 5000: 
+                    if len(all_labels) >= 5000:
                         break
 
             print(f"[Val DEBUG] samples collected: {len(all_labels)}")
             if len(all_labels) == 0:
-                print("=== [Val] Epoch WARNING: No valid samples! ===")
+                print("=== [Val] WARNING: No valid samples! ===")
             else:
-                unique_labels = np.unique(all_labels)
-                print(f"[Val DEBUG] Unique classes in validation: {len(unique_labels)} classes found.")
-                
+                print(f"[Val DEBUG] Unique classes: {len(np.unique(all_labels))}")
                 f1 = f1_score(all_labels, all_preds, average='macro', zero_division=0)
-                print(f"=== [Val] Epoch {epoch} F1 Score: {f1:.4f} ===")
+                print(f"=== [Val] Epoch {epoch} F1: {f1:.4f} ===")
 
-    # 최종 모델 저장
     os.makedirs(SM_MODEL_DIR, exist_ok=True)
     final_state_dict = model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict()
     torch.save(final_state_dict, os.path.join(SM_MODEL_DIR, 'model.pt'))
-    print("Training Complete. Model saved to SM_MODEL_DIR.")
+    print("Training Complete. Model saved.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -350,11 +361,8 @@ if __name__ == '__main__':
     parser.add_argument('--warmup_steps', type=int, default=1500)
     parser.add_argument('--l1_lambda', type=float, default=1e-5)
     parser.add_argument('--l2_lambda', type=float, default=1e-4)
-    parser.add_argument('--backbone', type=str, default='mobilevitv2_100')
+    parser.add_argument('--backbone', type=str, default='efficientnet_b4')
     parser.add_argument('--train_start', type=int, default=0)
-    parser.add_argument('--train_end', type=int, default=6500)
-    parser.add_argument('--val_start', type=int, default=6501)
-    parser.add_argument('--val_end', type=int, default=6998)
-
+    parser.add_argument('--train_end', type=int, default=6998)
     args = parser.parse_args()
     train(args)

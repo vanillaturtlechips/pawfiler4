@@ -1,7 +1,15 @@
 torch==2.2.0
-numpy
+numpy==1.26.4
 timm
 transformers
 xgboost
 starlette
 requests
+httpx
+decord
+opencv-python-headless==4.8.1.78
+scipy
+soundfile
+boto3
+librosa
+psycopg2-binary
