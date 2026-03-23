@@ -15,14 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN wget -qO /bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.24/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
 
-# Proto 먼저 복사
+# Proto 먼저 복사 (미리 생성된 파일 사용)
 COPY proto ./proto
-
-# Proto 생성
-RUN mkdir -p generated && \
-    touch generated/__init__.py && \
-    python -m grpc_tools.protoc -I./proto --python_out=./generated --grpc_python_out=./generated ./proto/video_analysis.proto && \
-    sed -i 's/^import video_analysis_pb2/from . import video_analysis_pb2/' generated/video_analysis_pb2_grpc.py
+COPY generated ./generated
 
 # 나머지 코드 복사
 COPY . .
