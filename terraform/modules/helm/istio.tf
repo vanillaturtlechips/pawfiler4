@@ -29,6 +29,14 @@ resource "helm_release" "istiod" {
       defaultConfig = {
         holdApplicationUntilProxyStarts = true
       }
+      # OTel Collector로 trace 전송 (Tempo 파이프라인)
+      extensionProviders = [{
+        name = "otel-tracing"
+        opentelemetry = {
+          service = "otel-collector.monitoring.svc.cluster.local"
+          port    = 4317
+        }
+      }]
     }
     pilot = {
       resources = {
