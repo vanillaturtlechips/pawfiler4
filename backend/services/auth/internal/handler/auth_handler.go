@@ -100,7 +100,11 @@ return count
 `)
 
 // loginRateLimit returns true when the request is within the allowed rate.
+// RATE_LIMIT_ENABLED=false 환경변수로 비활성화 가능 (부하 테스트 시 사용)
 func (h *Handler) loginRateLimit(r *http.Request) bool {
+	if os.Getenv("RATE_LIMIT_ENABLED") == "false" {
+		return true
+	}
 	if h.redisClient == nil {
 		return true
 	}
@@ -245,8 +249,27 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Logout handles POST /auth/logout – client-side token discard; always succeeds.
+// Logout handles POST /auth/logout – blacklists the access token in Redis until expiry.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenStr != "" && h.redisClient != nil {
+		// 토큰 파싱 없이 남은 TTL 계산을 위해 claims 확인
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+			return h.jwtSecret, nil
+		}, jwt.WithValidMethods([]string{"HS256"}))
+		if err == nil && token.Valid {
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				if exp, ok := claims["exp"].(float64); ok {
+					ttl := time.Until(time.Unix(int64(exp), 0))
+					if ttl > 0 {
+						key := "blacklist:token:" + tokenStr
+						h.redisClient.Set(context.Background(), key, "1", ttl)
+					}
+				}
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
@@ -262,6 +285,14 @@ func (h *Handler) Validate(w http.ResponseWriter, r *http.Request) {
 	if tokenStr == "" {
 		writeErr(w, http.StatusUnauthorized, "missing token")
 		return
+	}
+	// 블랙리스트 체크 (로그아웃된 토큰)
+	if h.redisClient != nil {
+		val, _ := h.redisClient.Get(context.Background(), "blacklist:token:"+tokenStr).Result()
+		if val != "" {
+			writeErr(w, http.StatusUnauthorized, "token revoked")
+			return
+		}
 	}
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
 		return h.jwtSecret, nil
