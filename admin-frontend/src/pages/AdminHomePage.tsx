@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
-import { BookOpen, Users, ShoppingBag } from "lucide-react";
+import { BookOpen, Users, ShoppingBag, Activity } from "lucide-react";
 
 const cards = [
   { title: "퀴즈 관리", desc: "문제 등록/수정, 통계 확인", to: "/admin/quiz", icon: BookOpen },
   { title: "커뮤니티", desc: "게시글 검색/수정/삭제", to: "/admin/community", icon: Users },
   { title: "상점 관리", desc: "아이템 등록/수정/삭제", to: "/admin/shop", icon: ShoppingBag },
+  { title: "AIOps", desc: "클러스터 상태 모니터링 및 AI 분석", to: "/admin/aiops", icon: Activity },
 ];
 
 export default function AdminHomePage() {

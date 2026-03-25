@@ -6,6 +6,13 @@ export default defineConfig({
   server: {
     host: "::",
     port: 5175,
+    proxy: {
+      '/aiops': {
+        target: 'http://localhost:8090',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/aiops/, ''),
+      },
+    },
   },
   plugins: [react()],
   resolve: {

@@ -9,4 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY *.py .
 
+EXPOSE 8090
+
 CMD ["python", "main.py"]

@@ -238,17 +238,23 @@ jobs:
           context: ./aiops
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops:latest
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops-service:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops-service:latest
+
+      - name: Checkout ArgoCD repo
+        uses: actions/checkout@v4
+        with:
+          repository: vanillaturtlechips/pawfiler4-argocd
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          path: argocd-repo
 
       - name: Update ArgoCD image tag
         run: |
-          git clone https://x-access-token:${{ secrets.ARGOCD_REPO_TOKEN }}@github.com/vanillaturtlechips/pawfiler4-argocd.git argocd-repo
+          sed -i "s|image: .*/pawfiler/aiops-service:.*|image: ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops-service:${{ github.sha }}|g" \
+            argocd-repo/apps/services/aiops/deployment.yaml
           cd argocd-repo
-          sed -i "s|image: .*/pawfiler/aiops:.*|image: ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops:${{ github.sha }}|g" \
-            infrastructure/observability/aiops/deployment.yaml
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Update aiops image to ${{ github.sha }}" || exit 0
+          git commit -m "Update aiops-service image to ${{ github.sha }}" || exit 0
           git push

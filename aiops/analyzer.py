@@ -17,6 +17,7 @@ from tools import (
     restart_deployment,
     send_sns_notification,
 )
+from store import save_result
 
 COOLDOWN_FILE = "/tmp/aiops_last_alert.json"
 COOLDOWN_SECONDS = 3600  # 1시간
@@ -220,10 +221,55 @@ def _exec_tool(name: str, tool_input: dict) -> str:
         return json.dumps({"error": str(e)})
 
 
-def run_analysis() -> None:
-    """Bedrock converse API 기반 클러스터 이상 탐지 분석"""
+async def ask_claude(question: str) -> str:
+    """자유 질문을 Claude에게 전달, AMP/Loki/K8s 조회 후 답변 반환."""
+    import asyncio
+    return await asyncio.get_event_loop().run_in_executor(None, _ask_claude_sync, question)
+
+
+def _ask_claude_sync(question: str) -> str:
+    """동기 버전 - boto3 블로킹 호출을 executor에서 실행."""
+    logger.info(f"ask_claude: {question}")
+    bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+    messages = [{"role": "user", "content": [{"text": question}]}]
+
+    for _ in range(10):
+        response = bedrock.converse(
+            modelId=BEDROCK_MODEL_ID,
+            system=SYSTEM_PROMPT,
+            messages=messages,
+            toolConfig=TOOL_CONFIG,
+        )
+        stop_reason = response["stopReason"]
+        content = response["output"]["message"]["content"]
+
+        if stop_reason == "end_turn":
+            return next((b["text"] for b in content if "text" in b), "")
+
+        if stop_reason == "tool_use":
+            messages.append({"role": "assistant", "content": content})
+            tool_results = []
+            for block in content:
+                if "toolUse" not in block:
+                    continue
+                tu = block["toolUse"]
+                result_text = _exec_tool(tu["name"], tu["input"])
+                tool_results.append({
+                    "toolResult": {
+                        "toolUseId": tu["toolUseId"],
+                        "content": [{"text": result_text}],
+                    }
+                })
+            messages.append({"role": "user", "content": tool_results})
+
+    return "분석 최대 라운드 초과."
+
+
+def run_analysis() -> bool:
+    """클러스터 이상 탐지 분석. 이상 감지 시 True 반환."""
     logger.info("=== AIOps analysis started ===")
     bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+    anomaly = False
 
     messages = [
         {
@@ -258,7 +304,10 @@ def run_analysis() -> None:
             )
             logger.info(f"Analysis complete:\n{final_text}")
 
-            if "이상 감지 여부: YES" in final_text:
+            anomaly = "이상 감지 여부: YES" in final_text
+            save_result({"anomaly": anomaly, "summary": final_text})
+
+            if anomaly:
                 if _cooldown_active():
                     logger.info("Anomaly detected but SNS suppressed (cooldown 1h active).")
                 else:
@@ -274,7 +323,6 @@ def run_analysis() -> None:
 
         if stop_reason == "tool_use":
             messages.append({"role": "assistant", "content": content})
-
             tool_results = []
             for block in content:
                 if "toolUse" not in block:
@@ -293,3 +341,4 @@ def run_analysis() -> None:
         logger.warning("Analysis exceeded max rounds (10).")
 
     logger.info("=== AIOps analysis finished ===")
+    return anomaly
