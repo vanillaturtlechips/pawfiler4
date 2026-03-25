@@ -177,6 +177,18 @@ resource "helm_release" "argocd" {
           "--insecure"
         ]
       }
+      # dex: GitHub/Google 등 외부 SSO 연동 컴포넌트
+      # 현재 ArgoCD는 admin 계정 직접 로그인 방식 사용 중 → 불필요
+      # 비활성화 시 dex 파드 1개 제거
+      dex = {
+        enabled = false
+      }
+      # notifications: ArgoCD sync 성공/실패 이벤트를 Slack 등으로 알림 보내는 컴포넌트
+      # 현재 AIOps → SNS 별도 알림 파이프라인 사용 중 → 중복, 불필요
+      # 비활성화 시 notifications 파드 1개 제거
+      notifications = {
+        enabled = false
+      }
     })
   ]
 

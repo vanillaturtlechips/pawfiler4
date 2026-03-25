@@ -42,7 +42,7 @@ resource "aws_ecr_repository" "admin_service" {
   }
 }
 
-resource "aws_ecr_repository" "aiops" {
-  name = "${var.project_name}/aiops"
-  tags = { Name = "${var.project_name}-aiops-ecr" }
+resource "aws_ecr_repository" "aiops_service" {
+  name = "${var.project_name}/aiops-service"
+  tags = { Name = "${var.project_name}-aiops-service-ecr" }
 }
