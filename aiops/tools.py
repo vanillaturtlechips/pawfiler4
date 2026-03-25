@@ -5,6 +5,7 @@ import datetime
 import logging
 import os
 import time
+from typing import Optional
 
 import boto3
 import requests
@@ -30,6 +31,7 @@ SNS_TOPIC_ARN = os.environ.get(
     "SNS_TOPIC_ARN",
     "arn:aws:sns:ap-northeast-2:009946608368:pawfiler-aiops",
 )
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
 
 def _k8s() -> tuple[k8s_client.CoreV1Api, k8s_client.AppsV1Api]:
@@ -40,7 +42,7 @@ def _k8s() -> tuple[k8s_client.CoreV1Api, k8s_client.AppsV1Api]:
     return k8s_client.CoreV1Api(), k8s_client.AppsV1Api()
 
 
-def _query_prometheus(base_url: str, params: dict, headers: dict | None = None) -> list:
+def _query_prometheus(base_url: str, params: dict, headers: Optional[dict] = None) -> list:
     resp = requests.get(
         f"{base_url.rstrip('/')}/api/v1/query_range",
         params=params,
@@ -205,3 +207,42 @@ def send_sns_notification(subject: str, message: str) -> None:
         Message=message,
     )
     logger.info(f"SNS sent: {subject}")
+
+
+def send_slack_notification(subject: str, message: str) -> None:
+    """Slack Incoming Webhook 알림 전송. SLACK_WEBHOOK_URL 미설정 시 skip."""
+    if not SLACK_WEBHOOK_URL:
+        logger.debug("SLACK_WEBHOOK_URL not set, skipping Slack notification.")
+        return
+
+    # 요약 텍스트: 최대 2900자 (Slack 블록 텍스트 3000자 제한)
+    summary = message[:2900] + ("..." if len(message) > 2900 else "")
+    is_anomaly = "이상 감지" in subject
+
+    payload = {
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"{'🚨' if is_anomaly else '✅'} {subject}",
+                },
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"```{summary}```"},
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*pawfiler AIOps* · {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+                    }
+                ],
+            },
+        ]
+    }
+    resp = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=10)
+    resp.raise_for_status()
+    logger.info(f"Slack notification sent: {subject}")

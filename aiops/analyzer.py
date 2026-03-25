@@ -15,6 +15,7 @@ from tools import (
     get_pod_status,
     get_prometheus_metrics,
     restart_deployment,
+    send_slack_notification,
     send_sns_notification,
 )
 from store import save_result
@@ -310,14 +311,13 @@ def run_analysis() -> bool:
 
             if anomaly:
                 if _cooldown_active():
-                    logger.info("Anomaly detected but SNS suppressed (cooldown 1h active).")
+                    logger.info("Anomaly detected but notifications suppressed (cooldown 1h active).")
                 else:
-                    send_sns_notification(
-                        subject="[AIOps] pawfiler 클러스터 이상 감지",
-                        message=final_text,
-                    )
+                    subject = "[AIOps] pawfiler 클러스터 이상 감지"
+                    send_sns_notification(subject=subject, message=final_text)
+                    send_slack_notification(subject=subject, message=final_text)
                     _set_cooldown()
-                    logger.warning("Anomaly detected! SNS sent.")
+                    logger.warning("Anomaly detected! SNS + Slack sent.")
             else:
                 logger.info("Cluster healthy.")
             break
