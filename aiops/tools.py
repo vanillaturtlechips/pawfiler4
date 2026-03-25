@@ -21,7 +21,7 @@ AMP_ENDPOINT = os.environ.get(
     "https://aps-workspaces.ap-northeast-2.amazonaws.com/workspaces/ws-0f0a9920-3ba9-4e8e-98e0-d36bfc945836/",
 )
 PROMETHEUS_LOCAL = os.environ.get(
-    "PROMETHEUS_LOCAL", "http://prometheus-operated.monitoring:9090"
+    "PROMETHEUS_LOCAL", "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
 )
 LOKI_ENDPOINT = os.environ.get(
     "LOKI_ENDPOINT", "http://loki.monitoring.svc.cluster.local:3100"

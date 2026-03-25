@@ -224,7 +224,8 @@ def _exec_tool(name: str, tool_input: dict) -> str:
 async def ask_claude(question: str) -> str:
     """자유 질문을 Claude에게 전달, AMP/Loki/K8s 조회 후 답변 반환."""
     import asyncio
-    return await asyncio.get_event_loop().run_in_executor(None, _ask_claude_sync, question)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _ask_claude_sync, question)
 
 
 def _ask_claude_sync(question: str) -> str:
