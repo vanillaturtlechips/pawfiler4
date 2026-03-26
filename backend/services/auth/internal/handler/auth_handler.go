@@ -189,8 +189,8 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// user-service 프로필 초기화 (비동기)
-	go h.initUserProfile(sub, nickname)
+	// user-service 프로필 초기화 (동기) — 응답 전에 닉네임을 확정해야 GetProfile race condition 방지
+	h.initUserProfile(sub, nickname)
 
 	writeJSON(w, http.StatusCreated, authResp{
 		Token:        aws.ToString(authResult.AuthenticationResult.AccessToken),
