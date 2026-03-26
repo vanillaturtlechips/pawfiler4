@@ -2,6 +2,14 @@ syntax = "proto3";
 
 package community;
 
+// pb 재생성 명령어:
+// protoc --go_out=pb --go_opt=paths=source_relative \
+//        --go-grpc_out=pb --go-grpc_opt=paths=source_relative \
+//        --grpc-gateway_out=pb --grpc-gateway_opt=paths=source_relative \
+//        -I proto \
+//        -I "$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.16.0/third_party/googleapis" \
+//        proto/community.proto
+
 import "google/api/annotations.proto";
 
 option go_package = "community/pb";
@@ -54,12 +62,6 @@ service CommunityService {
   }
   rpc SyncAuthorNickname(SyncAuthorNicknameRequest) returns (SyncAuthorNicknameResponse) {
     option (google.api.http) = { post: "/community.CommunityService/SyncAuthorNickname" body: "*" };
-  }
-  rpc GetNotices(GetNoticesRequest) returns (NoticesResponse) {
-    option (google.api.http) = { post: "/community.CommunityService/GetNotices" body: "*" };
-  }
-  rpc GetTopDetective(GetTopDetectiveRequest) returns (TopDetectiveResponse) {
-    option (google.api.http) = { post: "/community.CommunityService/GetTopDetective" body: "*" };
   }
   rpc GetRanking(GetRankingRequest) returns (GetRankingResponse) {
     option (google.api.http) = { post: "/community.CommunityService/GetRanking" body: "*" };
