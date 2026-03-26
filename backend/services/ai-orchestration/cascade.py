@@ -37,7 +37,7 @@ class XGBoostGate:
         - confidence < threshold → Deep Path로 넘김 (confident=False)
     """
 
-    CONFIDENCE_THRESHOLD = 0.85  # 테스트: 항상 deep path (confidence는 최대 1.0)
+    CONFIDENCE_THRESHOLD = 0.20  # Real 기피증 해결: 낮춰서 DL 검토 기회 확대
 
     def __init__(self, model_path: str = "/mnt/efs/models/models/xgboost_cascade.pkl"):
         self.model_path = model_path
