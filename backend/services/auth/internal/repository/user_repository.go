@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // User represents a registered user in the auth schema.
@@ -76,13 +74,3 @@ func (r *UserRepository) CreateUserWithCognitoSub(ctx context.Context, cognitoSu
 	return err
 }
 
-// HashPassword returns a bcrypt hash of the plaintext password.
-func HashPassword(password string) (string, error) {
-	b, err := bcrypt.GenerateFromPassword([]byte(password), 8)
-	return string(b), err
-}
-
-// CheckPassword reports whether the given plaintext password matches the hash.
-func CheckPassword(hash, password string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
-}
