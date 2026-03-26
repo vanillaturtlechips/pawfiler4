@@ -329,7 +329,7 @@ func (h *Handler) initUserProfile(userID, nickname string) {
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 	}
-	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID) for user %s after 3 attempts", userID)
+	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID)
 }
 
 // splitCSV splits a comma-separated string and trims whitespace from each element.
