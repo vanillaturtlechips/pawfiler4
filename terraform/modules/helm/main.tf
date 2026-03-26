@@ -215,6 +215,12 @@ resource "helm_release" "kubecost" {
   }
 
   # AWS 비용 데이터 연동
+  # provider 설정 없으면 기본값 $0.01로 고정됨 (AWS 가격 API 미사용)
+  set {
+    name  = "kubecostProductConfigs.provider"
+    value = "AWS"
+  }
+
   set {
     name  = "kubecostProductConfigs.clusterName"
     value = var.cluster_name
@@ -223,6 +229,22 @@ resource "helm_release" "kubecost" {
   set {
     name  = "kubecostProductConfigs.awsSpotDataRegion"
     value = var.aws_region
+  }
+
+  set {
+    name  = "kubecostProductConfigs.region"
+    value = var.aws_region
+  }
+
+  # Karpenter 스팟 노드 식별 (karpenter.sh/capacity-type=spot)
+  set {
+    name  = "kubecostProductConfigs.spotLabel"
+    value = "karpenter.sh/capacity-type"
+  }
+
+  set {
+    name  = "kubecostProductConfigs.spotLabelValue"
+    value = "spot"
   }
 
   # IRSA ServiceAccount
