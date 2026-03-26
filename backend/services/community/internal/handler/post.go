@@ -117,6 +117,15 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		posts = append(posts, &post)
 	}
 
+	// Redis likes 일괄 반영
+	if h.rdb != nil {
+		for _, p := range posts {
+			if val, err := h.rdb.Get(ctx, "likes:"+p.Id).Int64(); err == nil {
+				p.Likes = int32(val)
+			}
+		}
+	}
+
 	return &pb.FeedResponse{
 		Posts:      posts,
 		TotalCount: totalCount,
@@ -155,6 +164,13 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	post.MediaType = mediaType.String
 	if isCorrect.Valid {
 		post.IsCorrect = &isCorrect.Bool
+	}
+
+	// Redis에 likes 캐시 있으면 덮어씀
+	if h.rdb != nil {
+		if val, err := h.rdb.Get(ctx, "likes:"+post.Id).Int64(); err == nil {
+			post.Likes = int32(val)
+		}
 	}
 	return &post, nil
 }
@@ -292,6 +308,11 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "Failed to commit transaction")
+	}
+
+	// Redis likes 키 삭제
+	if h.rdb != nil {
+		h.rdb.Del(context.Background(), "likes:"+req.PostId)
 	}
 
 	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
