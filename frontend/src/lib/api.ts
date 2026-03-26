@@ -989,7 +989,7 @@ export interface ApiKeyItem {
   key?: string; // 생성 직후에만 존재
 }
 
-const VIDEO_ANALYSIS_REST = config.apiBaseUrl.replace('/api', '') + ':8080';
+const VIDEO_ANALYSIS_REST = config.apiBaseUrl;
 
 export const fetchAnalysisHistory = async (userId: string): Promise<AnalysisHistoryItem[]> => {
   try {
