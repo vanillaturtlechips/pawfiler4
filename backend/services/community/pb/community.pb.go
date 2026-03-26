@@ -2422,6 +2422,82 @@ func (x *GetRankingResponse) GetEntries() []*RankingEntry {
 	return nil
 }
 
+type CreateAdminPostRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Body          string                 `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
+	Tags          []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
+	IsCorrect     *bool                  `protobuf:"varint,5,opt,name=is_correct,json=isCorrect,proto3,oneof" json:"is_correct,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAdminPostRequest) Reset() {
+	*x = CreateAdminPostRequest{}
+	mi := &file_community_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAdminPostRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAdminPostRequest) ProtoMessage() {}
+
+func (x *CreateAdminPostRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_community_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAdminPostRequest.ProtoReflect.Descriptor instead.
+func (*CreateAdminPostRequest) Descriptor() ([]byte, []int) {
+	return file_community_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *CreateAdminPostRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateAdminPostRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *CreateAdminPostRequest) GetBody() string {
+	if x != nil {
+		return x.Body
+	}
+	return ""
+}
+
+func (x *CreateAdminPostRequest) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *CreateAdminPostRequest) GetIsCorrect() bool {
+	if x != nil && x.IsCorrect != nil {
+		return *x.IsCorrect
+	}
+	return false
+}
+
 var File_community_proto protoreflect.FileDescriptor
 
 const file_community_proto_rawDesc = "" +
@@ -2597,7 +2673,7 @@ const file_community_proto_rawDesc = "" +
 	"\x03tag\x18\x01 \x01(\tR\x03tag\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\",\n" +
 	"\x11GetRankingRequest\x12\x17\n" +
-	"\asort_by\x18\x01 \x01(\tR\x06sortBy\"\xfb\x01\n" +
+	"\asort_by\x18\x01 \x01(\tR\x06sortBy\"\x91\x02\n" +
 	"\fRankingEntry\x12\x12\n" +
 	"\x04rank\x18\x01 \x01(\x05R\x04rank\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1a\n" +
@@ -2607,9 +2683,18 @@ const file_community_proto_rawDesc = "" +
 	"\x0etotal_answered\x18\x06 \x01(\x05R\rtotalAnswered\x12'\n" +
 	"\x0fcorrect_answers\x18\a \x01(\x05R\x0ecorrectAnswers\x12\x1f\n" +
 	"\vtotal_coins\x18\b \x01(\x05R\n" +
-	"totalCoins\"G\n" +
+	"totalCoins\x12\x14\n" +
+	"\x05level\x18\t \x01(\x05R\x05level\"G\n" +
 	"\x12GetRankingResponse\x121\n" +
-	"\aentries\x18\x01 \x03(\v2\x17.community.RankingEntryR\aentries2\xdc\x13\n" +
+	"\aentries\x18\x01 \x03(\v2\x17.community.RankingEntryR\aentries\"\xa2\x01\n" +
+	"\x16CreateAdminPostRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x12\n" +
+	"\x04body\x18\x03 \x01(\tR\x04body\x12\x12\n" +
+	"\x04tags\x18\x04 \x03(\tR\x04tags\x12\"\n" +
+	"\n" +
+	"is_correct\x18\x05 \x01(\bH\x00R\tisCorrect\x88\x01\x01B\r\n" +
+	"\v_is_correct2\xd0\x12\n" +
 	"\x10CommunityService\x12m\n" +
 	"\aGetFeed\x12\x19.community.GetFeedRequest\x1a\x17.community.FeedResponse\".\x82\xd3\xe4\x93\x02(:\x01*\"#/community.CommunityService/GetFeed\x12e\n" +
 	"\aGetPost\x12\x19.community.GetPostRequest\x1a\x0f.community.Post\".\x82\xd3\xe4\x93\x02(:\x01*\"#/community.CommunityService/GetPost\x12n\n" +
@@ -2630,13 +2715,11 @@ const file_community_proto_rawDesc = "" +
 	"\rGetVoteResult\x12\x1f.community.GetVoteResultRequest\x1a\x15.community.VoteResult\"4\x82\xd3\xe4\x93\x02.:\x01*\")/community.CommunityService/GetVoteResult\x12\x80\x01\n" +
 	"\vGetUserVote\x12\x1d.community.GetUserVoteRequest\x1a\x1e.community.GetUserVoteResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/GetUserVote\x12\x80\x01\n" +
 	"\vUploadMedia\x12\x1d.community.UploadMediaRequest\x1a\x1e.community.UploadMediaResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/UploadMedia\x12\x9c\x01\n" +
-	"\x12SyncAuthorNickname\x12$.community.SyncAuthorNicknameRequest\x1a%.community.SyncAuthorNicknameResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./community.CommunityService/SyncAuthorNickname\x12y\n" +
-	"\n" +
-	"GetNotices\x12\x1c.community.GetNoticesRequest\x1a\x1a.community.NoticesResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/community.CommunityService/GetNotices\x12\x8d\x01\n" +
-	"\x0fGetTopDetective\x12!.community.GetTopDetectiveRequest\x1a\x1f.community.TopDetectiveResponse\"6\x82\xd3\xe4\x93\x020:\x01*\"+/community.CommunityService/GetTopDetective\x12|\n" +
+	"\x12SyncAuthorNickname\x12$.community.SyncAuthorNicknameRequest\x1a%.community.SyncAuthorNicknameResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./community.CommunityService/SyncAuthorNickname\x12|\n" +
 	"\n" +
 	"GetRanking\x12\x1c.community.GetRankingRequest\x1a\x1d.community.GetRankingResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/community.CommunityService/GetRanking\x12}\n" +
-	"\vGetHotTopic\x12\x1d.community.GetHotTopicRequest\x1a\x1b.community.HotTopicResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/GetHotTopicB\x0eZ\fcommunity/pbb\x06proto3"
+	"\vGetHotTopic\x12\x1d.community.GetHotTopicRequest\x1a\x1b.community.HotTopicResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/GetHotTopic\x12}\n" +
+	"\x0fCreateAdminPost\x12!.community.CreateAdminPostRequest\x1a\x0f.community.Post\"6\x82\xd3\xe4\x93\x020:\x01*\"+/community.CommunityService/CreateAdminPostB\x0eZ\fcommunity/pbb\x06proto3"
 
 var (
 	file_community_proto_rawDescOnce sync.Once
@@ -2650,7 +2733,7 @@ func file_community_proto_rawDescGZIP() []byte {
 	return file_community_proto_rawDescData
 }
 
-var file_community_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_community_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_community_proto_goTypes = []any{
 	(*Post)(nil),                       // 0: community.Post
 	(*GetFeedRequest)(nil),             // 1: community.GetFeedRequest
@@ -2692,6 +2775,7 @@ var file_community_proto_goTypes = []any{
 	(*GetRankingRequest)(nil),          // 37: community.GetRankingRequest
 	(*RankingEntry)(nil),               // 38: community.RankingEntry
 	(*GetRankingResponse)(nil),         // 39: community.GetRankingResponse
+	(*CreateAdminPostRequest)(nil),     // 40: community.CreateAdminPostRequest
 }
 var file_community_proto_depIdxs = []int32{
 	0,  // 0: community.FeedResponse.posts:type_name -> community.Post
@@ -2714,32 +2798,30 @@ var file_community_proto_depIdxs = []int32{
 	24, // 17: community.CommunityService.GetUserVote:input_type -> community.GetUserVoteRequest
 	26, // 18: community.CommunityService.UploadMedia:input_type -> community.UploadMediaRequest
 	28, // 19: community.CommunityService.SyncAuthorNickname:input_type -> community.SyncAuthorNicknameRequest
-	30, // 20: community.CommunityService.GetNotices:input_type -> community.GetNoticesRequest
-	33, // 21: community.CommunityService.GetTopDetective:input_type -> community.GetTopDetectiveRequest
-	37, // 22: community.CommunityService.GetRanking:input_type -> community.GetRankingRequest
-	35, // 23: community.CommunityService.GetHotTopic:input_type -> community.GetHotTopicRequest
-	2,  // 24: community.CommunityService.GetFeed:output_type -> community.FeedResponse
-	0,  // 25: community.CommunityService.GetPost:output_type -> community.Post
-	0,  // 26: community.CommunityService.CreatePost:output_type -> community.Post
-	0,  // 27: community.CommunityService.UpdatePost:output_type -> community.Post
-	7,  // 28: community.CommunityService.DeletePost:output_type -> community.DeletePostResponse
-	10, // 29: community.CommunityService.GetComments:output_type -> community.CommentsResponse
-	8,  // 30: community.CommunityService.CreateComment:output_type -> community.Comment
-	13, // 31: community.CommunityService.DeleteComment:output_type -> community.DeleteCommentResponse
-	15, // 32: community.CommunityService.LikePost:output_type -> community.LikePostResponse
-	17, // 33: community.CommunityService.UnlikePost:output_type -> community.UnlikePostResponse
-	19, // 34: community.CommunityService.CheckLike:output_type -> community.CheckLikeResponse
-	21, // 35: community.CommunityService.VotePost:output_type -> community.VotePostResponse
-	23, // 36: community.CommunityService.GetVoteResult:output_type -> community.VoteResult
-	25, // 37: community.CommunityService.GetUserVote:output_type -> community.GetUserVoteResponse
-	27, // 38: community.CommunityService.UploadMedia:output_type -> community.UploadMediaResponse
-	29, // 39: community.CommunityService.SyncAuthorNickname:output_type -> community.SyncAuthorNicknameResponse
-	32, // 40: community.CommunityService.GetNotices:output_type -> community.NoticesResponse
-	34, // 41: community.CommunityService.GetTopDetective:output_type -> community.TopDetectiveResponse
-	39, // 42: community.CommunityService.GetRanking:output_type -> community.GetRankingResponse
-	36, // 43: community.CommunityService.GetHotTopic:output_type -> community.HotTopicResponse
-	24, // [24:44] is the sub-list for method output_type
-	4,  // [4:24] is the sub-list for method input_type
+	37, // 20: community.CommunityService.GetRanking:input_type -> community.GetRankingRequest
+	35, // 21: community.CommunityService.GetHotTopic:input_type -> community.GetHotTopicRequest
+	40, // 22: community.CommunityService.CreateAdminPost:input_type -> community.CreateAdminPostRequest
+	2,  // 23: community.CommunityService.GetFeed:output_type -> community.FeedResponse
+	0,  // 24: community.CommunityService.GetPost:output_type -> community.Post
+	0,  // 25: community.CommunityService.CreatePost:output_type -> community.Post
+	0,  // 26: community.CommunityService.UpdatePost:output_type -> community.Post
+	7,  // 27: community.CommunityService.DeletePost:output_type -> community.DeletePostResponse
+	10, // 28: community.CommunityService.GetComments:output_type -> community.CommentsResponse
+	8,  // 29: community.CommunityService.CreateComment:output_type -> community.Comment
+	13, // 30: community.CommunityService.DeleteComment:output_type -> community.DeleteCommentResponse
+	15, // 31: community.CommunityService.LikePost:output_type -> community.LikePostResponse
+	17, // 32: community.CommunityService.UnlikePost:output_type -> community.UnlikePostResponse
+	19, // 33: community.CommunityService.CheckLike:output_type -> community.CheckLikeResponse
+	21, // 34: community.CommunityService.VotePost:output_type -> community.VotePostResponse
+	23, // 35: community.CommunityService.GetVoteResult:output_type -> community.VoteResult
+	25, // 36: community.CommunityService.GetUserVote:output_type -> community.GetUserVoteResponse
+	27, // 37: community.CommunityService.UploadMedia:output_type -> community.UploadMediaResponse
+	29, // 38: community.CommunityService.SyncAuthorNickname:output_type -> community.SyncAuthorNicknameResponse
+	39, // 39: community.CommunityService.GetRanking:output_type -> community.GetRankingResponse
+	36, // 40: community.CommunityService.GetHotTopic:output_type -> community.HotTopicResponse
+	0,  // 41: community.CommunityService.CreateAdminPost:output_type -> community.Post
+	23, // [23:42] is the sub-list for method output_type
+	4,  // [4:23] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -2752,13 +2834,14 @@ func file_community_proto_init() {
 	}
 	file_community_proto_msgTypes[0].OneofWrappers = []any{}
 	file_community_proto_msgTypes[4].OneofWrappers = []any{}
+	file_community_proto_msgTypes[40].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_community_proto_rawDesc), len(file_community_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   40,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

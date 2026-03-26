@@ -35,8 +35,6 @@ const (
 	CommunityService_GetUserVote_FullMethodName        = "/community.CommunityService/GetUserVote"
 	CommunityService_UploadMedia_FullMethodName        = "/community.CommunityService/UploadMedia"
 	CommunityService_SyncAuthorNickname_FullMethodName = "/community.CommunityService/SyncAuthorNickname"
-	CommunityService_GetNotices_FullMethodName         = "/community.CommunityService/GetNotices"
-	CommunityService_GetTopDetective_FullMethodName    = "/community.CommunityService/GetTopDetective"
 	CommunityService_GetRanking_FullMethodName         = "/community.CommunityService/GetRanking"
 	CommunityService_GetHotTopic_FullMethodName        = "/community.CommunityService/GetHotTopic"
 	CommunityService_CreateAdminPost_FullMethodName    = "/community.CommunityService/CreateAdminPost"
@@ -62,8 +60,6 @@ type CommunityServiceClient interface {
 	GetUserVote(ctx context.Context, in *GetUserVoteRequest, opts ...grpc.CallOption) (*GetUserVoteResponse, error)
 	UploadMedia(ctx context.Context, in *UploadMediaRequest, opts ...grpc.CallOption) (*UploadMediaResponse, error)
 	SyncAuthorNickname(ctx context.Context, in *SyncAuthorNicknameRequest, opts ...grpc.CallOption) (*SyncAuthorNicknameResponse, error)
-	GetNotices(ctx context.Context, in *GetNoticesRequest, opts ...grpc.CallOption) (*NoticesResponse, error)
-	GetTopDetective(ctx context.Context, in *GetTopDetectiveRequest, opts ...grpc.CallOption) (*TopDetectiveResponse, error)
 	GetRanking(ctx context.Context, in *GetRankingRequest, opts ...grpc.CallOption) (*GetRankingResponse, error)
 	GetHotTopic(ctx context.Context, in *GetHotTopicRequest, opts ...grpc.CallOption) (*HotTopicResponse, error)
 	CreateAdminPost(ctx context.Context, in *CreateAdminPostRequest, opts ...grpc.CallOption) (*Post, error)
@@ -237,26 +233,6 @@ func (c *communityServiceClient) SyncAuthorNickname(ctx context.Context, in *Syn
 	return out, nil
 }
 
-func (c *communityServiceClient) GetNotices(ctx context.Context, in *GetNoticesRequest, opts ...grpc.CallOption) (*NoticesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(NoticesResponse)
-	err := c.cc.Invoke(ctx, CommunityService_GetNotices_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *communityServiceClient) GetTopDetective(ctx context.Context, in *GetTopDetectiveRequest, opts ...grpc.CallOption) (*TopDetectiveResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(TopDetectiveResponse)
-	err := c.cc.Invoke(ctx, CommunityService_GetTopDetective_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *communityServiceClient) GetRanking(ctx context.Context, in *GetRankingRequest, opts ...grpc.CallOption) (*GetRankingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetRankingResponse)
@@ -307,8 +283,6 @@ type CommunityServiceServer interface {
 	GetUserVote(context.Context, *GetUserVoteRequest) (*GetUserVoteResponse, error)
 	UploadMedia(context.Context, *UploadMediaRequest) (*UploadMediaResponse, error)
 	SyncAuthorNickname(context.Context, *SyncAuthorNicknameRequest) (*SyncAuthorNicknameResponse, error)
-	GetNotices(context.Context, *GetNoticesRequest) (*NoticesResponse, error)
-	GetTopDetective(context.Context, *GetTopDetectiveRequest) (*TopDetectiveResponse, error)
 	GetRanking(context.Context, *GetRankingRequest) (*GetRankingResponse, error)
 	GetHotTopic(context.Context, *GetHotTopicRequest) (*HotTopicResponse, error)
 	CreateAdminPost(context.Context, *CreateAdminPostRequest) (*Post, error)
@@ -369,12 +343,6 @@ func (UnimplementedCommunityServiceServer) UploadMedia(context.Context, *UploadM
 }
 func (UnimplementedCommunityServiceServer) SyncAuthorNickname(context.Context, *SyncAuthorNicknameRequest) (*SyncAuthorNicknameResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncAuthorNickname not implemented")
-}
-func (UnimplementedCommunityServiceServer) GetNotices(context.Context, *GetNoticesRequest) (*NoticesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetNotices not implemented")
-}
-func (UnimplementedCommunityServiceServer) GetTopDetective(context.Context, *GetTopDetectiveRequest) (*TopDetectiveResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetTopDetective not implemented")
 }
 func (UnimplementedCommunityServiceServer) GetRanking(context.Context, *GetRankingRequest) (*GetRankingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRanking not implemented")
@@ -694,42 +662,6 @@ func _CommunityService_SyncAuthorNickname_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CommunityService_GetNotices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNoticesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CommunityServiceServer).GetNotices(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CommunityService_GetNotices_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CommunityServiceServer).GetNotices(ctx, req.(*GetNoticesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _CommunityService_GetTopDetective_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTopDetectiveRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CommunityServiceServer).GetTopDetective(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CommunityService_GetTopDetective_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CommunityServiceServer).GetTopDetective(ctx, req.(*GetTopDetectiveRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _CommunityService_GetRanking_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetRankingRequest)
 	if err := dec(in); err != nil {
@@ -854,14 +786,6 @@ var CommunityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncAuthorNickname",
 			Handler:    _CommunityService_SyncAuthorNickname_Handler,
-		},
-		{
-			MethodName: "GetNotices",
-			Handler:    _CommunityService_GetNotices_Handler,
-		},
-		{
-			MethodName: "GetTopDetective",
-			Handler:    _CommunityService_GetTopDetective_Handler,
 		},
 		{
 			MethodName: "GetRanking",

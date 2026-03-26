@@ -24,17 +24,24 @@ type rankingCacheEntry struct {
 	expiresAt time.Time
 }
 
+type hotTopicCacheEntry struct {
+	data      *pb.HotTopicResponse
+	expiresAt time.Time
+}
+
 // Handler - gRPC 핸들러 구조체
 type Handler struct {
 	pb.UnimplementedCommunityServiceServer
-	db             *sql.DB
-	userClient     *userclient.Client
-	s3             *s3.Client
-	s3Bucket       string
-	s3Region       string
-	cfDomain       string
-	rankingCache   *rankingCacheEntry
-	rankingCacheMu sync.RWMutex
+	db              *sql.DB
+	userClient      *userclient.Client
+	s3              *s3.Client
+	s3Bucket        string
+	s3Region        string
+	cfDomain        string
+	rankingCache    *rankingCacheEntry
+	rankingCacheMu  sync.RWMutex
+	hotTopicCache   *hotTopicCacheEntry
+	hotTopicCacheMu sync.RWMutex
 }
 
 // NewHandler - 핸들러 생성
