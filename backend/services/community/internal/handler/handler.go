@@ -161,19 +161,28 @@ func (h *Handler) startLikeSyncBatch() {
 
 func (h *Handler) syncLikesToDB() {
 	ctx := context.Background()
-	keys, err := h.rdb.Keys(ctx, "likes:*").Result()
-	if err != nil || len(keys) == 0 {
-		return
-	}
-	for _, key := range keys {
-		val, err := h.rdb.Get(ctx, key).Int64()
+
+	// KEYS 대신 SCAN — KEYS는 전체 키스페이스를 블로킹 스캔하므로 프로덕션에서 위험
+	var cursor uint64
+	for {
+		keys, nextCursor, err := h.rdb.Scan(ctx, cursor, "likes:*", 100).Result()
 		if err != nil {
-			continue
+			log.Printf("[ERROR] likes sync scan failed: %v", err)
+			return
 		}
-		postID := strings.TrimPrefix(key, "likes:")
-		_, err = h.db.ExecContext(ctx, "UPDATE community.posts SET likes = $1 WHERE id = $2", val, postID)
-		if err != nil {
-			log.Printf("[ERROR] likes sync failed for %s: %v", postID, err)
+		for _, key := range keys {
+			val, err := h.rdb.Get(ctx, key).Int64()
+			if err != nil {
+				continue
+			}
+			postID := strings.TrimPrefix(key, "likes:")
+			if _, err = h.db.ExecContext(ctx, "UPDATE community.posts SET likes = $1 WHERE id = $2", val, postID); err != nil {
+				log.Printf("[ERROR] likes sync failed for %s: %v", postID, err)
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
 		}
 	}
 }

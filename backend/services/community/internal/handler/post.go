@@ -117,11 +117,22 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		posts = append(posts, &post)
 	}
 
-	// Redis likes 일괄 반영
-	if h.rdb != nil {
-		for _, p := range posts {
-			if val, err := h.rdb.Get(ctx, "likes:"+p.Id).Int64(); err == nil {
-				p.Likes = int32(val)
+	// Redis likes 일괄 반영 — MGet으로 한 번에 조회 (N+1 방지)
+	if h.rdb != nil && len(posts) > 0 {
+		keys := make([]string, len(posts))
+		for i, p := range posts {
+			keys[i] = "likes:" + p.Id
+		}
+		vals, err := h.rdb.MGet(ctx, keys...).Result()
+		if err == nil {
+			for i, v := range vals {
+				if v != nil {
+					if s, ok := v.(string); ok {
+						var n int64
+						fmt.Sscanf(s, "%d", &n)
+						posts[i].Likes = int32(n)
+					}
+				}
 			}
 		}
 	}
