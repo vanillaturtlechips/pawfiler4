@@ -30,9 +30,9 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 	// $1=uuid, $2=text(닉네임 prefix용)로 타입 분리하여 pq 타입 추론 충돌 방지
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
-		VALUES ($1::uuid, '탐정_' || UPPER(SUBSTRING($2, 1, 8)), '🦊', NOW())
+		VALUES ($1::uuid, '탐정', '🦊', NOW())
 		ON CONFLICT (user_id) DO NOTHING
-	`, userID, userID); err != nil {
+	`, userID); err != nil {
 		log.Printf("[GetProfile] preferences auto-insert failed for %s: %v", userID, err)
 	}
 
