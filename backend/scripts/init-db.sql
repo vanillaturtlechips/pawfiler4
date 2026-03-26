@@ -152,6 +152,15 @@ CREATE INDEX idx_comments_post_id ON community.comments(post_id);
 CREATE INDEX idx_likes_post_id ON community.likes(post_id);
 CREATE INDEX idx_post_votes_post_id ON community.post_votes(post_id);
 
+CREATE TABLE community.media_uploads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    media_url TEXT NOT NULL,
+    media_type VARCHAR(10) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT NOW(),
+    linked BOOLEAN NOT NULL DEFAULT false
+);
+CREATE INDEX idx_media_uploads_linked_at ON community.media_uploads(linked, uploaded_at);
+
 -- Video Analysis Service Schema
 CREATE SCHEMA IF NOT EXISTS video_analysis;
 
