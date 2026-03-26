@@ -296,14 +296,15 @@ def build_app():
         5. MetricsCollector — Prometheus 수집
         6. Orchestrator — 위 모든 것을 조합
     """
+    import os
+    model_dir = os.environ.get("MODEL_DIR", "/home/user/Documents/finalproject/pawfiler4/backend/services/ai-orchestration/efs_models")
+
     # Layer 1: GPU 싱글톤
-    model_worker = SharedModelWorker.bind(
-        model_dir="/mnt/efs/models/models",
-    )
+    model_worker = SharedModelWorker.bind(model_dir=model_dir)
 
     # Cascade Gate (CPU)
     cascade_gate = XGBoostGate.bind(
-        model_path="/mnt/efs/models/models/xgboost_cascade.pkl",
+        model_path=os.path.join(model_dir, "xgboost_cascade.pkl"),
     )
 
     # Layer 2: 논리적 에이전트 (model_worker handle 주입)

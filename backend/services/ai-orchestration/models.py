@@ -107,23 +107,27 @@ class SyncNet(nn.Module):
 
 class VideoModel(nn.Module):
     """
-    문서 §5-1의 VideoAgent 아키텍처.
-    Backbone → LSTM → Classification Head
-    
+    VideoAgent 아키텍처 (2026-03-26 업데이트)
+    tf_efficientnet_b4 → LSTM(512) → Head(512→256→NUM_CLASSES)
+
     입력: (B, T, C, H, W) — T개 프레임의 배치
-    출력: (B, NUM_CLASSES) logits + (B, feature_dim) features
+    출력: (B, NUM_CLASSES) logits + (B, 256) features
     """
 
-    def __init__(self, backbone_name: str = "mobilevitv2_100", feature_dim: int = 256):
+    def __init__(self, backbone_name: str = "tf_efficientnet_b4", lstm_hidden: int = 512):
         super().__init__()
-        # timm 기반 backbone (pretrained=False — 학습된 가중치는 체크포인트에서 로드)
         import timm
         self.backbone = timm.create_model(backbone_name, pretrained=False, num_classes=0)
-        backbone_out = self.backbone.num_features
+        backbone_out = self.backbone.num_features  # tf_efficientnet_b4: 1792
 
-        self.lstm = nn.LSTM(backbone_out, feature_dim, batch_first=True)
-        self.head = nn.Linear(feature_dim, NUM_CLASSES)
-        self.feature_dim = feature_dim
+        self.lstm = nn.LSTM(backbone_out, lstm_hidden, num_layers=1, batch_first=True)
+        self.head = nn.Sequential(
+            nn.Linear(lstm_hidden, 256),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, NUM_CLASSES),
+        )
+        self.feature_dim = 256
 
     def forward(self, frames: torch.Tensor):
         """
@@ -131,20 +135,18 @@ class VideoModel(nn.Module):
             frames: (B, T, C, H, W)
         Returns:
             logits: (B, NUM_CLASSES)
-            features: (B, feature_dim) — Fusion에서 사용
+            features: (B, 256) — Fusion에서 사용
         """
         B, T, C, H, W = frames.shape
-        # Backbone: 프레임별 특징 추출
         x = frames.view(B * T, C, H, W)
-        feats = self.backbone(x)  # (B*T, backbone_out)
-        feats = feats.view(B, T, -1)  # (B, T, backbone_out)
+        feats = self.backbone(x).view(B, T, -1)
 
-        # LSTM: 시간 축 요약
-        _, (h, _) = self.lstm(feats)  # h: (1, B, feature_dim)
-        h = h.squeeze(0)  # (B, feature_dim)
+        _, (h, _) = self.lstm(feats)
+        h = h.squeeze(0)  # (B, lstm_hidden)
 
-        logits = self.head(h)  # (B, NUM_CLASSES)
-        return logits, h  # h를 feature로 반환 (Fusion용)
+        logits = self.head(h)
+        features = self.head[:-1](h) if hasattr(self.head, '__iter__') else h  # Linear(512,256) 출력
+        return logits, features
 
 
 # ============================================================
@@ -277,7 +279,7 @@ class SharedModelWorker:
     # ── Private: 모델 로드 ──
 
     def _load_video_model(self) -> VideoModel:
-        model = VideoModel(backbone_name="efficientnet_b4")
+        model = VideoModel(backbone_name="tf_efficientnet_b4", lstm_hidden=512)
         ckpt_path = self.model_dir / "video_backbone.pt"
         if ckpt_path.exists():
             checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
