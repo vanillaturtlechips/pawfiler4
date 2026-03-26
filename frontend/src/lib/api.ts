@@ -154,11 +154,9 @@ const request = async <T>(
         } catch {
           message = body || `HTTP ${res.status}`;
         }
-        // 409: 이미 가입된 이메일
-        if (res.status === 409) {
-          throw new Error("이미 사용 중인 이메일입니다.");
-        }
-        const err = new Error(message);
+        const err = new Error(
+          res.status === 409 ? "이미 사용 중인 이메일입니다." : message
+        );
         (err as any).status = res.status;
         throw err;
       }
@@ -989,7 +987,7 @@ export interface ApiKeyItem {
   key?: string; // 생성 직후에만 존재
 }
 
-const VIDEO_ANALYSIS_REST = config.apiBaseUrl.replace('/api', '') + ':8080';
+const VIDEO_ANALYSIS_REST = config.apiBaseUrl;
 
 export const fetchAnalysisHistory = async (userId: string): Promise<AnalysisHistoryItem[]> => {
   try {

@@ -41,24 +41,28 @@ func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash, ni
 // GetUserByEmail looks up a user by email address; returns nil, nil when not found.
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	var u User
+	var passwordHash sql.NullString
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, created_at FROM auth.users WHERE email = $1`, email,
-	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &passwordHash, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
+	u.PasswordHash = passwordHash.String
 	return &u, err
 }
 
 // GetUserByID looks up a user by primary key; returns nil, nil when not found.
 func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, error) {
 	var u User
+	var passwordHash sql.NullString
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, created_at FROM auth.users WHERE id = $1`, id,
-	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &passwordHash, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
+	u.PasswordHash = passwordHash.String
 	return &u, err
 }
 

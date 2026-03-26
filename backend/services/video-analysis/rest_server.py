@@ -15,6 +15,7 @@ import hashlib
 import logging
 import threading
 import secrets
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import httpx
@@ -39,8 +40,13 @@ FREE_MONTHLY_QUOTA = 5
 ANALYSIS_COST_COINS = 10  # 무료 횟수 초과 시 코인 차감
 
 
+@contextmanager
 def get_db():
-    return psycopg2.connect(DB_DSN, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = psycopg2.connect(DB_DSN, cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def get_redis():
