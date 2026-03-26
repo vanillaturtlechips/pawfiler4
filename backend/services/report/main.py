@@ -7,7 +7,6 @@ PawFiler 딥페이크 탐지 역량 리포트 v2
 """
 import os, io, json, math, subprocess
 import numpy as np
-from scipy.ndimage import gaussian_filter
 from datetime import datetime
 from typing import Optional
 import matplotlib
@@ -16,9 +15,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.font_manager import FontProperties
 
-_F_REG  = "/usr/share/fonts/NotoSansCJK.ttc"
-_F_BOLD = "/usr/share/fonts/NotoSansCJK.ttc"
-_F_MED  = "/usr/share/fonts/NotoSansCJK.ttc"
+_F_REG  = "/usr/share/fonts/NotoSansCJKkr-Regular.otf"
+_F_BOLD = "/usr/share/fonts/NotoSansCJKkr-Regular.otf"
+_F_MED  = "/usr/share/fonts/NotoSansCJKkr-Regular.otf"
 
 def _fp(path, fallback=None):
     p = path if os.path.exists(path) else (fallback or path)
@@ -48,24 +47,7 @@ def _b64(buf):
     buf.seek(0)
     return 'data:image/png;base64,' + base64.b64encode(buf.read()).decode()
 
-def make_parchment_bg(w=794, h=1123):
-    rng = np.random.default_rng(42)
-    base = np.ones((h, w, 3))
-    base[:,:,0]=0.996; base[:,:,1]=0.976; base[:,:,2]=0.941
-    noise = gaussian_filter(rng.normal(0,0.014,(h,w)), sigma=1.2)
-    for c,f in enumerate([0.55,0.45,0.35]):
-        base[:,:,c] = np.clip(base[:,:,c]+noise*f,0,1)
-    ys,xs = np.mgrid[0:h,0:w]
-    dist = np.sqrt(((xs-w/2)/(w*0.55))**2+((ys-h/2)/(h*0.55))**2)
-    edge = gaussian_filter(np.clip(dist-0.55,0,1)*1.5, sigma=50)
-    for c,d in enumerate([0.82,0.74,0.62]):
-        base[:,:,c] = base[:,:,c]*(1-edge*0.18)+d*edge*0.18
-    grain = np.tile(gaussian_filter(rng.normal(0,0.005,(h,1)),sigma=[0,1]),(1,w))
-    for c in range(3): base[:,:,c]=np.clip(base[:,:,c]+grain*0.25,0,1)
-    fig,ax = plt.subplots(figsize=(w/100,h/100),dpi=100)
-    ax.imshow(base,aspect='auto'); ax.axis('off'); fig.subplots_adjust(0,0,1,1)
-    buf=io.BytesIO(); plt.savefig(buf,format='png',dpi=100,pad_inches=0); plt.close()
-    return _save_tmp(buf, 'parch')
+
 
 def make_avatar(emoji, level, tier_name, is_premium):
     """matplotlib 대신 HTML/CSS로 아바타 렌더링 → 이모지 브라우저 처리"""
@@ -113,46 +95,6 @@ def make_chart(weekly):
     plt.tight_layout(pad=0.6)
     buf=io.BytesIO()
     plt.savefig(buf,format='png',bbox_inches='tight',facecolor='#fdf3e0',dpi=100)
-    plt.close(); return _b64(buf)
-
-def get_grade(rate):
-    dpi=100; w_px=int(w_cm/2.54*dpi); h_px=int(h_cm/2.54*dpi)
-    fig,ax=plt.subplots(figsize=(w_cm/2.54,h_cm/2.54),dpi=dpi)
-    ax.set_xlim(0,w_cm); ax.set_ylim(0,h_cm); ax.axis('off')
-    fig.patch.set_alpha(0); ax.set_facecolor('none')
-    def draw_cat(cx,cy,sz,a,angle=0):
-        co,si=math.cos(angle),math.sin(angle)
-        def r(dx,dy): return cx+dx*co-dy*si,cy+dx*si+dy*co
-        ax.add_patch(patches.Ellipse(r(0,0),sz*0.68,sz*0.58,
-            angle=math.degrees(angle),fc='#7c4a1e',alpha=a,zorder=2))
-        for tx,ty in [(-0.33,0.42),(-0.11,0.52),(0.11,0.52),(0.33,0.42)]:
-            px,py=r(tx*sz,ty*sz)
-            ax.add_patch(patches.Ellipse((px,py),sz*0.21,sz*0.19,fc='#7c4a1e',alpha=a,zorder=2))
-    def draw_dog(cx,cy,sz,a,angle=0):
-        co,si=math.cos(angle),math.sin(angle)
-        def r(dx,dy): return cx+dx*co-dy*si,cy+dx*si+dy*co
-        ax.add_patch(patches.Ellipse(r(0,0),sz*0.84,sz*0.72,
-            angle=math.degrees(angle),fc='#5a3010',alpha=a,zorder=2))
-        for tx,ty in [(-0.38,0.50),(-0.12,0.62),(0.12,0.62),(0.38,0.50)]:
-            px,py=r(tx*sz,ty*sz)
-            ax.add_patch(patches.Ellipse((px,py),sz*0.27,sz*0.23,fc='#5a3010',alpha=a,zorder=2))
-    for args in [(0.9,2.9,0.44,0.22,-0.2),(1.85,1.5,0.42,0.19,0.15),
-                 (3.1,2.8,0.43,0.21,-0.1),(4.2,1.5,0.41,0.18,0.2),
-                 (5.4,2.7,0.44,0.20,-0.15),(6.5,1.4,0.42,0.19,0.1)]:
-        draw_cat(*args)
-    for args in [(8.4,2.7,0.52,0.18,0.1),(9.6,1.3,0.50,0.20,-0.2),
-                 (10.9,2.8,0.53,0.17,0.15),(12.1,1.5,0.51,0.19,-0.1),
-                 (13.4,2.6,0.52,0.18,0.2),(14.6,1.4,0.50,0.20,-0.15),
-                 (15.9,2.5,0.51,0.17,0.05)]:
-        draw_dog(*args)
-    ax.plot([7.2,7.2],[0.4,3.6],color='#c8a882',lw=0.6,alpha=0.4,linestyle=':')
-    ax.text(7.2,0.2,'🐾',ha='center',va='center',fontsize=10,alpha=0.5)
-    ax.text(w_cm/2,0.18,
-        'PawFiler  ·  딥페이크 탐지 훈련 플랫폼  ·  Deepfake Detection Training',
-        ha='center',va='center',fontproperties=FP_REG,
-        fontsize=7,color='#7c4a1e',alpha=0.55,style='italic')
-    buf=io.BytesIO()
-    plt.savefig(buf,format='png',bbox_inches='tight',transparent=True,dpi=dpi)
     plt.close(); return _b64(buf)
 
 def get_grade(rate):
@@ -334,7 +276,7 @@ def build_html(
     today=datetime.utcnow().strftime('%Y년 %m월 %d일')
     period_label = f'최근 {days}일 분석 기준' if days else '전체 기간 분석 기준'
     total=int(stats['total'] or 0); correct=int(stats['correct'] or 0)
-    rate=round(correct/max(total,1)*100,1); xp=int(stats['total_xp'] or 0)
+    rate=round(correct/max(total,1)*100,1); xp=total_exp
     grade,grade_hex,grade_comment=get_grade(rate)
     is_premium=subscription_type=='premium'
 
