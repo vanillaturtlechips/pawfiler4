@@ -113,3 +113,6 @@ generated/
 
 # ML datasets (large binary files, stored externally)
 dataset/
+
+# Local monitoring stack (docker-compose 기반 로컬 테스트용, EKS 배포 아님)
+monitoring-local/

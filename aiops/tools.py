@@ -32,6 +32,7 @@ SNS_TOPIC_ARN = os.environ.get(
     "arn:aws:sns:ap-northeast-2:009946608368:pawfiler-aiops",
 )
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+TEMPO_ENDPOINT = os.environ.get("TEMPO_ENDPOINT", "")
 
 
 def _k8s() -> tuple[k8s_client.CoreV1Api, k8s_client.AppsV1Api]:
@@ -197,6 +198,38 @@ def restart_deployment(namespace: str, deployment_name: str) -> dict:
     )
     logger.info(f"Restarted {namespace}/{deployment_name}")
     return {"status": "restarted", "deployment": deployment_name, "namespace": namespace}
+
+
+def get_tempo_traces(service: str = "", status: str = "", min_duration_ms: int = 0, limit: int = 20) -> dict:
+    """Tempo HTTP API로 최근 트레이스 조회. 고레이턴시/에러 트레이스 확인에 사용.
+    TEMPO_ENDPOINT 미설정 시 unavailable 반환 (에러 아님).
+    """
+    if not TEMPO_ENDPOINT:
+        return {"source": "unavailable", "note": "TEMPO_ENDPOINT 환경변수 미설정 — Tempo 미연동 상태"}
+
+    try:
+        params: dict = {"limit": limit}
+        if service:
+            params["service"] = service
+        if status:
+            params["tags"] = f"status={status}"
+
+        resp = requests.get(f"{TEMPO_ENDPOINT.rstrip('/')}/api/search", params=params, timeout=10)
+        resp.raise_for_status()
+        traces = resp.json().get("traces", [])
+
+        if min_duration_ms > 0:
+            traces = [t for t in traces if int(t.get("durationMs", 0)) >= min_duration_ms]
+
+        return {
+            "source": "tempo",
+            "service_filter": service or "all",
+            "trace_count": len(traces),
+            "traces": traces[:limit],
+        }
+    except Exception as e:
+        logger.warning(f"Tempo query failed: {e}")
+        return {"source": "error", "error": str(e)}
 
 
 def send_sns_notification(subject: str, message: str) -> None:
