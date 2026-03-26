@@ -1,14 +1,15 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 
 	"github.com/pawfiler/backend/services/admin/internal/repository"
@@ -16,23 +17,24 @@ import (
 
 type QuizAdminService struct {
 	repo             *repository.QuizRepository
-	s3Client         *s3.S3
+	s3Client         *s3.Client
 	s3Bucket         string
 	s3Region         string
 	cloudfrontDomain string
 }
 
 func NewQuizAdminService(repo *repository.QuizRepository) *QuizAdminService {
-	// Initialize S3 client
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(getEnv("AWS_REGION", "ap-northeast-2")),
-	}))
+	region := getEnv("AWS_REGION", "ap-northeast-2")
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+	if err != nil {
+		panic(fmt.Sprintf("failed to load AWS config: %v", err))
+	}
 
 	return &QuizAdminService{
 		repo:             repo,
-		s3Client:         s3.New(sess),
+		s3Client:         s3.NewFromConfig(cfg),
 		s3Bucket:         getEnv("S3_BUCKET", "pawfiler-quiz-media"),
-		s3Region:         getEnv("AWS_REGION", "ap-northeast-2"),
+		s3Region:         region,
 		cloudfrontDomain: getEnv("CLOUDFRONT_DOMAIN", ""),
 	}
 }
@@ -77,10 +79,10 @@ func (s *QuizAdminService) UploadMedia(file io.Reader, filename, category, media
 	s3Key := fmt.Sprintf("%s/%s/%s/%s%s", category, mediaType, difficulty, id, ext)
 
 	// Upload to S3
-	_, err := s.s3Client.PutObject(&s3.PutObjectInput{
+	_, err := s.s3Client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket:      aws.String(s.s3Bucket),
 		Key:         aws.String(s3Key),
-		Body:        aws.ReadSeekCloser(file),
+		Body:        file,
 		ContentType: aws.String(getContentType(ext)),
 	})
 	if err != nil {

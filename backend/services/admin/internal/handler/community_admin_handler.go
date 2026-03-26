@@ -1,16 +1,20 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gorilla/mux"
 
 	"github.com/pawfiler/backend/services/admin/internal/repository"
@@ -19,7 +23,7 @@ import (
 type CommunityAdminHandler struct {
 	repo             *repository.CommunityRepository
 	quizRepo         *repository.QuizRepository
-	s3Client         *s3.S3
+	s3Client         *s3.Client
 	s3Bucket         string
 	cloudfrontDomain string
 }
@@ -33,13 +37,14 @@ func NewCommunityAdminHandler(repo *repository.CommunityRepository, quizRepo *re
 	if bucket == "" {
 		bucket = "pawfiler-community-media"
 	}
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(region),
-	}))
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+	if err != nil {
+		panic(fmt.Sprintf("failed to load AWS config: %v", err))
+	}
 	return &CommunityAdminHandler{
 		repo:             repo,
 		quizRepo:         quizRepo,
-		s3Client:         s3.New(sess),
+		s3Client:         s3.NewFromConfig(cfg),
 		s3Bucket:         bucket,
 		cloudfrontDomain: os.Getenv("CLOUDFRONT_DOMAIN"),
 	}
@@ -238,15 +243,21 @@ func (h *CommunityAdminHandler) DeletePost(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// S3 미디어 삭제
+	// S3 삭제는 DB 커밋 후 비동기 처리 — 실패해도 DB 롤백 없음
 	if key := h.extractS3Key(post.MediaURL); key != "" {
-		if _, err := h.s3Client.DeleteObject(&s3.DeleteObjectInput{
-			Bucket: aws.String(h.s3Bucket),
-			Key:    aws.String(key),
-		}); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to delete media from S3")
-			return
-		}
+		go func() {
+			for i := 0; i < 3; i++ {
+				_, err := h.s3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+					Bucket: aws.String(h.s3Bucket),
+					Key:    aws.String(key),
+				})
+				if err == nil {
+					return
+				}
+				time.Sleep(time.Duration(i+1) * 5 * time.Second)
+			}
+			log.Printf("[ERROR] admin S3 delete permanently failed: %s", key)
+		}()
 	}
 
 	w.WriteHeader(http.StatusNoContent)
