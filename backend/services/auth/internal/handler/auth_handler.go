@@ -312,8 +312,9 @@ func (h *Handler) initUserProfile(userID, nickname string) {
 		log.Printf("[auth] initUserProfile marshal error: %v", err)
 		return
 	}
-	for attempt := 1; attempt <= 3; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// in-cluster 호출이므로 타임아웃 1s × 2회로 충분
+	for attempt := 1; attempt <= 2; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		req, _ := http.NewRequestWithContext(ctx, "POST",
 			userSvcURL+"/user.UserService/UpdateProfile",
 			strings.NewReader(string(payloadBytes)))
@@ -325,11 +326,8 @@ func (h *Handler) initUserProfile(userID, nickname string) {
 			return
 		}
 		log.Printf("[auth] nickname init attempt %d failed for user %s: %v", attempt, userID, err)
-		if attempt < 3 {
-			time.Sleep(time.Duration(attempt) * time.Second)
-		}
 	}
-	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID)
+	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 2 attempts", userID)
 }
 
 // splitCSV splits a comma-separated string and trims whitespace from each element.
