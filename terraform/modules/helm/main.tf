@@ -98,6 +98,7 @@ resource "aws_iam_role_policy" "kubecost" {
           "ce:GetCostForecast",
           "ce:GetDimensionValues",
           "ce:GetTags",
+          "pricing:GetProducts",
           "ec2:DescribeInstances",
           "ec2:DescribeRegions",
           "ec2:DescribeVolumes",
