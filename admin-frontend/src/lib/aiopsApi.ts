@@ -1,4 +1,6 @@
-const AIOPS_API_URL = import.meta.env.VITE_AIOPS_API_URL || import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:8090';
+const AIOPS_API_URL = import.meta.env.VITE_AIOPS_API_URL
+  || (import.meta.env.VITE_ADMIN_API_URL ? `${import.meta.env.VITE_ADMIN_API_URL}/aiops` : '')
+  || 'http://localhost:8090';
 
 export interface PodInfo {
   name: string;
