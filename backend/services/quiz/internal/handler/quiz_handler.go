@@ -31,6 +31,8 @@ func NewQuizHandler(svc service.QuizService) *QuizHandler {
 // GetRandomQuestion handles the GetRandomQuestion RPC
 // Requirements: 3.1~3.8
 func (h *QuizHandler) GetRandomQuestion(ctx context.Context, req *pb.GetRandomQuestionRequest) (*pb.QuizQuestion, error) {
+	userID := userIDFromContext(ctx, req.UserId)
+
 	// Extract optional filters
 	var difficulty *string
 	if req.Difficulty != nil {
@@ -43,7 +45,7 @@ func (h *QuizHandler) GetRandomQuestion(ctx context.Context, req *pb.GetRandomQu
 	}
 
 	// Call service layer
-	question, err := h.service.GetRandomQuestion(ctx, req.UserId, difficulty, questionType)
+	question, err := h.service.GetRandomQuestion(ctx, userID, difficulty, questionType)
 	if err != nil {
 		log.Printf("GetRandomQuestion error: %v", err)
 		// 에너지 부족은 그대로 전달
@@ -80,6 +82,8 @@ func (h *QuizHandler) GetQuestionById(ctx context.Context, req *pb.GetQuestionBy
 // SubmitAnswer handles the SubmitAnswer RPC
 // Requirements: 5.1~5.4, 6.1~6.3, 7.1~7.5, 8.1~8.4, 9.1~9.4, 10.1~10.4, 11.1~11.8, 13.1~13.4, 15.1~15.5
 func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequest) (*pb.SubmitAnswerResponse, error) {
+	userID := userIDFromContext(ctx, req.UserId)
+
 	// Convert protobuf answer to repository answer type
 	answer, err := convertProtoToAnswer(req)
 	if err != nil {
@@ -88,7 +92,7 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 	}
 
 	// Call service layer
-	result, err := h.service.SubmitAnswer(ctx, req.UserId, req.QuestionId, answer)
+	result, err := h.service.SubmitAnswer(ctx, userID, req.QuestionId, answer)
 	if err != nil {
 		// Map errors to appropriate gRPC status codes
 		return nil, mapServiceError(err)
@@ -116,7 +120,7 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 
 	// 최신 프로필(에너지/코인/레벨) quiz Redis 캐시에서 조회 후 이번 획득분 반영
 	// result.XPEarned에 streak bonus 포함됨 — 별도 StreakBonus 중복 가산 금지
-	if profile, err := h.service.GetUserProfile(ctx, req.UserId); err == nil {
+	if profile, err := h.service.GetUserProfile(ctx, userID); err == nil {
 		response.Energy     = profile.Energy
 		response.MaxEnergy  = profile.MaxEnergy
 		response.TotalExp   = profile.TotalExp + result.XPEarned
@@ -130,7 +134,8 @@ func (h *QuizHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequ
 
 // GetUserProfile implements QuizServiceServer
 func (h *QuizHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfileRequest) (*pb.UserProfile, error) {
-	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	userID := userIDFromContext(ctx, req.UserId)
+	profile, err := h.service.GetUserProfile(ctx, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get user profile")
 	}
@@ -141,6 +146,7 @@ func (h *QuizHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfile
 // Only nickname and avatar_emoji are updated; coins/exp/energy are never touched
 // to prevent stale Redis cache from clobbering values written by user-service.
 func (h *QuizHandler) UpdateUserProfile(ctx context.Context, req *pb.UpdateUserProfileRequest) (*pb.UserProfile, error) {
+	userID := userIDFromContext(ctx, req.UserId)
 	nickname := ""
 	avatarEmoji := ""
 	if req.Nickname != nil {
@@ -149,11 +155,11 @@ func (h *QuizHandler) UpdateUserProfile(ctx context.Context, req *pb.UpdateUserP
 	if req.AvatarEmoji != nil {
 		avatarEmoji = *req.AvatarEmoji
 	}
-	if err := h.service.UpdateNicknameAvatar(ctx, req.UserId, nickname, avatarEmoji); err != nil {
+	if err := h.service.UpdateNicknameAvatar(ctx, userID, nickname, avatarEmoji); err != nil {
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
 	// Return fresh profile from DB (cache was invalidated by UpdateNicknameAvatar)
-	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	profile, err := h.service.GetUserProfile(ctx, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get profile")
 	}
@@ -223,8 +229,9 @@ func (h *QuizHandler) GetQuestionStats(ctx context.Context, req *pb.GetQuestionS
 
 // GetUserStats handles the GetUserStats RPC
 func (h *QuizHandler) GetUserStats(ctx context.Context, req *pb.GetUserStatsRequest) (*pb.QuizStats, error) {
+	userID := userIDFromContext(ctx, req.UserId)
 	// Call service layer
-	stats, err := h.service.GetUserStats(ctx, req.UserId)
+	stats, err := h.service.GetUserStats(ctx, userID)
 	if err != nil {
 		// Requirement 15.3: Map database errors to INTERNAL
 		return nil, status.Error(codes.Internal, "failed to get user stats")
@@ -452,10 +459,11 @@ func containsAny(s string, substrs []string) bool {
 
 // RefillEnergy handles the RefillEnergy RPC
 func (h *QuizHandler) RefillEnergy(ctx context.Context, req *pb.RefillEnergyRequest) (*pb.RefillEnergyResponse, error) {
-	if req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
-	profile, err := h.service.GetUserProfile(ctx, req.UserId)
+	profile, err := h.service.GetUserProfile(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get profile: %v", err)
 	}

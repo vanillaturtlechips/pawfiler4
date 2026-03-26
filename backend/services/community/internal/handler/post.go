@@ -175,8 +175,11 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		return nil, status.Error(codes.InvalidArgument, "isCorrect is required")
 	}
 
+	// Istio가 주입한 x-user-id 헤더 우선, 없으면 proto 필드 사용 (내부 서비스 호출 호환)
+	userID := userIDFromContext(ctx, req.UserId)
+
 	// user 서비스 gRPC 호출로 최신 닉네임/아바타 조회
-	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, userID)
 
 	// is_admin_post는 강제 false - 어드민은 별도 엔드포인트 사용
 	isAdminPost := false
@@ -187,7 +190,7 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 	_, err := h.db.ExecContext(ctx, `
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	`, postID, req.UserId, nickname, avatarEmoji, req.Title, req.Body,
+	`, postID, userID, nickname, avatarEmoji, req.Title, req.Body,
 		pq.Array(req.Tags), nullableString(req.MediaUrl), nullableString(req.MediaType), isAdminPost, req.IsCorrect, createdAt)
 
 	if err != nil {
@@ -196,7 +199,7 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 
 	return &pb.Post{
 		Id:             postID,
-		AuthorId:       req.UserId,
+		AuthorId:       userID,
 		AuthorNickname: nickname,
 		AuthorEmoji:    avatarEmoji,
 		Title:          req.Title,
@@ -228,7 +231,8 @@ func (h *Handler) UpdatePost(ctx context.Context, req *pb.UpdatePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to check post")
 	}
 
-	if authorID != req.UserId {
+	userID := userIDFromContext(ctx, req.UserId)
+	if authorID != userID {
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 
@@ -281,7 +285,8 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to check post")
 	}
 
-	if authorID != req.UserId {
+	deleteUserID := userIDFromContext(ctx, req.UserId)
+	if authorID != deleteUserID {
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 

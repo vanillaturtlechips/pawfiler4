@@ -181,6 +181,16 @@ module "lambda_report" {
 }
 
 # ---------------------------------------------------------------------------
+# Cognito: User Pool for authentication
+# ---------------------------------------------------------------------------
+module "cognito" {
+  source = "./modules/cognito"
+
+  project_name = var.project_name
+  aws_region   = var.aws_region
+}
+
+# ---------------------------------------------------------------------------
 # Karpenter: Autoscaler IAM, SQS, EventBridge
 # ---------------------------------------------------------------------------
 module "karpenter" {

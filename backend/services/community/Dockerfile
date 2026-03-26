@@ -12,5 +12,5 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/community-service .
-EXPOSE 50053
+EXPOSE 50053 8080
 CMD ["./community-service"]

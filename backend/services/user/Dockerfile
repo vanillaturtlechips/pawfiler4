@@ -12,5 +12,5 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/user-service .
-EXPOSE 8083
+EXPOSE 8083 50054
 CMD ["./user-service"]

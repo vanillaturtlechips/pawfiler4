@@ -1,6 +1,7 @@
 # ============================================================================
-# ISTIO - Service Mesh (Pattern 1: ALB 유지, 사이드카만 pawfiler 네임스페이스 적용)
-# 설치 순서: istio-base → istiod → namespace 라벨
+# ISTIO - Service Mesh (Pattern 2: Istio Gateway + NLB, ALB 제거)
+# 설치 순서: istio-base → istiod → istio-ingress(NLB) → namespace 라벨
+# NLB(L4)에서 ACM TLS 종료 → IngressGateway로 plain HTTP 전달
 # ============================================================================
 
 # 1. istio-base: CRD + ClusterRole (istiod보다 먼저 설치 필수)
@@ -25,11 +26,11 @@ resource "helm_release" "istiod" {
 
   values = [yamlencode({
     meshConfig = {
-      # mTLS PERMISSIVE: 기존 서비스 영향 없이 사이드카 없는 서비스와도 통신 가능
       defaultConfig = {
         holdApplicationUntilProxyStarts = true
       }
-      # OTel Collector로 trace 전송 (Tempo 파이프라인)
+      # telemetry.yaml의 otel-tracing 프로바이더 정의
+      # Envoy 사이드카 → OTel Collector → Tempo 트레이싱 파이프라인
       extensionProviders = [{
         name = "otel-tracing"
         opentelemetry = {
@@ -55,7 +56,43 @@ resource "helm_release" "istiod" {
   depends_on = [helm_release.istio_base]
 }
 
-# 3. pawfiler 네임스페이스 사이드카 주입 활성화
+# 3. istio-ingress: IngressGateway (NLB + ACM TLS 종료)
+#    NLB → port 443(TLS) → IngressGateway port 80(plain HTTP)
+#    istio-ingress 네임스페이스는 IngressGateway 전용 (istio-system과 분리)
+resource "helm_release" "istio_ingress" {
+  count            = var.enable_istio ? 1 : 0
+  name             = "istio-ingress"
+  repository       = "https://istio-release.storage.googleapis.com/charts"
+  chart            = "gateway"
+  namespace        = "istio-ingress"
+  create_namespace = true
+  version          = "1.24.2"
+
+  values = [yamlencode({
+    service = {
+      type = "LoadBalancer"
+      annotations = {
+        "service.beta.kubernetes.io/aws-load-balancer-type"             = "external"
+        "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"  = "ip"
+        "service.beta.kubernetes.io/aws-load-balancer-scheme"           = "internet-facing"
+        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"         = "arn:aws:acm:ap-northeast-2:009946608368:certificate/239c3c8f-351c-424c-b507-8da0ee911a7e"
+        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"        = "443"
+        "service.beta.kubernetes.io/aws-load-balancer-backend-protocol" = "tcp"
+      }
+      ports = [
+        { name = "http2", port = 80, targetPort = 80 }
+        { name = "https", port = 443, targetPort = 80 }  # NLB TLS → GW plain HTTP
+      ]
+    }
+    labels = {
+      istio = "ingressgateway"
+    }
+  })]
+
+  depends_on = [helm_release.istiod]
+}
+
+# 5. pawfiler 네임스페이스 사이드카 주입 활성화
 #    server_side_apply = true: 네임스페이스가 이미 존재해도 라벨만 패치
 resource "kubectl_manifest" "pawfiler_istio_injection" {
   count             = var.enable_istio ? 1 : 0
@@ -74,7 +111,7 @@ resource "kubectl_manifest" "pawfiler_istio_injection" {
   depends_on = [helm_release.istiod]
 }
 
-# 4. admin 네임스페이스 사이드카 주입 활성화
+# 6. admin 네임스페이스 사이드카 주입 활성화
 resource "kubectl_manifest" "admin_istio_injection" {
   count             = var.enable_istio ? 1 : 0
   server_side_apply = true
@@ -92,7 +129,7 @@ resource "kubectl_manifest" "admin_istio_injection" {
   depends_on = [helm_release.istiod]
 }
 
-# 5. ai-orchestration 네임스페이스 사이드카 명시적 차단 (Ray 포트 충돌 방지)
+# 7. ai-orchestration 네임스페이스 사이드카 명시적 차단 (Ray 포트 충돌 방지)
 resource "kubectl_manifest" "ai_orchestration_istio_disabled" {
   count             = var.enable_istio ? 1 : 0
   server_side_apply = true

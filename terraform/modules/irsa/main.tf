@@ -140,6 +140,65 @@ resource "aws_iam_role_policy" "ai_agent_bedrock" {
 }
 
 # ============================================================================
+# IAM Role for Auth Service (Cognito 관리 + SSM 파라미터 읽기)
+# ============================================================================
+
+resource "aws_iam_role" "auth_service" {
+  name = "${var.project_name}-auth-service-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:pawfiler:auth-service-sa"
+          "${replace(var.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "auth_service_cognito" {
+  name = "cognito-access"
+  role = aws_iam_role.auth_service.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cognito-idp:AdminCreateUser",
+          "cognito-idp:AdminSetUserPassword",
+          "cognito-idp:AdminDeleteUser",
+          "cognito-idp:AdminGetUser",
+          "cognito-idp:AdminInitiateAuth",
+          "cognito-idp:AdminUpdateUserAttributes",
+          "cognito-idp:InitiateAuth",
+          "cognito-idp:GlobalSignOut",
+          "cognito-idp:GetUser"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = "arn:aws:ssm:*:*:parameter/${var.project_name}/cognito/*"
+      }
+    ]
+  })
+}
+
+# ============================================================================
 # IAM Role for Loki (S3 청크 저장)
 # ============================================================================
 
