@@ -221,6 +221,11 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to create post")
 	}
 
+	// 미디어 linked 처리 — 연결되면 추적 테이블에서 바로 삭제
+	if req.MediaUrl != "" {
+		h.db.ExecContext(ctx, "DELETE FROM community.media_uploads WHERE media_url = $1", req.MediaUrl)
+	}
+
 	return &pb.Post{
 		Id:             postID,
 		AuthorId:       req.UserId,

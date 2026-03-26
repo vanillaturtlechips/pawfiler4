@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"community/internal/userclient"
 	"community/pb"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/redis/go-redis/v9"
@@ -93,19 +91,10 @@ func (h *Handler) cleanOrphanS3Files() {
 	}
 	ctx := context.Background()
 
-	// 최근 2일치 S3 파일 목록 조회
-	out, err := h.s3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(h.s3Bucket),
-	})
-	if err != nil {
-		log.Printf("[ERROR] orphan cleanup: S3 list failed: %v", err)
-		return
-	}
-
-	// 최근 2일치 DB media_url 조회
+	// S3 전체 스캔 없이 DB에서 고아 파일만 조회 — 2일 지나도 게시글에 연결 안 된 것
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT media_url FROM community.posts
-		WHERE created_at > NOW() - INTERVAL '2 days' AND media_url IS NOT NULL
+		SELECT media_url FROM community.media_uploads
+		WHERE uploaded_at < NOW() - INTERVAL '2 days'
 	`)
 	if err != nil {
 		log.Printf("[ERROR] orphan cleanup: DB query failed: %v", err)
@@ -113,33 +102,18 @@ func (h *Handler) cleanOrphanS3Files() {
 	}
 	defer rows.Close()
 
-	inDB := map[string]struct{}{}
-	for rows.Next() {
-		var url string
-		if err := rows.Scan(&url); err == nil {
-			inDB[url] = struct{}{}
-		}
-	}
-
-	cutoff := time.Now().Add(-2 * 24 * time.Hour)
 	deleted := 0
-	for _, obj := range out.Contents {
-		if obj.LastModified.Before(cutoff) {
-			continue // 2일 이전 파일은 건드리지 않음
+	for rows.Next() {
+		var mediaURL string
+		if err := rows.Scan(&mediaURL); err != nil {
+			continue
 		}
-		var fileURL string
-		if h.cfDomain != "" {
-			fileURL = strings.TrimRight(h.cfDomain, "/") + "/" + aws.ToString(obj.Key)
-		} else {
-			fileURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", h.s3Bucket, h.s3Region, aws.ToString(obj.Key))
+		if err := h.deleteMediaFromS3(mediaURL); err != nil {
+			log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", mediaURL, err)
+			continue
 		}
-		if _, ok := inDB[fileURL]; !ok {
-			if err := h.deleteMediaFromS3(fileURL); err != nil {
-				log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", aws.ToString(obj.Key), err)
-			} else {
-				deleted++
-			}
-		}
+		h.db.ExecContext(ctx, "DELETE FROM community.media_uploads WHERE media_url = $1", mediaURL)
+		deleted++
 	}
 	log.Printf("[INFO] orphan cleanup done: deleted %d files", deleted)
 }
