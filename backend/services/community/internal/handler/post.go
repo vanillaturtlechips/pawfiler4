@@ -297,9 +297,13 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
 	if mediaURL != "" {
 		go func() {
-			if err := h.deleteMediaFromS3(mediaURL); err != nil {
-				log.Printf("S3 delete failed (non-blocking): %v", err)
+			for i := 0; i < 3; i++ {
+				if err := h.deleteMediaFromS3(mediaURL); err == nil {
+					return
+				}
+				time.Sleep(time.Duration(i+1) * 5 * time.Second)
 			}
+			log.Printf("[ERROR] S3 delete permanently failed after 3 attempts: %s", mediaURL)
 		}()
 	}
 
