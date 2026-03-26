@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -136,8 +137,9 @@ func (h *Handler) startLikeSyncBatch() {
 func (h *Handler) syncLikesToDB() {
 	ctx := context.Background()
 
-	// KEYS 대신 SCAN — KEYS는 전체 키스페이스를 블로킹 스캔하므로 프로덕션에서 위험
+	// SCAN으로 likes:* 키 전체 수집
 	var cursor uint64
+	likesMap := map[string]int64{}
 	for {
 		keys, nextCursor, err := h.rdb.Scan(ctx, cursor, "likes:*", 100).Result()
 		if err != nil {
@@ -150,13 +152,34 @@ func (h *Handler) syncLikesToDB() {
 				continue
 			}
 			postID := strings.TrimPrefix(key, "likes:")
-			if _, err = h.db.ExecContext(ctx, "UPDATE community.posts SET likes = $1 WHERE id = $2", val, postID); err != nil {
-				log.Printf("[ERROR] likes sync failed for %s: %v", postID, err)
-			}
+			likesMap[postID] = val
 		}
 		cursor = nextCursor
 		if cursor == 0 {
 			break
 		}
+	}
+
+	if len(likesMap) == 0 {
+		return
+	}
+
+	// VALUES 배치로 쿼리 1번에 전체 동기화 — UPDATE N번 → 1번
+	args := make([]interface{}, 0, len(likesMap)*2)
+	placeholders := make([]string, 0, len(likesMap))
+	i := 1
+	for postID, val := range likesMap {
+		placeholders = append(placeholders, fmt.Sprintf("($%d::uuid, $%d::int)", i, i+1))
+		args = append(args, postID, val)
+		i += 2
+	}
+	query := fmt.Sprintf(`
+		UPDATE community.posts SET likes = v.likes
+		FROM (VALUES %s) AS v(id, likes)
+		WHERE posts.id = v.id
+	`, strings.Join(placeholders, ","))
+
+	if _, err := h.db.ExecContext(ctx, query, args...); err != nil {
+		log.Printf("[ERROR] likes batch sync failed: %v", err)
 	}
 }
