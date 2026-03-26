@@ -49,15 +49,15 @@ func (h *Handler) GetComments(ctx context.Context, req *pb.GetCommentsRequest) (
 
 // CreateComment - 댓글 작성
 func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentRequest) (*pb.Comment, error) {
-	if req.PostId == "" || req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if req.PostId == "" || userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
 	}
 	if req.Body == "" {
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
 
-	// Fetch authoritative profile from user service to prevent author spoofing.
-	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, userID)
 
 	commentID := uuid.New().String()
 	createdAt := time.Now()
@@ -71,10 +71,9 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO community.comments (id, post_id, author_id, author_nickname, author_emoji, content, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, commentID, req.PostId, req.UserId, nickname, avatarEmoji, req.Body, createdAt)
+	`, commentID, req.PostId, userID, nickname, avatarEmoji, req.Body, createdAt)
 
 	if err != nil {
-		// FK 위반 = post 없음
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, status.Error(codes.NotFound, "Post not found")
 		}
@@ -93,7 +92,7 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 	return &pb.Comment{
 		Id:             commentID,
 		PostId:         req.PostId,
-		AuthorId:       req.UserId,
+		AuthorId:       userID,
 		AuthorNickname: nickname,
 		AuthorEmoji:    avatarEmoji,
 		Body:           req.Body,
@@ -103,7 +102,8 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 
 // DeleteComment - 댓글 삭제
 func (h *Handler) DeleteComment(ctx context.Context, req *pb.DeleteCommentRequest) (*pb.DeleteCommentResponse, error) {
-	if req.CommentId == "" || req.UserId == "" {
+	delUserID := userIDFromContext(ctx, req.UserId)
+	if req.CommentId == "" || delUserID == "" {
 		return nil, status.Error(codes.InvalidArgument, "comment_id and user_id are required")
 	}
 	tx, err := h.db.BeginTx(ctx, nil)
@@ -122,7 +122,7 @@ func (h *Handler) DeleteComment(ctx context.Context, req *pb.DeleteCommentReques
 		return nil, status.Error(codes.Internal, "Failed to find comment")
 	}
 
-	if authorID != req.UserId {
+	if authorID != delUserID {
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 

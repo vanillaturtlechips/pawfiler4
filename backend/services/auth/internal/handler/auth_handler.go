@@ -13,23 +13,29 @@ import (
 
 	"auth-service/internal/repository"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	cognitoidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	cognitotypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 	"github.com/redis/go-redis/v9"
 )
 
 // Handler holds dependencies for all auth HTTP handlers.
 type Handler struct {
 	repo        *repository.UserRepository
-	jwtSecret   []byte
+	cognito     *cognitoidp.Client
+	userPoolID  string
+	clientID    string
 	redisClient *redis.Client
 }
 
-// New creates a Handler wired to the given database, JWT secret, and Redis client.
+// New creates a Handler wired to the given database, Cognito client, and Redis client.
 // redisClient may be nil; rate limiting is disabled when it is.
-func New(db *sql.DB, jwtSecret string, redisClient *redis.Client) *Handler {
+func New(db *sql.DB, cognito *cognitoidp.Client, userPoolID, clientID string, redisClient *redis.Client) *Handler {
 	return &Handler{
 		repo:        repository.NewUserRepository(db),
-		jwtSecret:   []byte(jwtSecret),
+		cognito:     cognito,
+		userPoolID:  userPoolID,
+		clientID:    clientID,
 		redisClient: redisClient,
 	}
 }
@@ -53,30 +59,6 @@ type authResp struct {
 type userPayload struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
-}
-
-const accessTTL = 6 * time.Hour
-const refreshTTL = 7 * 24 * time.Hour
-
-// makeTokens mints a new access token and refresh token pair for the given user.
-func (h *Handler) makeTokens(userID, email string) (access, refresh string, err error) {
-	now := time.Now()
-	access, err = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":   userID,
-		"email": email,
-		"exp":   now.Add(accessTTL).Unix(),
-		"iat":   now.Unix(),
-	}).SignedString(h.jwtSecret)
-	if err != nil {
-		return
-	}
-	refresh, err = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  userID,
-		"type": "refresh",
-		"exp":  now.Add(refreshTTL).Unix(),
-		"iat":  now.Unix(),
-	}).SignedString(h.jwtSecret)
-	return
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -123,67 +105,101 @@ func (h *Handler) loginRateLimit(r *http.Request) bool {
 	return count <= 300
 }
 
-// Signup handles POST /auth/signup – creates a new account and returns tokens.
+// Signup handles POST /auth/signup – creates account in Cognito and returns tokens.
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 	var req signupReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
 		writeErr(w, http.StatusBadRequest, "email and password required")
 		return
 	}
+
+	// 이미 등록된 이메일 체크
 	existing, _ := h.repo.GetUserByEmail(r.Context(), req.Email)
 	if existing != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return
 	}
-	hash, err := repository.HashPassword(req.Password)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	// 이메일 prefix를 초기 닉네임으로 사용 — auth.users에 직접 저장
+
+	// Cognito에 사용자 생성 (이메일 인증 건너뜀)
 	nickname := strings.SplitN(req.Email, "@", 2)[0]
-	id, err := h.repo.CreateUser(r.Context(), req.Email, hash, nickname)
+	createResp, err := h.cognito.AdminCreateUser(r.Context(), &cognitoidp.AdminCreateUserInput{
+		UserPoolId:    aws.String(h.userPoolID),
+		Username:      aws.String(req.Email),
+		MessageAction: cognitotypes.MessageActionTypeSuppress,
+		UserAttributes: []cognitotypes.AttributeType{
+			{Name: aws.String("email"), Value: aws.String(req.Email)},
+			{Name: aws.String("email_verified"), Value: aws.String("true")},
+		},
+	})
 	if err != nil {
+		log.Printf("[auth] AdminCreateUser error: %v", err)
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	access, refresh, err := h.makeTokens(id, req.Email)
+
+	// 영구 비밀번호 설정
+	_, err = h.cognito.AdminSetUserPassword(r.Context(), &cognitoidp.AdminSetUserPasswordInput{
+		UserPoolId: aws.String(h.userPoolID),
+		Username:   aws.String(req.Email),
+		Password:   aws.String(req.Password),
+		Permanent:  true,
+	})
 	if err != nil {
+		// 롤백: Cognito에서 생성된 사용자 삭제
+		h.cognito.AdminDeleteUser(context.Background(), &cognitoidp.AdminDeleteUserInput{
+			UserPoolId: aws.String(h.userPoolID),
+			Username:   aws.String(req.Email),
+		})
+		log.Printf("[auth] AdminSetUserPassword error: %v", err)
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	// user-service preferences 테이블에도 닉네임 초기화 (비동기, 재시도 3회)
-	go func(userID, nick string) {
-		userSvcURL := os.Getenv("USER_SERVICE_HTTP_URL")
-		if userSvcURL == "" {
-			userSvcURL = "http://user-service:8083"
+
+	// Cognito sub (UUID) 추출
+	sub := ""
+	for _, attr := range createResp.User.Attributes {
+		if aws.ToString(attr.Name) == "sub" {
+			sub = aws.ToString(attr.Value)
+			break
 		}
-		payload := `{"user_id":"` + userID + `","nickname":"` + nick + `"}`
-		for attempt := 1; attempt <= 3; attempt++ {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			reqHTTP, _ := http.NewRequestWithContext(ctx, "POST", userSvcURL+"/user.UserService/UpdateProfile", strings.NewReader(payload))
-			reqHTTP.Header.Set("Content-Type", "application/json")
-			resp, err := http.DefaultClient.Do(reqHTTP)
-			cancel()
-			if err == nil && resp.StatusCode < 300 {
-				log.Printf("[auth] initialized nickname %q for user %s", nick, userID)
-				return
-			}
-			log.Printf("[auth] nickname init attempt %d failed for user %s: %v", attempt, userID, err)
-			if attempt < 3 {
-				time.Sleep(time.Duration(attempt) * time.Second)
-			}
-		}
-		log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID)
-	}(id, nickname)
+	}
+	if sub == "" {
+		log.Printf("[auth] could not get cognito sub for %s", req.Email)
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	// auth.users에 Cognito sub를 ID로 저장
+	if err := h.repo.CreateUserWithCognitoSub(r.Context(), sub, req.Email, nickname); err != nil {
+		log.Printf("[auth] CreateUserWithCognitoSub error (non-fatal): %v", err)
+	}
+
+	// 로그인하여 토큰 발급
+	authResult, err := h.cognito.InitiateAuth(r.Context(), &cognitoidp.InitiateAuthInput{
+		AuthFlow: cognitotypes.AuthFlowTypeUserPasswordAuth,
+		ClientId: aws.String(h.clientID),
+		AuthParameters: map[string]string{
+			"USERNAME": req.Email,
+			"PASSWORD": req.Password,
+		},
+	})
+	if err != nil {
+		log.Printf("[auth] InitiateAuth after signup error: %v", err)
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	// user-service 프로필 초기화 (비동기)
+	go h.initUserProfile(sub, nickname)
+
 	writeJSON(w, http.StatusCreated, authResp{
-		Token:        access,
-		RefreshToken: refresh,
-		User:         userPayload{ID: id, Email: req.Email},
+		Token:        aws.ToString(authResult.AuthenticationResult.AccessToken),
+		RefreshToken: aws.ToString(authResult.AuthenticationResult.RefreshToken),
+		User:         userPayload{ID: sub, Email: req.Email},
 	})
 }
 
-// Login handles POST /auth/login – validates credentials and returns tokens.
+// Login handles POST /auth/login – validates credentials via Cognito and returns tokens.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if !h.loginRateLimit(r) {
 		writeErr(w, http.StatusTooManyRequests, "too many login attempts")
@@ -194,24 +210,46 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "email and password required")
 		return
 	}
-	user, err := h.repo.GetUserByEmail(r.Context(), req.Email)
-	if err != nil || user == nil || !repository.CheckPassword(user.PasswordHash, req.Password) {
+
+	authResult, err := h.cognito.InitiateAuth(r.Context(), &cognitoidp.InitiateAuthInput{
+		AuthFlow: cognitotypes.AuthFlowTypeUserPasswordAuth,
+		ClientId: aws.String(h.clientID),
+		AuthParameters: map[string]string{
+			"USERNAME": req.Email,
+			"PASSWORD": req.Password,
+		},
+	})
+	if err != nil {
+		log.Printf("[auth] Login error for %s: %v", req.Email, err)
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	access, refresh, err := h.makeTokens(user.ID, user.Email)
+
+	// AccessToken으로 사용자 정보 조회 (sub 추출)
+	userInfo, err := h.cognito.GetUser(r.Context(), &cognitoidp.GetUserInput{
+		AccessToken: authResult.AuthenticationResult.AccessToken,
+	})
 	if err != nil {
+		log.Printf("[auth] GetUser error: %v", err)
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
+	sub := ""
+	for _, attr := range userInfo.UserAttributes {
+		if aws.ToString(attr.Name) == "sub" {
+			sub = aws.ToString(attr.Value)
+			break
+		}
+	}
+
 	writeJSON(w, http.StatusOK, authResp{
-		Token:        access,
-		RefreshToken: refresh,
-		User:         userPayload{ID: user.ID, Email: user.Email},
+		Token:        aws.ToString(authResult.AuthenticationResult.AccessToken),
+		RefreshToken: aws.ToString(authResult.AuthenticationResult.RefreshToken),
+		User:         userPayload{ID: sub, Email: req.Email},
 	})
 }
 
-// Refresh handles POST /auth/refresh – issues new tokens from a valid refresh token.
+// Refresh handles POST /auth/refresh – issues new access token from a valid Cognito refresh token.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		RefreshToken string `json:"refresh_token"`
@@ -220,54 +258,34 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "refresh_token required")
 		return
 	}
-	token, err := jwt.Parse(body.RefreshToken, func(t *jwt.Token) (any, error) {
-		return h.jwtSecret, nil
-	}, jwt.WithValidMethods([]string{"HS256"}))
-	if err != nil || !token.Valid {
+
+	authResult, err := h.cognito.InitiateAuth(r.Context(), &cognitoidp.InitiateAuthInput{
+		AuthFlow: cognitotypes.AuthFlowTypeRefreshTokenAuth,
+		ClientId: aws.String(h.clientID),
+		AuthParameters: map[string]string{
+			"REFRESH_TOKEN": body.RefreshToken,
+		},
+	})
+	if err != nil {
+		log.Printf("[auth] Refresh error: %v", err)
 		writeErr(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || claims["type"] != "refresh" {
-		writeErr(w, http.StatusUnauthorized, "invalid token type")
-		return
-	}
-	userID, _ := claims["sub"].(string)
-	user, err := h.repo.GetUserByID(r.Context(), userID)
-	if err != nil || user == nil {
-		writeErr(w, http.StatusUnauthorized, "user not found")
-		return
-	}
-	access, newRefresh, err := h.makeTokens(user.ID, user.Email)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal error")
-		return
-	}
+
 	writeJSON(w, http.StatusOK, map[string]string{
-		"token":         access,
-		"refresh_token": newRefresh,
+		"token":         aws.ToString(authResult.AuthenticationResult.AccessToken),
+		"refresh_token": body.RefreshToken, // Cognito는 refresh token을 갱신하지 않음
 	})
 }
 
-// Logout handles POST /auth/logout – blacklists the access token in Redis until expiry.
+// Logout handles POST /auth/logout – invalidates all Cognito tokens for the user.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenStr != "" && h.redisClient != nil {
-		// 토큰 파싱 없이 남은 TTL 계산을 위해 claims 확인
-		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-			return h.jwtSecret, nil
-		}, jwt.WithValidMethods([]string{"HS256"}))
-		if err == nil && token.Valid {
-			if claims, ok := token.Claims.(jwt.MapClaims); ok {
-				if exp, ok := claims["exp"].(float64); ok {
-					ttl := time.Until(time.Unix(int64(exp), 0))
-					if ttl > 0 {
-						key := "blacklist:token:" + tokenStr
-						h.redisClient.Set(context.Background(), key, "1", ttl)
-					}
-				}
-			}
+	accessToken := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if accessToken != "" {
+		if _, err := h.cognito.GlobalSignOut(r.Context(), &cognitoidp.GlobalSignOutInput{
+			AccessToken: aws.String(accessToken),
+		}); err != nil {
+			log.Printf("[auth] GlobalSignOut error (non-fatal): %v", err)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
@@ -278,68 +296,40 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// Validate handles GET|POST /auth/validate – verifies an access token and returns claims.
-func (h *Handler) Validate(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenStr == "" {
-		writeErr(w, http.StatusUnauthorized, "missing token")
+// initUserProfile은 user-service에 최초 닉네임을 비동기로 설정한다.
+// JSON injection 방지: json.Marshal 사용
+func (h *Handler) initUserProfile(userID, nickname string) {
+	userSvcURL := os.Getenv("USER_SERVICE_HTTP_URL")
+	if userSvcURL == "" {
+		userSvcURL = "http://user-service:8083"
+	}
+	type updateProfileReq struct {
+		UserID   string  `json:"user_id"`
+		Nickname *string `json:"nickname,omitempty"`
+	}
+	payloadBytes, err := json.Marshal(updateProfileReq{UserID: userID, Nickname: &nickname})
+	if err != nil {
+		log.Printf("[auth] initUserProfile marshal error: %v", err)
 		return
 	}
-	// 블랙리스트 체크 (로그아웃된 토큰)
-	if h.redisClient != nil {
-		val, _ := h.redisClient.Get(context.Background(), "blacklist:token:"+tokenStr).Result()
-		if val != "" {
-			writeErr(w, http.StatusUnauthorized, "token revoked")
+	for attempt := 1; attempt <= 3; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, "POST",
+			userSvcURL+"/user.UserService/UpdateProfile",
+			strings.NewReader(string(payloadBytes)))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		cancel()
+		if err == nil && resp.StatusCode < 300 {
+			log.Printf("[auth] initialized nickname %q for user %s", nickname, userID)
 			return
 		}
+		log.Printf("[auth] nickname init attempt %d failed for user %s: %v", attempt, userID, err)
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
 	}
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		return h.jwtSecret, nil
-	}, jwt.WithValidMethods([]string{"HS256"}))
-	if err != nil || !token.Valid {
-		writeErr(w, http.StatusUnauthorized, "invalid token")
-		return
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		writeErr(w, http.StatusUnauthorized, "invalid token claims")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"valid":   true,
-		"user_id": claims["sub"],
-		"email":   claims["email"],
-	})
-}
-
-// Profile handles GET /auth/profile – returns the authenticated user's info.
-func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenStr == "" {
-		writeErr(w, http.StatusUnauthorized, "missing token")
-		return
-	}
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		return h.jwtSecret, nil
-	}, jwt.WithValidMethods([]string{"HS256"}))
-	if err != nil || !token.Valid {
-		writeErr(w, http.StatusUnauthorized, "invalid token")
-		return
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		writeErr(w, http.StatusUnauthorized, "invalid token claims")
-		return
-	}
-	userID, _ := claims["sub"].(string)
-	user, err := h.repo.GetUserByID(r.Context(), userID)
-	if err != nil || user == nil {
-		writeErr(w, http.StatusNotFound, "user not found")
-		return
-	}
-	writeJSON(w, http.StatusOK, userPayload{ID: user.ID, Email: user.Email})
+	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID)
 }
 
 // splitCSV splits a comma-separated string and trims whitespace from each element.

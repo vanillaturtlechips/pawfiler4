@@ -11,6 +11,8 @@ import (
 
 	"auth-service/internal/handler"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	cognitoidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
@@ -34,30 +36,46 @@ func main() {
 		log.Fatalf("failed to ping db: %v", err)
 	}
 
-	// Ensure auth schema and users table exist at startup.
-	// CREATE TABLE IF NOT EXISTS는 테이블이 없을 때만 생성하므로
-	// 기존 테이블에 컬럼이 없는 경우를 위해 ADD COLUMN IF NOT EXISTS도 함께 실행
+	// auth 스키마 및 users 테이블 자동 생성/마이그레이션
 	if _, err := db.Exec(`
 		CREATE SCHEMA IF NOT EXISTS auth;
 		CREATE TABLE IF NOT EXISTS auth.users (
-			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id            TEXT PRIMARY KEY,
 			email         TEXT UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
+			password_hash TEXT,
 			nickname      VARCHAR(100) NOT NULL DEFAULT '탐정',
 			avatar_emoji  VARCHAR(10)  NOT NULL DEFAULT '🦊',
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
-		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS nickname     VARCHAR(100) NOT NULL DEFAULT '탐정';
-		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS avatar_emoji VARCHAR(10)  NOT NULL DEFAULT '🦊';
+		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS nickname          VARCHAR(100) NOT NULL DEFAULT '탐정';
+		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS avatar_emoji      VARCHAR(10)  NOT NULL DEFAULT '🦊';
+		ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS subscription_type VARCHAR(20)  NOT NULL DEFAULT 'free';
+		ALTER TABLE auth.users ALTER COLUMN password_hash DROP NOT NULL;
 	`); err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
 
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		log.Fatal("JWT_SECRET is required")
+	// Cognito 설정
+	userPoolID := os.Getenv("COGNITO_USER_POOL_ID")
+	clientID := os.Getenv("COGNITO_CLIENT_ID")
+	if userPoolID == "" || clientID == "" {
+		log.Fatal("COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID are required")
 	}
 
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = "ap-northeast-2"
+	}
+
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(awsRegion),
+	)
+	if err != nil {
+		log.Fatalf("failed to load AWS config: %v", err)
+	}
+	cognitoClient := cognitoidp.NewFromConfig(cfg)
+
+	// Redis (rate limiting용 — 실패 시 비활성화)
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
 		redisAddr = "redis:6379"
@@ -68,7 +86,7 @@ func main() {
 		rdb = nil
 	}
 
-	h := handler.New(db, jwtSecret, rdb)
+	h := handler.New(db, cognitoClient, userPoolID, clientID, rdb)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/health", h.Health).Methods("GET")
@@ -76,10 +94,7 @@ func main() {
 	r.HandleFunc("/auth/login", h.Login).Methods("POST")
 	r.HandleFunc("/auth/refresh", h.Refresh).Methods("POST")
 	r.HandleFunc("/auth/logout", h.Logout).Methods("POST")
-	r.HandleFunc("/auth/validate", h.Validate).Methods("GET", "POST")
-	r.HandleFunc("/auth/profile", h.Profile).Methods("GET")
 
-	// Read allowed origins from env; default to production domain.
 	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
 		allowedOrigins = "https://pawfiler.site"
@@ -91,9 +106,6 @@ func main() {
 		AllowCredentials: true,
 	})
 
-	// Strip /api prefix before route matching so both /auth/login and
-	// /api/auth/login work. Must wrap the mux, not use r.Use(), because
-	// gorilla/mux middleware runs after route selection.
 	prefixStrip := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if strings.HasPrefix(req.URL.Path, "/api/") {
 			req.URL.Path = req.URL.Path[4:]

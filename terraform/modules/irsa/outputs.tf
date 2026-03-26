@@ -17,3 +17,8 @@ output "loki_role_arn" {
   description = "ARN of the Loki IAM role"
   value       = aws_iam_role.loki.arn
 }
+
+output "auth_service_role_arn" {
+  description = "ARN of the auth service IAM role (Cognito + SSM)"
+  value       = aws_iam_role.auth_service.arn
+}

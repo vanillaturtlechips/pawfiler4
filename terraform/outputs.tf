@@ -179,3 +179,30 @@ output "karpenter_queue_name" {
   description = "Name of the SQS queue for Karpenter"
   value       = module.karpenter.karpenter_queue_name
 }
+
+# Cognito
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_spa_client_id" {
+  description = "Cognito SPA App Client ID"
+  value       = module.cognito.spa_client_id
+}
+
+output "cognito_issuer" {
+  description = "Cognito JWT issuer URL (Istio RequestAuthentication용)"
+  value       = module.cognito.issuer
+}
+
+output "cognito_jwks_uri" {
+  description = "Cognito JWKS URI (Istio RequestAuthentication용)"
+  value       = module.cognito.jwks_uri
+}
+
+# Auth Service IRSA
+output "auth_service_role_arn" {
+  description = "ARN of the auth service IAM role (Cognito + SSM)"
+  value       = module.irsa.auth_service_role_arn
+}

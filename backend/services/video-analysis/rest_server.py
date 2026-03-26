@@ -63,7 +63,7 @@ def run_rest_server(svc):
     def upload_video():
         """파일 업로드 → 횟수 체크 → S3 → 분석 요청"""
         file = request.files.get('video')
-        user_id = request.form.get('user_id', '')
+        user_id = request.headers.get('X-User-Id') or request.form.get('user_id', '')
         api_key = request.headers.get('X-API-Key')
 
         if not file:
@@ -204,7 +204,7 @@ def run_rest_server(svc):
     @app.route('/api/analysis/history', methods=['POST'])
     def analysis_history():
         data = request.get_json() or {}
-        user_id = data.get("user_id")
+        user_id = request.headers.get('X-User-Id') or data.get("user_id")
         if not user_id:
             return jsonify({"error": "user_id required"}), 400
 
@@ -233,7 +233,7 @@ def run_rest_server(svc):
     @app.route('/api/analysis/quota', methods=['POST'])
     def analysis_quota():
         data = request.get_json() or {}
-        user_id = data.get("user_id")
+        user_id = request.headers.get('X-User-Id') or data.get("user_id")
         if not user_id:
             return jsonify({"error": "user_id required"}), 400
 
@@ -253,7 +253,7 @@ def run_rest_server(svc):
     @app.route('/api/keys', methods=['POST'])
     def list_keys():
         data = request.get_json() or {}
-        user_id = data.get("user_id")
+        user_id = request.headers.get('X-User-Id') or data.get("user_id")
         if not user_id:
             return jsonify({"error": "user_id required"}), 400
 
@@ -276,7 +276,7 @@ def run_rest_server(svc):
     @app.route('/api/keys/generate', methods=['POST'])
     def generate_key():
         data = request.get_json() or {}
-        user_id = data.get("user_id")
+        user_id = request.headers.get('X-User-Id') or data.get("user_id")
         name = data.get("name", "").strip()
         if not user_id or not name:
             return jsonify({"error": "user_id and name required"}), 400
@@ -311,7 +311,7 @@ def run_rest_server(svc):
     @app.route('/api/keys/revoke', methods=['POST'])
     def revoke_key():
         data = request.get_json() or {}
-        user_id = data.get("user_id")
+        user_id = request.headers.get('X-User-Id') or data.get("user_id")
         key_id = data.get("key_id")
         if not user_id or not key_id:
             return jsonify({"error": "user_id and key_id required"}), 400

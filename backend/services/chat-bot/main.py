@@ -15,7 +15,7 @@ import psycopg2
 import psycopg2.pool
 from psycopg2.extras import RealDictCursor
 from typing import Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_aws import ChatBedrockConverse
@@ -584,14 +584,15 @@ def health():
 
 @app.post("/chat")
 @app.post("/api/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, request: Request):
     _cleanup_sessions()
 
     easter_egg = _check_easter_egg(req.message)
     if easter_egg:
         return {"answer": easter_egg}
 
-    system_prompt = build_system_prompt(req.user_id)
+    user_id = request.headers.get("x-user-id") or req.user_id
+    system_prompt = build_system_prompt(user_id)
     history = session_history[req.session_id]["msgs"] if req.session_id in session_history else []
 
     messages = (

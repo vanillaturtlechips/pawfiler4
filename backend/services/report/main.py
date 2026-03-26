@@ -657,7 +657,7 @@ def build_pdf(output_path='/tmp/report.pdf', **kwargs):
 import psycopg2
 import psycopg2.extras
 import boto3
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -814,16 +814,17 @@ class ReportRequest(BaseModel):
 
 
 @app.post("/generate")
-def generate_report(req: ReportRequest):
+def generate_report(req: ReportRequest, request: Request):
+    user_id = request.headers.get("x-user-id") or req.user_id
     try:
         stats, type_stats, weekly, profile, wrong_answers, weak_labels = fetch_user_report_data(
-            req.user_id, req.days
+            user_id, req.days
         )
         if not stats or int(stats['total'] or 0) == 0:
             raise HTTPException(status_code=404, detail="풀이 데이터가 없어요. 퀴즈를 먼저 풀어보세요.")
 
         html = build_html(
-            user_id=req.user_id,
+            user_id=user_id,
             stats=stats,
             type_stats=type_stats,
             weekly=weekly,
@@ -842,13 +843,13 @@ def generate_report(req: ReportRequest):
 
         # S3 버킷이 설정된 경우 S3에 저장, 아니면 로컬 /tmp 저장 (로컬 개발용)
         if S3_BUCKET:
-            presigned_url = _upload_to_s3(req.user_id, html)
+            presigned_url = _upload_to_s3(user_id, html)
             return {"report_url": presigned_url}
         else:
-            out_path = os.path.join(REPORTS_DIR, f"{req.user_id}.html")
+            out_path = os.path.join(REPORTS_DIR, f"{user_id}.html")
             with open(out_path, 'w', encoding='utf-8') as f:
                 f.write(html)
-            return {"report_url": f"/download/{req.user_id}"}
+            return {"report_url": f"/download/{user_id}"}
     except HTTPException:
         raise
     except Exception as e:

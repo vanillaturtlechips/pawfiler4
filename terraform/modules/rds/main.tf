@@ -252,3 +252,47 @@ resource "aws_db_proxy_target" "main" {
   db_proxy_name          = aws_db_proxy.main.name
   target_group_name      = aws_db_proxy_default_target_group.main.name
 }
+
+# ============================================================================
+# SSM Parameters for ExternalSecret (db-credentials)
+# ============================================================================
+
+resource "aws_ssm_parameter" "db_host" {
+  name  = "/${var.project_name}/db/host"
+  type  = "String"
+  value = aws_db_proxy.main.endpoint
+
+  tags = {
+    Name = "${var.project_name}-db-host"
+  }
+}
+
+resource "aws_ssm_parameter" "db_name" {
+  name  = "/${var.project_name}/db/name"
+  type  = "String"
+  value = aws_db_instance.main.db_name
+
+  tags = {
+    Name = "${var.project_name}-db-name"
+  }
+}
+
+resource "aws_ssm_parameter" "db_user" {
+  name  = "/${var.project_name}/db/user"
+  type  = "String"
+  value = var.database_username
+
+  tags = {
+    Name = "${var.project_name}-db-user"
+  }
+}
+
+resource "aws_ssm_parameter" "db_password" {
+  name  = "/${var.project_name}/db/password"
+  type  = "SecureString"
+  value = var.database_password
+
+  tags = {
+    Name = "${var.project_name}-db-password"
+  }
+}
