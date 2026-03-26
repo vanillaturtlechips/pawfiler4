@@ -31,6 +31,7 @@ func New() *Client {
 func (c *Client) ensureConnected() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// 기존 연결이 있으면 재사용
 	if c.conn != nil {
 		return nil
 	}
@@ -60,7 +61,13 @@ func (c *Client) GetProfile(ctx context.Context, userID string) (nickname, avata
 
 	resp, err := c.svc.GetProfile(ctx, &userpb.GetProfileRequest{UserId: userID})
 	if err != nil {
-		log.Printf("[userclient] GetProfile failed for %s: %v", userID, err)
+		// 연결 실패 시 다음 호출에서 재연결 시도하도록 conn 초기화
+		log.Printf("[userclient] GetProfile failed for %s: %v — resetting connection", userID, err)
+		c.mu.Lock()
+		c.conn.Close()
+		c.conn = nil
+		c.svc = nil
+		c.mu.Unlock()
 		return "탐정", "🦊"
 	}
 	if resp.Nickname == "" {

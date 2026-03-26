@@ -13,7 +13,7 @@ export const config = {
 
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',
-  useMockAuth: import.meta.env.VITE_USE_MOCK_AUTH !== 'false',
+  useMockAuth: _isProd ? false : import.meta.env.VITE_USE_MOCK_AUTH === 'true',
   
   // App Config
   appName: import.meta.env.VITE_APP_NAME || 'PawFiler',

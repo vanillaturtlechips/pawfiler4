@@ -57,7 +57,6 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
 
-	// Fetch authoritative profile from user service to prevent author spoofing.
 	nickname, avatarEmoji := h.userClient.GetProfile(ctx, userID)
 
 	commentID := uuid.New().String()
@@ -75,7 +74,6 @@ func (h *Handler) CreateComment(ctx context.Context, req *pb.CreateCommentReques
 	`, commentID, req.PostId, userID, nickname, avatarEmoji, req.Body, createdAt)
 
 	if err != nil {
-		// FK 위반 = post 없음
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, status.Error(codes.NotFound, "Post not found")
 		}

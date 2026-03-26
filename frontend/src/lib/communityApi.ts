@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { handleApiError } from "./api";
+import { handleApiError, getAuthHeader } from "./api";
 import type { 
   CommunityPost, 
   CommunityFeed, 
@@ -52,6 +52,7 @@ export const fetchCommunityFeed = async (
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+        ...getAuthHeader(),
         },
         body: JSON.stringify(requestBody),
       }
@@ -105,6 +106,7 @@ export const createCommunityPost = async (req: {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+        ...getAuthHeader(),
         },
         body: JSON.stringify({
           file_name: req.mediaFile.name,
@@ -429,7 +431,7 @@ export const votePost = async (postId: string, userId: string, vote: boolean): P
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/VotePost`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ post_id: postId, user_id: userId, vote }),
     });
     if (!response.ok) throw new Error("투표 실패");
@@ -448,7 +450,7 @@ export const getVoteResult = async (postId: string): Promise<{ trueVotes: number
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetVoteResult`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ post_id: postId }),
     });
     if (!response.ok) throw new Error("투표 결과 조회 실패");
@@ -467,7 +469,7 @@ export const getUserVote = async (postId: string, userId: string): Promise<{ vot
   try {
     const response = await fetch(`${config.communityBaseUrl}/community.CommunityService/GetUserVote`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
     if (!response.ok) throw new Error("투표 여부 조회 실패");

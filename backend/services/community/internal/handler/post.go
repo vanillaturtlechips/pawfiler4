@@ -117,6 +117,26 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		posts = append(posts, &post)
 	}
 
+	// Redis likes 일괄 반영 — MGet으로 한 번에 조회 (N+1 방지)
+	if h.rdb != nil && len(posts) > 0 {
+		keys := make([]string, len(posts))
+		for i, p := range posts {
+			keys[i] = "likes:" + p.Id
+		}
+		vals, err := h.rdb.MGet(ctx, keys...).Result()
+		if err == nil {
+			for i, v := range vals {
+				if v != nil {
+					if s, ok := v.(string); ok {
+						var n int64
+						fmt.Sscanf(s, "%d", &n)
+						posts[i].Likes = int32(n)
+					}
+				}
+			}
+		}
+	}
+
 	return &pb.FeedResponse{
 		Posts:      posts,
 		TotalCount: totalCount,
@@ -155,6 +175,13 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	post.MediaType = mediaType.String
 	if isCorrect.Valid {
 		post.IsCorrect = &isCorrect.Bool
+	}
+
+	// Redis에 likes 캐시 있으면 덮어씀
+	if h.rdb != nil {
+		if val, err := h.rdb.Get(ctx, "likes:"+post.Id).Int64(); err == nil {
+			post.Likes = int32(val)
+		}
 	}
 	return &post, nil
 }
@@ -195,6 +222,11 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to create post")
+	}
+
+	// 미디어 linked 처리 — 연결되면 추적 테이블에서 바로 삭제
+	if req.MediaUrl != "" {
+		h.db.ExecContext(ctx, "DELETE FROM community.media_uploads WHERE media_url = $1", req.MediaUrl)
 	}
 
 	return &pb.Post{
@@ -299,6 +331,11 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 		return nil, status.Error(codes.Internal, "Failed to commit transaction")
 	}
 
+	// Redis likes 키 삭제
+	if h.rdb != nil {
+		h.rdb.Del(context.Background(), "likes:"+req.PostId)
+	}
+
 	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
 	if mediaURL != "" {
 		go func() {
@@ -352,7 +389,8 @@ func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRe
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
 
-	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+	userID := userIDFromContext(ctx, req.UserId)
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, userID)
 
 	postID := uuid.New().String()
 	createdAt := time.Now()
@@ -360,7 +398,7 @@ func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRe
 	_, err := h.db.ExecContext(ctx, `
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, true, $8, $9)
-	`, postID, req.UserId, nickname, avatarEmoji, req.Title, req.Body,
+	`, postID, userID, nickname, avatarEmoji, req.Title, req.Body,
 		pq.Array(req.Tags), req.IsCorrect, createdAt)
 
 	if err != nil {
@@ -370,7 +408,7 @@ func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRe
 
 	return &pb.Post{
 		Id:             postID,
-		AuthorId:       req.UserId,
+		AuthorId:       userID,
 		AuthorNickname: nickname,
 		AuthorEmoji:    avatarEmoji,
 		Title:          req.Title,

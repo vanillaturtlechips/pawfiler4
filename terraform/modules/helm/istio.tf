@@ -80,7 +80,7 @@ resource "helm_release" "istio_ingress" {
         "service.beta.kubernetes.io/aws-load-balancer-backend-protocol" = "tcp"
       }
       ports = [
-        { name = "http2", port = 80, targetPort = 80 }
+        { name = "http2", port = 80, targetPort = 80 },
         { name = "https", port = 443, targetPort = 80 }  # NLB TLS → GW plain HTTP
       ]
     }
