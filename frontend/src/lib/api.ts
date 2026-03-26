@@ -31,6 +31,14 @@ import { config } from "./config";
 import { toast } from "sonner";
 import { fixImageUrl } from "../utils/imageUrl";
 
+// Authorization 헤더 반환 — localStorage에서 토큰을 읽어 매 요청마다 최신 토큰 반영
+export const getAuthHeader = (): Record<string, string> => {
+  const token = typeof window !== "undefined"
+    ? localStorage.getItem(config.storageKeys.authToken)
+    : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 // 사용자 ID 생성 또는 가져오기 (UUID v4 형식)
 export const getUserId = (): string => {
   let userId = localStorage.getItem(config.storageKeys.quizUserId);
@@ -254,6 +262,7 @@ export const fetchQuizQuestion = async (difficulty?: string): Promise<QuizQuesti
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify(body),
     });
@@ -365,6 +374,7 @@ export const submitQuizAnswer = async (req: QuizSubmitRequest): Promise<QuizSubm
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify(requestBody),
     });
@@ -419,6 +429,7 @@ export const fetchUserStats = async (): Promise<QuizStats> => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({
         user_id: userId,
@@ -454,7 +465,7 @@ export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
     const userId = getUserId();
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetUserProfile`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ user_id: userId }),
     });
     if (!response.ok) throw new Error(`Failed to fetch profile: ${response.statusText}`);
@@ -482,7 +493,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
     if (typeof videoFile === 'string') {
       const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           video_url: videoFile,
           user_id: localStorage.getItem(config.storageKeys.quizUserId) || ''
@@ -495,7 +506,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
         await new Promise(resolve => setTimeout(resolve, 2000));
         const r = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeader() },
           body: JSON.stringify({ task_id: taskId }),
         });
         const result: DeepfakeReport = await r.json();
@@ -516,6 +527,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       
       const response = await fetch(`${config.apiBaseUrl}/upload-video`, {
         method: 'POST',
+        headers: { ...getAuthHeader() },
         body: formData,
       });
       
@@ -532,7 +544,7 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
         
         const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeader() },
           body: JSON.stringify({ task_id: taskId }),
         });
         const resultResponse: DeepfakeReport = await pollRes.json();
@@ -583,7 +595,7 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
   try {
     const response = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ task_id: taskId }),
     });
     const data = await response.json();
@@ -653,7 +665,7 @@ export const refillEnergy = async (): Promise<void> => {
   const userId = getUserId();
   await fetch(`${config.apiBaseUrl}/quiz.QuizService/RefillEnergy`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify({ user_id: userId }),
   });
 };
@@ -663,7 +675,7 @@ export const syncProfileToQuiz = async (nickname: string, avatarEmoji: string): 
   if (!userId || !nickname) return;
   await fetch(`${config.apiBaseUrl}/quiz.QuizService/UpdateUserProfile`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify({ user_id: userId, nickname, avatar_emoji: avatarEmoji }),
   }).catch(() => {});
 };
@@ -672,7 +684,7 @@ export const syncAuthorToCommunity = async (userId: string, nickname: string, av
   if (!userId || !nickname) return;
   await fetch(`${config.communityBaseUrl}/community.CommunityService/SyncAuthorNickname`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify({ user_id: userId, nickname, avatar_emoji: avatarEmoji }),
   }).catch(() => {});
 };
@@ -681,7 +693,7 @@ export const fetchRanking = async (sortBy: string = "correct") => {
   try {
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetRanking`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify({ sort_by: sortBy }),
     });
     if (!response.ok) return [];
@@ -712,7 +724,7 @@ export const fetchQuestionStats = async (questionId?: string) => {
   try {
     const response = await fetch(`${config.apiBaseUrl}/quiz.QuizService/GetQuestionStats`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify(questionId ? { question_id: questionId } : {}),
     });
     if (!response.ok) return [];
@@ -803,7 +815,7 @@ export interface PurchaseResult {
 const userServicePost = async <T>(path: string, body: object): Promise<T> => {
   const res = await fetch(`${config.userServiceBaseUrl}/user.UserService/${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
   });
   const data = await res.json();
