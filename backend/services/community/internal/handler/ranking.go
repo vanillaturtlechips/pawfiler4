@@ -14,7 +14,6 @@ import (
 const rankingCacheTTL = 60 * time.Second
 
 func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*pb.GetRankingResponse, error) {
-	// 캐시 확인 — 크로스 스키마 JOIN 비용을 60초마다 한 번만 지불
 	h.rankingCacheMu.RLock()
 	if h.rankingCache != nil && time.Now().Before(h.rankingCache.expiresAt) {
 		cached := h.rankingCache.data
@@ -22,6 +21,13 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 		return cached, nil
 	}
 	h.rankingCacheMu.RUnlock()
+
+	// double-check: Lock 잡은 후 재확인 — 동시 요청의 중복 DB 쿼리 방지
+	h.rankingCacheMu.Lock()
+	defer h.rankingCacheMu.Unlock()
+	if h.rankingCache != nil && time.Now().Before(h.rankingCache.expiresAt) {
+		return h.rankingCache.data, nil
+	}
 
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT 
@@ -67,12 +73,7 @@ func (h *Handler) GetRanking(ctx context.Context, req *pb.GetRankingRequest) (*p
 		rank++
 	}
 	result := &pb.GetRankingResponse{Entries: entries}
-
-	// 캐시 갱신
-	h.rankingCacheMu.Lock()
 	h.rankingCache = &rankingCacheEntry{data: result, expiresAt: time.Now().Add(rankingCacheTTL)}
-	h.rankingCacheMu.Unlock()
-
 	return result, nil
 }
 
@@ -133,4 +134,3 @@ func calcLevel(tier string, totalExp int32) int32 {
 		}
 	}
 }
-
