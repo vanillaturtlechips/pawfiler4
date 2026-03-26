@@ -251,7 +251,7 @@ jobs:
       - name: Update ArgoCD image tag
         run: |
           sed -i "s|image: .*/pawfiler/aiops-service:.*|image: ${{ steps.login-ecr.outputs.registry }}/pawfiler/aiops-service:${{ github.sha }}|g" \
-            argocd-repo/apps/services/aiops/deployment.yaml
+            argocd-repo/infrastructure/observability/aiops/deployment.yaml
           cd argocd-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
