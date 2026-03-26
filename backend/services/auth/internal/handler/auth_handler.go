@@ -82,7 +82,11 @@ return count
 `)
 
 // loginRateLimit returns true when the request is within the allowed rate.
+// RATE_LIMIT_ENABLED=false 환경변수로 비활성화 가능 (부하 테스트 시 사용)
 func (h *Handler) loginRateLimit(r *http.Request) bool {
+	if os.Getenv("RATE_LIMIT_ENABLED") == "false" {
+		return true
+	}
 	if h.redisClient == nil {
 		return true
 	}
@@ -325,7 +329,7 @@ func (h *Handler) initUserProfile(userID, nickname string) {
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 	}
-	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID)
+	log.Printf("[auth] WARNING: failed to initialize nickname for user %s after 3 attempts", userID) for user %s after 3 attempts", userID)
 }
 
 // splitCSV splits a comma-separated string and trims whitespace from each element.

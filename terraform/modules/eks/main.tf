@@ -47,13 +47,27 @@ resource "aws_eks_cluster" "main" {
   }
 }
 
+# Launch Template - Base NodeGroup kubelet maxPods 110 (Prefix Delegation 적용)
+resource "aws_launch_template" "base_node" {
+  name_prefix = "${var.project_name}-base-node-"
+
+  user_data = base64encode(
+    "MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"==BOUNDARY==\"\n\n--==BOUNDARY==\nContent-Type: application/node.eks.aws\n\n---\napiVersion: node.eks.aws/v1alpha1\nkind: NodeConfig\nspec:\n  kubelet:\n    config:\n      maxPods: 110\n--==BOUNDARY==--\n"
+  )
+}
+
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-node-group-ondemand"
+  node_group_name = "${var.project_name}-node-group-spot"
   node_role_arn   = var.eks_node_group_role_arn
   subnet_ids      = var.private_subnet_ids
   instance_types  = var.node_instance_types
-  capacity_type   = "ON_DEMAND"
+  capacity_type   = "SPOT"
+
+  launch_template {
+    id      = aws_launch_template.base_node.id
+    version = aws_launch_template.base_node.latest_version
+  }
 
   scaling_config {
     desired_size = var.node_desired_size
@@ -63,7 +77,7 @@ resource "aws_eks_node_group" "main" {
 
   # Note: implicit dependency via node_role_arn ensures IAM policies are attached first
   tags = {
-    Name = "${var.project_name}-eks-node-group-ondemand"
+    Name = "${var.project_name}-eks-node-group-spot"
   }
 
   lifecycle {
@@ -71,7 +85,20 @@ resource "aws_eks_node_group" "main" {
   }
 }
 
-# node-group-spot 제거됨 (Karpenter spot NodePool로 대체)
+# VPC CNI Addon - Prefix Delegation 활성화 (t3.medium maxPods 17 → 110)
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "vpc-cni"
+
+  configuration_values = jsonencode({
+    env = {
+      ENABLE_PREFIX_DELEGATION = "true"
+      WARM_PREFIX_TARGET       = "1"
+    }
+  })
+
+  depends_on = [aws_eks_node_group.main]
+}
 
 # EBS CSI Driver Addon
 resource "aws_eks_addon" "ebs_csi_driver" {

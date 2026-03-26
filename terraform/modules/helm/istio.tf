@@ -33,7 +33,7 @@ resource "helm_release" "istiod" {
       # Envoy 사이드카 → OTel Collector → Tempo 트레이싱 파이프라인
       extensionProviders = [{
         name = "otel-tracing"
-        envoyOtelAls = {
+        opentelemetry = {
           service = "otel-collector.monitoring.svc.cluster.local"
           port    = 4317
         }

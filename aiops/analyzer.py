@@ -14,9 +14,12 @@ from tools import (
     get_loki_logs,
     get_pod_status,
     get_prometheus_metrics,
+    get_tempo_traces,
     restart_deployment,
+    send_slack_notification,
     send_sns_notification,
 )
+from store import save_result
 
 COOLDOWN_FILE = "/tmp/aiops_last_alert.json"
 COOLDOWN_SECONDS = 3600  # 1시간
@@ -147,6 +150,40 @@ TOOL_CONFIG = {
         },
         {
             "toolSpec": {
+                "name": "get_tempo_traces",
+                "description": (
+                    "Tempo에서 최근 분산 트레이스를 조회합니다. "
+                    "특정 서비스의 고레이턴시 요청(min_duration_ms 설정) 또는 에러 트레이스를 확인할 수 있습니다. "
+                    "TEMPO_ENDPOINT 미설정 시 unavailable을 반환합니다."
+                ),
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": {
+                            "service": {
+                                "type": "string",
+                                "description": "조회할 서비스 이름. 예: 'quiz-service'. 빈 문자열이면 전체 서비스",
+                            },
+                            "status": {
+                                "type": "string",
+                                "description": "트레이스 상태 필터. 예: 'error'. 빈 문자열이면 전체",
+                            },
+                            "min_duration_ms": {
+                                "type": "integer",
+                                "description": "최소 지속시간(ms) 필터. 예: 1000이면 1초 이상 소요된 트레이스만 반환",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "반환할 최대 트레이스 수. 기본값 20",
+                            },
+                        },
+                        "required": [],
+                    }
+                },
+            }
+        },
+        {
+            "toolSpec": {
                 "name": "restart_deployment",
                 "description": (
                     "Kubernetes Deployment를 rollout restart합니다. "
@@ -187,14 +224,19 @@ SYSTEM_PROMPT = [
 1. get_pod_status로 pawfiler/admin 네임스페이스 이상 파드 확인
 2. 이상 파드(Pending/Error 등) 발견 시 describe_pod_events로 원인 파악
 3. get_prometheus_metrics로 CPU/메모리/HTTP 에러율 이상 확인
-4. get_loki_logs로 최근 error/panic 로그 확인
-5. 이상 감지 시 원인 분석 후 필요하면 restart_deployment
+4. CPU/메모리가 75% 초과 시 predict_linear로 향후 리소스 고갈 예측:
+   - 메모리 예측: predict_linear(container_memory_working_set_bytes{namespace="pawfiler"}[30m], 3600)
+   - CPU 예측: predict_linear(rate(container_cpu_usage_seconds_total{namespace="pawfiler"}[5m])[30m:], 3600)
+5. get_loki_logs로 최근 error/panic 로그 확인
+6. TEMPO_ENDPOINT 설정된 경우 get_tempo_traces로 고레이턴시(min_duration_ms=2000) 또는 에러 트레이스 확인
+7. 이상 감지 시 원인 분석 후 필요하면 restart_deployment
 
 규칙:
 - restart_deployment는 Deployment 리소스에만 사용. RayCluster/StatefulSet/DaemonSet 등 CRD에 절대 사용 금지
 - restart_deployment는 CrashLoopBackOff/OOMKilled/Error이고 재시작 5회 이상일 때만 사용
 - 분석 결과 마지막 줄에 반드시 "이상 감지 여부: YES" 또는 "이상 감지 여부: NO" 명시
-- 이상 감지 시 원인과 조치 내용을 구체적으로 한국어로 설명"""
+- 이상 감지 시 원인과 조치 내용을 구체적으로 한국어로 설명
+- predict_linear 결과는 "현재 추세 지속 시 1시간 후 예상값: XXX" 형태로 보고"""
     }
 ]
 
@@ -209,6 +251,8 @@ def _exec_tool(name: str, tool_input: dict) -> str:
             result = get_pod_status(**tool_input)
         elif name == "describe_pod_events":
             result = describe_pod_events(**tool_input)
+        elif name == "get_tempo_traces":
+            result = get_tempo_traces(**tool_input)
         elif name == "restart_deployment":
             result = restart_deployment(**tool_input)
         else:
@@ -220,10 +264,56 @@ def _exec_tool(name: str, tool_input: dict) -> str:
         return json.dumps({"error": str(e)})
 
 
-def run_analysis() -> None:
-    """Bedrock converse API 기반 클러스터 이상 탐지 분석"""
+async def ask_claude(question: str) -> str:
+    """자유 질문을 Claude에게 전달, AMP/Loki/K8s 조회 후 답변 반환."""
+    import asyncio
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _ask_claude_sync, question)
+
+
+def _ask_claude_sync(question: str) -> str:
+    """동기 버전 - boto3 블로킹 호출을 executor에서 실행."""
+    logger.info(f"ask_claude: {question}")
+    bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+    messages = [{"role": "user", "content": [{"text": question}]}]
+
+    for _ in range(10):
+        response = bedrock.converse(
+            modelId=BEDROCK_MODEL_ID,
+            system=SYSTEM_PROMPT,
+            messages=messages,
+            toolConfig=TOOL_CONFIG,
+        )
+        stop_reason = response["stopReason"]
+        content = response["output"]["message"]["content"]
+
+        if stop_reason == "end_turn":
+            return next((b["text"] for b in content if "text" in b), "")
+
+        if stop_reason == "tool_use":
+            messages.append({"role": "assistant", "content": content})
+            tool_results = []
+            for block in content:
+                if "toolUse" not in block:
+                    continue
+                tu = block["toolUse"]
+                result_text = _exec_tool(tu["name"], tu["input"])
+                tool_results.append({
+                    "toolResult": {
+                        "toolUseId": tu["toolUseId"],
+                        "content": [{"text": result_text}],
+                    }
+                })
+            messages.append({"role": "user", "content": tool_results})
+
+    return "분석 최대 라운드 초과."
+
+
+def run_analysis() -> bool:
+    """클러스터 이상 탐지 분석. 이상 감지 시 True 반환."""
     logger.info("=== AIOps analysis started ===")
     bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+    anomaly = False
 
     messages = [
         {
@@ -258,23 +348,24 @@ def run_analysis() -> None:
             )
             logger.info(f"Analysis complete:\n{final_text}")
 
-            if "이상 감지 여부: YES" in final_text:
+            anomaly = "이상 감지 여부: YES" in final_text
+            save_result({"anomaly": anomaly, "summary": final_text})
+
+            if anomaly:
                 if _cooldown_active():
-                    logger.info("Anomaly detected but SNS suppressed (cooldown 1h active).")
+                    logger.info("Anomaly detected but notifications suppressed (cooldown 1h active).")
                 else:
-                    send_sns_notification(
-                        subject="[AIOps] pawfiler 클러스터 이상 감지",
-                        message=final_text,
-                    )
+                    subject = "[AIOps] pawfiler 클러스터 이상 감지"
+                    send_sns_notification(subject=subject, message=final_text)
+                    send_slack_notification(subject=subject, message=final_text)
                     _set_cooldown()
-                    logger.warning("Anomaly detected! SNS sent.")
+                    logger.warning("Anomaly detected! SNS + Slack sent.")
             else:
                 logger.info("Cluster healthy.")
             break
 
         if stop_reason == "tool_use":
             messages.append({"role": "assistant", "content": content})
-
             tool_results = []
             for block in content:
                 if "toolUse" not in block:
@@ -293,3 +384,4 @@ def run_analysis() -> None:
         logger.warning("Analysis exceeded max rounds (10).")
 
     logger.info("=== AIOps analysis finished ===")
+    return anomaly

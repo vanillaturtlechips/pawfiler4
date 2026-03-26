@@ -5,6 +5,7 @@ import datetime
 import logging
 import os
 import time
+from typing import Optional
 
 import boto3
 import requests
@@ -21,7 +22,7 @@ AMP_ENDPOINT = os.environ.get(
     "https://aps-workspaces.ap-northeast-2.amazonaws.com/workspaces/ws-0f0a9920-3ba9-4e8e-98e0-d36bfc945836/",
 )
 PROMETHEUS_LOCAL = os.environ.get(
-    "PROMETHEUS_LOCAL", "http://prometheus-operated.monitoring:9090"
+    "PROMETHEUS_LOCAL", "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
 )
 LOKI_ENDPOINT = os.environ.get(
     "LOKI_ENDPOINT", "http://loki.monitoring.svc.cluster.local:3100"
@@ -30,6 +31,8 @@ SNS_TOPIC_ARN = os.environ.get(
     "SNS_TOPIC_ARN",
     "arn:aws:sns:ap-northeast-2:009946608368:pawfiler-aiops",
 )
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+TEMPO_ENDPOINT = os.environ.get("TEMPO_ENDPOINT", "")
 
 
 def _k8s() -> tuple[k8s_client.CoreV1Api, k8s_client.AppsV1Api]:
@@ -40,7 +43,7 @@ def _k8s() -> tuple[k8s_client.CoreV1Api, k8s_client.AppsV1Api]:
     return k8s_client.CoreV1Api(), k8s_client.AppsV1Api()
 
 
-def _query_prometheus(base_url: str, params: dict, headers: dict | None = None) -> list:
+def _query_prometheus(base_url: str, params: dict, headers: Optional[dict] = None) -> list:
     resp = requests.get(
         f"{base_url.rstrip('/')}/api/v1/query_range",
         params=params,
@@ -197,6 +200,38 @@ def restart_deployment(namespace: str, deployment_name: str) -> dict:
     return {"status": "restarted", "deployment": deployment_name, "namespace": namespace}
 
 
+def get_tempo_traces(service: str = "", status: str = "", min_duration_ms: int = 0, limit: int = 20) -> dict:
+    """Tempo HTTP API로 최근 트레이스 조회. 고레이턴시/에러 트레이스 확인에 사용.
+    TEMPO_ENDPOINT 미설정 시 unavailable 반환 (에러 아님).
+    """
+    if not TEMPO_ENDPOINT:
+        return {"source": "unavailable", "note": "TEMPO_ENDPOINT 환경변수 미설정 — Tempo 미연동 상태"}
+
+    try:
+        params: dict = {"limit": limit}
+        if service:
+            params["service"] = service
+        if status:
+            params["tags"] = f"status={status}"
+
+        resp = requests.get(f"{TEMPO_ENDPOINT.rstrip('/')}/api/search", params=params, timeout=10)
+        resp.raise_for_status()
+        traces = resp.json().get("traces", [])
+
+        if min_duration_ms > 0:
+            traces = [t for t in traces if int(t.get("durationMs", 0)) >= min_duration_ms]
+
+        return {
+            "source": "tempo",
+            "service_filter": service or "all",
+            "trace_count": len(traces),
+            "traces": traces[:limit],
+        }
+    except Exception as e:
+        logger.warning(f"Tempo query failed: {e}")
+        return {"source": "error", "error": str(e)}
+
+
 def send_sns_notification(subject: str, message: str) -> None:
     """SNS 알림 전송"""
     boto3.client("sns", region_name=REGION).publish(
@@ -205,3 +240,42 @@ def send_sns_notification(subject: str, message: str) -> None:
         Message=message,
     )
     logger.info(f"SNS sent: {subject}")
+
+
+def send_slack_notification(subject: str, message: str) -> None:
+    """Slack Incoming Webhook 알림 전송. SLACK_WEBHOOK_URL 미설정 시 skip."""
+    if not SLACK_WEBHOOK_URL:
+        logger.debug("SLACK_WEBHOOK_URL not set, skipping Slack notification.")
+        return
+
+    # 요약 텍스트: 최대 2900자 (Slack 블록 텍스트 3000자 제한)
+    summary = message[:2900] + ("..." if len(message) > 2900 else "")
+    is_anomaly = "이상 감지" in subject
+
+    payload = {
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"{'🚨' if is_anomaly else '✅'} {subject}",
+                },
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"```{summary}```"},
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*pawfiler AIOps* · {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+                    }
+                ],
+            },
+        ]
+    }
+    resp = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=10)
+    resp.raise_for_status()
+    logger.info(f"Slack notification sent: {subject}")

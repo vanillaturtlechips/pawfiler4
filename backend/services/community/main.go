@@ -35,8 +35,8 @@ func initDB() error {
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
-	db.SetMaxOpenConns(150)
-	db.SetMaxIdleConns(50)
+	db.SetMaxOpenConns(30)
+	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(2 * time.Minute)
 	if err := db.Ping(); err != nil {

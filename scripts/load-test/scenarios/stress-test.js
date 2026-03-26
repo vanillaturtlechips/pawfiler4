@@ -1,3 +1,29 @@
+/**
+ * ============================================================
+ * ⚠️  부하 테스트 실행 전 필수 체크리스트
+ * ============================================================
+ *
+ * 1. auth-service rate limit 비활성화 (필수)
+ *    k6는 단일 IP에서 요청을 보내므로 분당 300회 rate limit에 걸립니다.
+ *    테스트 전 auth-service deployment에 아래 환경변수를 추가하세요:
+ *
+ *      kubectl set env deployment/auth-service \
+ *        RATE_LIMIT_ENABLED=false -n pawfiler
+ *
+ *    테스트 완료 후 반드시 원복:
+ *      kubectl set env deployment/auth-service \
+ *        RATE_LIMIT_ENABLED=true -n pawfiler
+ *
+ * 2. 테스트 완료 후 데이터 정리 (teardown 로그 참고)
+ *    - quiz.user_answers: 최근 1시간 데이터 삭제
+ *    - community.posts: LOAD_TEST 태그 게시글 삭제
+ *
+ * 3. 테스트 대상 URL 확인
+ *    기본값: https://pawfiler.site
+ *    변경 시: k6 run -e API_URL=https://... stress-test.js
+ * ============================================================
+ */
+
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate, Trend, Counter } from 'k6/metrics';

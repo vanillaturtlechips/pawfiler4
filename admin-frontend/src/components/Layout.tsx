@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Users, ShoppingBag, Menu, X } from "lucide-react";
+import { LayoutDashboard, BookOpen, Users, ShoppingBag, Menu, X, Activity } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { to: "/admin/quiz", label: "퀴즈 관리", icon: BookOpen },
   { to: "/admin/community", label: "커뮤니티", icon: Users },
   { to: "/admin/shop", label: "상점 관리", icon: ShoppingBag },
+  { to: "/admin/aiops", label: "AIOps", icon: Activity },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -14,6 +15,7 @@ const pageTitles: Record<string, string> = {
   "/admin/quiz": "퀴즈 관리",
   "/admin/community": "커뮤니티 관리",
   "/admin/shop": "상점 관리",
+  "/admin/aiops": "AIOps",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
