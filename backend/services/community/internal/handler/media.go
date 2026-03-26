@@ -19,7 +19,7 @@ import (
 
 // UploadMedia - S3에 미디어 업로드 (이미지/영상)
 func (h *Handler) UploadMedia(ctx context.Context, req *pb.UploadMediaRequest) (*pb.UploadMediaResponse, error) {
-	log.Printf("🔄 UploadMedia called - FileName: %s, ContentSize: %d bytes", req.FileName, len(req.Content))
+	log.Printf("UploadMedia called - FileName: %s, ContentSize: %d bytes", req.FileName, len(req.Content))
 
 	if req.FileName == "" || len(req.Content) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "file_name and content required")
@@ -68,7 +68,11 @@ func (h *Handler) UploadMedia(ctx context.Context, req *pb.UploadMediaRequest) (
 		mediaUrl = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", h.s3Bucket, h.s3Region, key)
 	}
 
-	log.Printf("✅ Uploaded media to S3: %s", key)
+	log.Printf("Uploaded media to S3: %s", key)
+
+	// 고아 파일 추적 — 게시글 연결 전까지 linked=false로 기록
+	h.db.ExecContext(ctx, "INSERT INTO community.media_uploads (media_url, media_type) VALUES ($1, $2)", mediaUrl, mediaType)
+
 	return &pb.UploadMediaResponse{
 		MediaUrl:  mediaUrl,
 		MediaType: mediaType,

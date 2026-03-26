@@ -13,9 +13,10 @@ import (
 	"community/internal/userclient"
 	"community/pb"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 // rankingCacheEntry 랭킹 응답을 TTL과 함께 저장하는 인메모리 캐시
@@ -33,6 +34,7 @@ type hotTopicCacheEntry struct {
 type Handler struct {
 	pb.UnimplementedCommunityServiceServer
 	db              *sql.DB
+	rdb             *redis.Client
 	userClient      *userclient.Client
 	s3              *s3.Client
 	s3Bucket        string
@@ -53,6 +55,14 @@ func NewHandler(db *sql.DB) *Handler {
 		s3Region:   getEnvOrDefault("AWS_REGION", "ap-northeast-2"),
 		cfDomain:   getEnvOrDefault("CLOUDFRONT_COMMUNITY_DOMAIN", ""),
 	}
+	// Redis 클라이언트 초기화
+	redisAddr := getEnvOrDefault("REDIS_ADDR", "redis:6379")
+	h.rdb = redis.NewClient(&redis.Options{Addr: redisAddr, PoolSize: 10})
+	if err := h.rdb.Ping(context.Background()).Err(); err != nil {
+		log.Printf("[handler] Redis connection failed: %v — like counts will use DB directly", err)
+		h.rdb = nil
+	}
+
 	// S3 클라이언트 초기화 (시작 시 1회)
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(h.s3Region))
 	if err != nil {
@@ -61,6 +71,9 @@ func NewHandler(db *sql.DB) *Handler {
 		h.s3 = s3.NewFromConfig(cfg)
 	}
 	go h.startOrphanCleanup()
+	if h.rdb != nil {
+		go h.startLikeSyncBatch()
+	}
 	return h
 }
 
@@ -80,55 +93,50 @@ func (h *Handler) cleanOrphanS3Files() {
 	}
 	ctx := context.Background()
 
-	// 최근 2일치 S3 파일 목록 조회
-	out, err := h.s3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(h.s3Bucket),
-	})
-	if err != nil {
-		log.Printf("[ERROR] orphan cleanup: S3 list failed: %v", err)
-		return
-	}
-
-	// 최근 2일치 DB media_url 조회
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT media_url FROM community.posts
-		WHERE created_at > NOW() - INTERVAL '2 days' AND media_url IS NOT NULL
+		SELECT media_url FROM community.media_uploads
+		WHERE uploaded_at < NOW() - INTERVAL '2 days'
 	`)
 	if err != nil {
 		log.Printf("[ERROR] orphan cleanup: DB query failed: %v", err)
 		return
 	}
-	defer rows.Close()
 
-	inDB := map[string]struct{}{}
+	// rows 먼저 전부 수집 후 닫기 — rows 열린 채로 DB 작업 시 커넥션 충돌 방지
+	var urls []string
 	for rows.Next() {
-		var url string
-		if err := rows.Scan(&url); err == nil {
-			inDB[url] = struct{}{}
+		var mediaURL string
+		if err := rows.Scan(&mediaURL); err == nil {
+			urls = append(urls, mediaURL)
 		}
+	}
+	rows.Close()
+
+	if len(urls) == 0 {
+		return
 	}
 
-	cutoff := time.Now().Add(-2 * 24 * time.Hour)
-	deleted := 0
-	for _, obj := range out.Contents {
-		if obj.LastModified.Before(cutoff) {
-			continue // 2일 이전 파일은 건드리지 않음
+	// S3 삭제 성공한 것만 수집
+	var deleted []string
+	for _, url := range urls {
+		if err := h.deleteMediaFromS3(url); err != nil {
+			log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", url, err)
+			continue
 		}
-		var fileURL string
-		if h.cfDomain != "" {
-			fileURL = strings.TrimRight(h.cfDomain, "/") + "/" + aws.ToString(obj.Key)
-		} else {
-			fileURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", h.s3Bucket, h.s3Region, aws.ToString(obj.Key))
-		}
-		if _, ok := inDB[fileURL]; !ok {
-			if err := h.deleteMediaFromS3(fileURL); err != nil {
-				log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", aws.ToString(obj.Key), err)
-			} else {
-				deleted++
-			}
-		}
+		deleted = append(deleted, url)
 	}
-	log.Printf("[INFO] orphan cleanup done: deleted %d files", deleted)
+
+	if len(deleted) == 0 {
+		return
+	}
+
+	// DB DELETE 배치로 1번에 처리
+	if _, err := h.db.ExecContext(ctx, `
+		DELETE FROM community.media_uploads WHERE media_url = ANY($1)
+	`, pq.Array(deleted)); err != nil {
+		log.Printf("[ERROR] orphan cleanup: DB delete failed: %v", err)
+	}
+	log.Printf("[INFO] orphan cleanup done: deleted %d files", len(deleted))
 }
 
 func getEnvOrDefault(key, def string) string {
@@ -136,4 +144,77 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// startLikeSyncBatch - 30초마다 Redis likes → DB 동기화
+func (h *Handler) startLikeSyncBatch() {
+	ticker := time.NewTicker(30 * time.Second)
+	for range ticker.C {
+		h.syncLikesToDB()
+	}
+}
+
+func (h *Handler) syncLikesToDB() {
+	ctx := context.Background()
+
+	// SCAN으로 likes:* 키 전체 수집
+	var cursor uint64
+	var allKeys []string
+	for {
+		keys, nextCursor, err := h.rdb.Scan(ctx, cursor, "likes:*", 100).Result()
+		if err != nil {
+			log.Printf("[ERROR] likes sync scan failed: %v", err)
+			return
+		}
+		allKeys = append(allKeys, keys...)
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if len(allKeys) == 0 {
+		return
+	}
+
+	// MGet으로 값 한 번에 조회
+	vals, err := h.rdb.MGet(ctx, allKeys...).Result()
+	if err != nil {
+		log.Printf("[ERROR] likes sync mget failed: %v", err)
+		return
+	}
+
+	likesMap := map[string]int64{}
+	for i, v := range vals {
+		if v == nil {
+			continue
+		}
+		var n int64
+		fmt.Sscanf(fmt.Sprintf("%v", v), "%d", &n)
+		postID := strings.TrimPrefix(allKeys[i], "likes:")
+		likesMap[postID] = n
+	}
+
+	if len(likesMap) == 0 {
+		return
+	}
+
+	// VALUES 배치로 쿼리 1번에 전체 동기화 — UPDATE N번 → 1번
+	args := make([]interface{}, 0, len(likesMap)*2)
+	placeholders := make([]string, 0, len(likesMap))
+	i := 1
+	for postID, val := range likesMap {
+		placeholders = append(placeholders, fmt.Sprintf("($%d::uuid, $%d::int)", i, i+1))
+		args = append(args, postID, val)
+		i += 2
+	}
+	query := fmt.Sprintf(`
+		UPDATE community.posts SET likes = v.likes
+		FROM (VALUES %s) AS v(id, likes)
+		WHERE posts.id = v.id
+	`, strings.Join(placeholders, ","))
+
+	if _, err := h.db.ExecContext(ctx, query, args...); err != nil {
+		log.Printf("[ERROR] likes batch sync failed: %v", err)
+	}
 }

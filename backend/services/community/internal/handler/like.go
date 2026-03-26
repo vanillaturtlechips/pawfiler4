@@ -22,7 +22,6 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 	}
 	defer tx.Rollback()
 
-	// Use ON CONFLICT DO NOTHING to avoid race conditions between concurrent like requests.
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO community.likes (id, post_id, user_id, created_at)
 		VALUES ($1, $2, $3, NOW())
@@ -36,7 +35,6 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
-	// No rows inserted means the user already liked this post.
 	if rowsAffected == 0 {
 		if err = tx.Commit(); err != nil {
 			return nil, status.Error(codes.Internal, "Failed to like post")
@@ -44,17 +42,29 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 		return &pb.LikePostResponse{Success: true, AlreadyLiked: true}, nil
 	}
 
-	var totalLikes int32
-	err = tx.QueryRowContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1 RETURNING likes", req.PostId).Scan(&totalLikes)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to update like count")
-	}
-
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
 
-	return &pb.LikePostResponse{Success: true, AlreadyLiked: false, TotalLikes: totalLikes}, nil
+	// Redis로 카운터 증가, 없으면 DB fallback
+	var totalLikes int64
+	if h.rdb != nil {
+		exists, _ := h.rdb.Exists(ctx, "likes:"+req.PostId).Result()
+		if exists == 0 {
+			var dbLikes int64
+			h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&dbLikes)
+			h.rdb.SetNX(ctx, "likes:"+req.PostId, dbLikes, 0)
+		}
+		totalLikes, err = h.rdb.Incr(ctx, "likes:"+req.PostId).Result()
+		if err != nil {
+			h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&totalLikes)
+		}
+	} else {
+		h.db.ExecContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1", req.PostId)
+		h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&totalLikes)
+	}
+
+	return &pb.LikePostResponse{Success: true, AlreadyLiked: false, TotalLikes: int32(totalLikes)}, nil
 }
 
 // UnlikePost - 게시글 좋아요 취소
@@ -78,15 +88,23 @@ func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*p
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to unlike post")
 	}
-	if rowsAffected > 0 {
-		_, err = tx.ExecContext(ctx, "UPDATE community.posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", req.PostId)
-		if err != nil {
-			return nil, status.Error(codes.Internal, "Failed to update like count")
-		}
-	}
 
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "Failed to unlike post")
+	}
+
+	if rowsAffected > 0 {
+		if h.rdb != nil {
+			exists, _ := h.rdb.Exists(ctx, "likes:"+req.PostId).Result()
+			if exists == 0 {
+				var dbLikes int64
+				h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&dbLikes)
+				h.rdb.SetNX(ctx, "likes:"+req.PostId, dbLikes, 0)
+			}
+			h.rdb.Decr(ctx, "likes:"+req.PostId)
+		} else {
+			h.db.ExecContext(ctx, "UPDATE community.posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", req.PostId)
+		}
 	}
 
 	return &pb.UnlikePostResponse{Success: true}, nil
