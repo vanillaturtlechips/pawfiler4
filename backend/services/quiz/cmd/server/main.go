@@ -67,9 +67,11 @@ func main() {
 	})
 	ctx := context.Background()
 	if _, err = redisClient.Ping(ctx).Result(); err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		log.Printf("[WARN] Failed to connect to Redis: %v — running in DB-only mode", err)
+		redisClient = nil
+	} else {
+		log.Println("Connected to Redis")
 	}
-	log.Println("Connected to Redis")
 
 	repo := repository.NewGormQuizRepository(db, redisClient)
 	svc := service.NewQuizService(repo, service.NewStatsTracker(repo), service.NewAnswerValidator(), userclient.New())

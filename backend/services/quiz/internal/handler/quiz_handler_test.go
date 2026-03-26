@@ -65,6 +65,10 @@ func (m *MockQuizService) UpdateUserProfile(ctx context.Context, profile *reposi
 	return nil
 }
 
+func (m *MockQuizService) GetQuestionStats(ctx context.Context, questionID *string) ([]repository.QuestionStat, error) {
+	return nil, nil
+}
+
 // TestGetRandomQuestion_Success tests successful random question retrieval
 func TestGetRandomQuestion_Success(t *testing.T) {
 	mockService := &MockQuizService{
