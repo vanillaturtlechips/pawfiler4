@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/redis/go-redis/v9"
 )
 
 // rankingCacheEntry 랭킹 응답을 TTL과 함께 저장하는 인메모리 캐시
@@ -33,6 +34,7 @@ type hotTopicCacheEntry struct {
 type Handler struct {
 	pb.UnimplementedCommunityServiceServer
 	db              *sql.DB
+	rdb             *redis.Client
 	userClient      *userclient.Client
 	s3              *s3.Client
 	s3Bucket        string
@@ -53,6 +55,14 @@ func NewHandler(db *sql.DB) *Handler {
 		s3Region:   getEnvOrDefault("AWS_REGION", "ap-northeast-2"),
 		cfDomain:   getEnvOrDefault("CLOUDFRONT_COMMUNITY_DOMAIN", ""),
 	}
+	// Redis 클라이언트 초기화
+	redisAddr := getEnvOrDefault("REDIS_ADDR", "redis:6379")
+	h.rdb = redis.NewClient(&redis.Options{Addr: redisAddr, PoolSize: 10})
+	if err := h.rdb.Ping(context.Background()).Err(); err != nil {
+		log.Printf("[handler] Redis connection failed: %v — like counts will use DB directly", err)
+		h.rdb = nil
+	}
+
 	// S3 클라이언트 초기화 (시작 시 1회)
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(h.s3Region))
 	if err != nil {
@@ -61,6 +71,9 @@ func NewHandler(db *sql.DB) *Handler {
 		h.s3 = s3.NewFromConfig(cfg)
 	}
 	go h.startOrphanCleanup()
+	if h.rdb != nil {
+		go h.startLikeSyncBatch()
+	}
 	return h
 }
 
@@ -136,4 +149,31 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// startLikeSyncBatch - 30초마다 Redis likes → DB 동기화
+func (h *Handler) startLikeSyncBatch() {
+	ticker := time.NewTicker(30 * time.Second)
+	for range ticker.C {
+		h.syncLikesToDB()
+	}
+}
+
+func (h *Handler) syncLikesToDB() {
+	ctx := context.Background()
+	keys, err := h.rdb.Keys(ctx, "likes:*").Result()
+	if err != nil || len(keys) == 0 {
+		return
+	}
+	for _, key := range keys {
+		val, err := h.rdb.Get(ctx, key).Int64()
+		if err != nil {
+			continue
+		}
+		postID := strings.TrimPrefix(key, "likes:")
+		_, err = h.db.ExecContext(ctx, "UPDATE community.posts SET likes = $1 WHERE id = $2", val, postID)
+		if err != nil {
+			log.Printf("[ERROR] likes sync failed for %s: %v", postID, err)
+		}
+	}
 }
