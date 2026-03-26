@@ -15,6 +15,7 @@ import (
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -92,7 +93,6 @@ func (h *Handler) cleanOrphanS3Files() {
 	}
 	ctx := context.Background()
 
-	// S3 전체 스캔 없이 DB에서 고아 파일만 조회 — 2일 지나도 게시글에 연결 안 된 것
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT media_url FROM community.media_uploads
 		WHERE uploaded_at < NOW() - INTERVAL '2 days'
@@ -101,22 +101,42 @@ func (h *Handler) cleanOrphanS3Files() {
 		log.Printf("[ERROR] orphan cleanup: DB query failed: %v", err)
 		return
 	}
-	defer rows.Close()
 
-	deleted := 0
+	// rows 먼저 전부 수집 후 닫기 — rows 열린 채로 DB 작업 시 커넥션 충돌 방지
+	var urls []string
 	for rows.Next() {
 		var mediaURL string
-		if err := rows.Scan(&mediaURL); err != nil {
-			continue
+		if err := rows.Scan(&mediaURL); err == nil {
+			urls = append(urls, mediaURL)
 		}
-		if err := h.deleteMediaFromS3(mediaURL); err != nil {
-			log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", mediaURL, err)
-			continue
-		}
-		h.db.ExecContext(ctx, "DELETE FROM community.media_uploads WHERE media_url = $1", mediaURL)
-		deleted++
 	}
-	log.Printf("[INFO] orphan cleanup done: deleted %d files", deleted)
+	rows.Close()
+
+	if len(urls) == 0 {
+		return
+	}
+
+	// S3 삭제 성공한 것만 수집
+	var deleted []string
+	for _, url := range urls {
+		if err := h.deleteMediaFromS3(url); err != nil {
+			log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", url, err)
+			continue
+		}
+		deleted = append(deleted, url)
+	}
+
+	if len(deleted) == 0 {
+		return
+	}
+
+	// DB DELETE 배치로 1번에 처리
+	if _, err := h.db.ExecContext(ctx, `
+		DELETE FROM community.media_uploads WHERE media_url = ANY($1)
+	`, pq.Array(deleted)); err != nil {
+		log.Printf("[ERROR] orphan cleanup: DB delete failed: %v", err)
+	}
+	log.Printf("[INFO] orphan cleanup done: deleted %d files", len(deleted))
 }
 
 func getEnvOrDefault(key, def string) string {
@@ -139,25 +159,40 @@ func (h *Handler) syncLikesToDB() {
 
 	// SCAN으로 likes:* 키 전체 수집
 	var cursor uint64
-	likesMap := map[string]int64{}
+	var allKeys []string
 	for {
 		keys, nextCursor, err := h.rdb.Scan(ctx, cursor, "likes:*", 100).Result()
 		if err != nil {
 			log.Printf("[ERROR] likes sync scan failed: %v", err)
 			return
 		}
-		for _, key := range keys {
-			val, err := h.rdb.Get(ctx, key).Int64()
-			if err != nil {
-				continue
-			}
-			postID := strings.TrimPrefix(key, "likes:")
-			likesMap[postID] = val
-		}
+		allKeys = append(allKeys, keys...)
 		cursor = nextCursor
 		if cursor == 0 {
 			break
 		}
+	}
+
+	if len(allKeys) == 0 {
+		return
+	}
+
+	// MGet으로 값 한 번에 조회
+	vals, err := h.rdb.MGet(ctx, allKeys...).Result()
+	if err != nil {
+		log.Printf("[ERROR] likes sync mget failed: %v", err)
+		return
+	}
+
+	likesMap := map[string]int64{}
+	for i, v := range vals {
+		if v == nil {
+			continue
+		}
+		var n int64
+		fmt.Sscanf(fmt.Sprintf("%v", v), "%d", &n)
+		postID := strings.TrimPrefix(allKeys[i], "likes:")
+		likesMap[postID] = n
 	}
 
 	if len(likesMap) == 0 {

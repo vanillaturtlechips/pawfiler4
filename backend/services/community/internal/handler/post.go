@@ -389,7 +389,8 @@ func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRe
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
 
-	nickname, avatarEmoji := h.userClient.GetProfile(ctx, req.UserId)
+	userID := userIDFromContext(ctx, req.UserId)
+	nickname, avatarEmoji := h.userClient.GetProfile(ctx, userID)
 
 	postID := uuid.New().String()
 	createdAt := time.Now()
@@ -397,7 +398,7 @@ func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRe
 	_, err := h.db.ExecContext(ctx, `
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, true, $8, $9)
-	`, postID, req.UserId, nickname, avatarEmoji, req.Title, req.Body,
+	`, postID, userID, nickname, avatarEmoji, req.Title, req.Body,
 		pq.Array(req.Tags), req.IsCorrect, createdAt)
 
 	if err != nil {
@@ -407,7 +408,7 @@ func (h *Handler) CreateAdminPost(ctx context.Context, req *pb.CreateAdminPostRe
 
 	return &pb.Post{
 		Id:             postID,
-		AuthorId:       req.UserId,
+		AuthorId:       userID,
 		AuthorNickname: nickname,
 		AuthorEmoji:    avatarEmoji,
 		Title:          req.Title,
