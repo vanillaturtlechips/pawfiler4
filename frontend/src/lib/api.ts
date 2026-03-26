@@ -154,11 +154,9 @@ const request = async <T>(
         } catch {
           message = body || `HTTP ${res.status}`;
         }
-        // 409: 이미 가입된 이메일
-        if (res.status === 409) {
-          throw new Error("이미 사용 중인 이메일입니다.");
-        }
-        const err = new Error(message);
+        const err = new Error(
+          res.status === 409 ? "이미 사용 중인 이메일입니다." : message
+        );
         (err as any).status = res.status;
         throw err;
       }
