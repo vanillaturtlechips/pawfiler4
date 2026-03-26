@@ -31,14 +31,32 @@ logger = logging.getLogger(__name__)
 MOCK_MODE = os.environ.get("MOCK_MODE", "false").lower() == "true"
 TEMPO_ENDPOINT = os.environ.get("TEMPO_ENDPOINT", "")
 
-app = FastAPI(title="AIOps API", version="1.0.0")
+_app = FastAPI(title="AIOps API", version="1.0.0")
 
-app.add_middleware(
+_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class _StripPrefixMiddleware:
+    """Strip /aiops path prefix forwarded as-is by ALB ingress."""
+    def __init__(self, inner, prefix: str = "/aiops"):
+        self._inner = inner
+        self._prefix = prefix
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path.startswith(self._prefix):
+                scope["path"] = path[len(self._prefix):] or "/"
+                scope["raw_path"] = scope["path"].encode("latin-1")
+        await self._inner(scope, receive, send)
+
+
+app = _StripPrefixMiddleware(_app)
 
 SERVICES = ["quiz-service", "auth-service", "user-service", "community-service",
             "chat-bot-service", "video-analysis-service", "admin-service"]
@@ -154,7 +172,7 @@ def _mock_traces():
 
 # ── 엔드포인트 ────────────────────────────────────────────────────────────────
 
-@app.get("/status")
+@_app.get("/status")
 async def get_status():
     if MOCK_MODE:
         return _mock_status()
@@ -164,7 +182,7 @@ async def get_status():
     return latest
 
 
-@app.get("/history")
+@_app.get("/history")
 async def get_analysis_history(limit: int = 20):
     if MOCK_MODE:
         return {"history": MOCK_HISTORY, "total": len(MOCK_HISTORY)}
@@ -172,7 +190,7 @@ async def get_analysis_history(limit: int = 20):
     return {"history": history, "total": len(history)}
 
 
-@app.get("/alerts")
+@_app.get("/alerts")
 async def get_alerts(limit: int = 20):
     if MOCK_MODE:
         alerts = [h for h in MOCK_HISTORY if h.get("anomaly")]
@@ -182,7 +200,7 @@ async def get_alerts(limit: int = 20):
     return {"alerts": alerts, "total": len(alerts)}
 
 
-@app.get("/metrics")
+@_app.get("/metrics")
 async def get_metrics(service: str = ""):
     """서비스별 메트릭 조회 (AMP PromQL)."""
     if MOCK_MODE:
@@ -204,7 +222,7 @@ async def get_metrics(service: str = ""):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/logs")
+@_app.get("/logs")
 async def get_logs(service: str = "", level: str = "error", minutes: int = 30):
     """서비스별 최근 로그 조회 (Loki)."""
     if MOCK_MODE:
@@ -222,7 +240,7 @@ async def get_logs(service: str = "", level: str = "error", minutes: int = 30):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/traces")
+@_app.get("/traces")
 async def get_traces(service: str = "", limit: int = 20):
     """최근 트레이스 조회 (Tempo). Istio+Tempo 연동 전까지 mock 반환."""
     if MOCK_MODE or not TEMPO_ENDPOINT:
@@ -245,7 +263,7 @@ class AskRequest(BaseModel):
     question: str
 
 
-@app.post("/ask")
+@_app.post("/ask")
 async def ask(req: AskRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
@@ -266,6 +284,6 @@ async def ask(req: AskRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/health")
+@_app.get("/health")
 async def health():
     return {"status": "ok", "mock_mode": MOCK_MODE, "tempo_connected": bool(TEMPO_ENDPOINT)}
