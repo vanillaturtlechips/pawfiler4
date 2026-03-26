@@ -12,7 +12,8 @@ import (
 
 // LikePost - 게시글 좋아요
 func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.LikePostResponse, error) {
-	if req.PostId == "" || req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if req.PostId == "" || userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
 	}
 	tx, err := h.db.BeginTx(ctx, nil)
@@ -26,7 +27,7 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 		INSERT INTO community.likes (id, post_id, user_id, created_at)
 		VALUES ($1, $2, $3, NOW())
 		ON CONFLICT (post_id, user_id) DO NOTHING
-	`, uuid.New().String(), req.PostId, req.UserId)
+	`, uuid.New().String(), req.PostId, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
@@ -58,7 +59,8 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 
 // UnlikePost - 게시글 좋아요 취소
 func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*pb.UnlikePostResponse, error) {
-	if req.PostId == "" || req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if req.PostId == "" || userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
 	}
 	tx, err := h.db.BeginTx(ctx, nil)
@@ -67,7 +69,7 @@ func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*p
 	}
 	defer tx.Rollback()
 
-	result, err := tx.ExecContext(ctx, "DELETE FROM community.likes WHERE post_id = $1 AND user_id = $2", req.PostId, req.UserId)
+	result, err := tx.ExecContext(ctx, "DELETE FROM community.likes WHERE post_id = $1 AND user_id = $2", req.PostId, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to unlike post")
 	}
@@ -92,11 +94,12 @@ func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*p
 
 // CheckLike - 좋아요 상태 확인
 func (h *Handler) CheckLike(ctx context.Context, req *pb.CheckLikeRequest) (*pb.CheckLikeResponse, error) {
-	if req.PostId == "" || req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if req.PostId == "" || userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
 	}
 	var liked bool
-	err := h.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM community.likes WHERE post_id = $1 AND user_id = $2)", req.PostId, req.UserId).Scan(&liked)
+	err := h.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM community.likes WHERE post_id = $1 AND user_id = $2)", req.PostId, userID).Scan(&liked)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to check like status")
 	}

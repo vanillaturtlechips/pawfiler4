@@ -21,7 +21,8 @@ type userServiceServer struct {
 }
 
 func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) (*pb.UserProfile, error) {
-	if req.UserId == "" {
+	userID := extractUserID(ctx, req.UserId)
+	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
@@ -31,8 +32,8 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		INSERT INTO user_svc.preferences (user_id, nickname, avatar_emoji, updated_at)
 		VALUES ($1::uuid, '탐정_' || UPPER(SUBSTRING($2, 1, 8)), '🦊', NOW())
 		ON CONFLICT (user_id) DO NOTHING
-	`, req.UserId, req.UserId); err != nil {
-		log.Printf("[GetProfile] preferences auto-insert failed for %s: %v", req.UserId, err)
+	`, userID, userID); err != nil {
+		log.Printf("[GetProfile] preferences auto-insert failed for %s: %v", userID, err)
 	}
 
 	// 8개 독립 쿼리 → 단일 쿼리로 통합 (DB 왕복 8회 → 1회)
@@ -72,7 +73,7 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 		LEFT JOIN quiz.user_profiles qp ON qp.user_id = p.user_id
 		LEFT JOIN quiz.user_stats    qs ON qs.user_id  = p.user_id
 		WHERE p.user_id = $1::uuid
-	`, req.UserId).Scan(
+	`, userID).Scan(
 		&nickname, &avatarEmoji,
 		&totalExp, &totalCoins, &energy, &maxEnergy,
 		&totalAnswered, &correctCount, &currentStreak, &bestStreak,
@@ -81,7 +82,7 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 	)
 	if err != nil {
 		// preferences row가 아직 없을 경우 (INSERT가 경쟁 조건으로 누락된 경우) 기본값 사용
-		log.Printf("[GetProfile] query failed for %s: %v", req.UserId, err)
+		log.Printf("[GetProfile] query failed for %s: %v", userID, err)
 		nickname, avatarEmoji = "탐정", "🦊"
 		energy, maxEnergy = 100, 100
 	}
@@ -93,7 +94,7 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 
 	level := levelFromExp(int(totalExp))
 	return &pb.UserProfile{
-		UserId:               req.UserId,
+		UserId:               userID,
 		Nickname:             nickname,
 		AvatarEmoji:          avatarEmoji,
 		Level:                int32(level),
@@ -116,7 +117,8 @@ func (s *userServiceServer) GetProfile(ctx context.Context, req *pb.GetProfileRe
 }
 
 func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UpdateProfileResponse, error) {
-	if req.UserId == "" {
+	userID := extractUserID(ctx, req.UserId)
+	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
@@ -140,7 +142,7 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 			avatar_emoji = COALESCE($3::varchar, user_svc.preferences.avatar_emoji),
 			updated_at   = NOW()
 		RETURNING nickname, avatar_emoji
-	`, req.UserId, nicknameParam, avatarParam).Scan(&nickname, &avatar)
+	`, userID, nicknameParam, avatarParam).Scan(&nickname, &avatar)
 	if err != nil {
 		log.Printf("UpdateProfile error: %v", err)
 		return nil, status.Error(codes.Internal, "failed to update profile")
@@ -149,29 +151,30 @@ func (s *userServiceServer) UpdateProfile(ctx context.Context, req *pb.UpdatePro
 	// community.posts/comments author 정보 비동기 동기화
 	// 인덱스(idx_posts_author_id, idx_comments_author_id) 적용 후 부하 없음
 	// 프로필 변경 응답을 블로킹하지 않도록 goroutine 처리
-	go func(userID, nick, avi string) {
+	go func(uid, nick, avi string) {
 		bgCtx := context.Background()
 		if _, err := s.db.ExecContext(bgCtx,
 			`UPDATE community.posts SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3`,
-			nick, avi, userID); err != nil {
-			log.Printf("[UpdateProfile] failed to sync community posts for %s: %v", userID, err)
+			nick, avi, uid); err != nil {
+			log.Printf("[UpdateProfile] failed to sync community posts for %s: %v", uid, err)
 		}
 		if _, err := s.db.ExecContext(bgCtx,
 			`UPDATE community.comments SET author_nickname = $1, author_emoji = $2 WHERE author_id = $3`,
-			nick, avi, userID); err != nil {
-			log.Printf("[UpdateProfile] failed to sync community comments for %s: %v", userID, err)
+			nick, avi, uid); err != nil {
+			log.Printf("[UpdateProfile] failed to sync community comments for %s: %v", uid, err)
 		}
-	}(req.UserId, nickname, avatar)
+	}(userID, nickname, avatar)
 
 	return &pb.UpdateProfileResponse{Success: true, Nickname: nickname, AvatarEmoji: avatar}, nil
 }
 
 func (s *userServiceServer) GetRecentActivities(ctx context.Context, req *pb.GetRecentActivitiesRequest) (*pb.GetRecentActivitiesResponse, error) {
+	userID := extractUserID(ctx, req.UserId)
 	var activities []*pb.Activity
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT xp_earned, answered_at FROM quiz.user_answers
-		WHERE user_id = $1 ORDER BY answered_at DESC LIMIT 5`, req.UserId)
+		WHERE user_id = $1 ORDER BY answered_at DESC LIMIT 5`, userID)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -185,7 +188,7 @@ func (s *userServiceServer) GetRecentActivities(ctx context.Context, req *pb.Get
 
 	postRows, err := s.db.QueryContext(ctx, `
 		SELECT created_at FROM community.posts
-		WHERE author_id = $1 ORDER BY created_at DESC LIMIT 3`, req.UserId)
+		WHERE author_id = $1 ORDER BY created_at DESC LIMIT 3`, userID)
 	if err == nil {
 		defer postRows.Close()
 		for postRows.Next() {
@@ -225,7 +228,8 @@ func (s *userServiceServer) GetShopItems(ctx context.Context, req *pb.GetShopIte
 }
 
 func (s *userServiceServer) PurchaseItem(ctx context.Context, req *pb.PurchaseItemRequest) (*pb.PurchaseItemResponse, error) {
-	if req.UserId == "" || req.ItemId == "" {
+	userID := extractUserID(ctx, req.UserId)
+	if userID == "" || req.ItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and item_id required")
 	}
 
@@ -250,16 +254,16 @@ func (s *userServiceServer) PurchaseItem(ctx context.Context, req *pb.PurchaseIt
 
 	var totalCoins int32
 	err = tx.QueryRowContext(ctx,
-		`SELECT total_coins FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`, req.UserId,
+		`SELECT total_coins FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`, userID,
 	).Scan(&totalCoins)
 	if err != nil {
 		if _, insertErr := tx.ExecContext(ctx, `
 			INSERT INTO quiz.user_profiles (user_id, total_exp, total_coins, energy, max_energy, last_energy_refill, updated_at)
-			VALUES ($1, 0, 0, 100, 100, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING`, req.UserId); insertErr != nil {
+			VALUES ($1, 0, 0, 100, 100, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING`, userID); insertErr != nil {
 			return nil, status.Error(codes.Internal, "failed to initialize profile")
 		}
 		if err = tx.QueryRowContext(ctx,
-			`SELECT total_coins FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`, req.UserId,
+			`SELECT total_coins FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`, userID,
 		).Scan(&totalCoins); err != nil {
 			return nil, status.Error(codes.Internal, "failed to fetch profile")
 		}
@@ -270,13 +274,13 @@ func (s *userServiceServer) PurchaseItem(ctx context.Context, req *pb.PurchaseIt
 	}
 
 	newCoins := totalCoins - item.Price
-	if _, err = tx.ExecContext(ctx, `UPDATE quiz.user_profiles SET total_coins = $1, updated_at = NOW() WHERE user_id = $2`, newCoins, req.UserId); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE quiz.user_profiles SET total_coins = $1, updated_at = NOW() WHERE user_id = $2`, newCoins, userID); err != nil {
 		return nil, status.Error(codes.Internal, "failed to deduct coins")
 	}
 	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO user_svc.shop_purchases (id, user_id, item_id, item_name, item_type, coins_paid, purchased_at)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())`,
-		req.UserId, item.Id, item.Name, item.Type, item.Price); err != nil {
+		userID, item.Id, item.Name, item.Type, item.Price); err != nil {
 		return nil, status.Error(codes.Internal, "failed to record purchase")
 	}
 
@@ -287,10 +291,11 @@ func (s *userServiceServer) PurchaseItem(ctx context.Context, req *pb.PurchaseIt
 }
 
 func (s *userServiceServer) GetPurchaseHistory(ctx context.Context, req *pb.GetPurchaseHistoryRequest) (*pb.GetPurchaseHistoryResponse, error) {
+	userID := extractUserID(ctx, req.UserId)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, item_id, item_name, item_type, coins_paid, purchased_at
 		FROM user_svc.shop_purchases WHERE user_id = $1
-		ORDER BY purchased_at DESC LIMIT 20`, req.UserId)
+		ORDER BY purchased_at DESC LIMIT 20`, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
@@ -309,7 +314,8 @@ func (s *userServiceServer) GetPurchaseHistory(ctx context.Context, req *pb.GetP
 }
 
 func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRequest) (*pb.AddRewardsResponse, error) {
-	if req.UserId == "" {
+	userID := extractUserID(ctx, req.UserId)
+	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id required")
 	}
 
@@ -325,7 +331,7 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO quiz.user_profiles (user_id, total_exp, total_coins, energy, max_energy, last_energy_refill, updated_at)
 		VALUES ($1, 0, 0, 100, 100, NOW(), NOW())
-		ON CONFLICT (user_id) DO NOTHING`, req.UserId)
+		ON CONFLICT (user_id) DO NOTHING`, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to initialize profile")
 	}
@@ -335,7 +341,7 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 	var currentTier string
 	err = tx.QueryRowContext(ctx,
 		`SELECT total_exp, total_coins, COALESCE(current_tier, '알') FROM quiz.user_profiles WHERE user_id = $1 FOR UPDATE`,
-		req.UserId,
+		userID,
 	).Scan(&totalExp, &totalCoins, &currentTier)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get profile")
@@ -363,7 +369,7 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 
 	_, err = tx.ExecContext(ctx,
 		`UPDATE quiz.user_profiles SET total_exp=$1, total_coins=$2, current_tier=$3, updated_at=NOW() WHERE user_id=$4`,
-		totalExp, totalCoins, currentTier, req.UserId)
+		totalExp, totalCoins, currentTier, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
@@ -374,9 +380,9 @@ func (s *userServiceServer) AddRewards(ctx context.Context, req *pb.AddRewardsRe
 
 	// quiz-service Redis 캐시 무효화 — stale 캐시가 AddRewards 결과를 덮어쓰는 문제 방지
 	if s.redis != nil {
-		cacheKey := fmt.Sprintf("quiz:user_profile:%s", req.UserId)
+		cacheKey := fmt.Sprintf("quiz:user_profile:%s", userID)
 		if delErr := s.redis.Del(context.Background(), cacheKey).Err(); delErr != nil {
-			log.Printf("[AddRewards] redis cache delete failed for %s: %v", req.UserId, delErr)
+			log.Printf("[AddRewards] redis cache delete failed for %s: %v", userID, delErr)
 		}
 	}
 

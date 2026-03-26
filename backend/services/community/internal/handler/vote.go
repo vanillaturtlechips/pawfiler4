@@ -13,7 +13,8 @@ import (
 
 // VotePost - 게시글 투표 (언제든지 변경 가능)
 func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.VotePostResponse, error) {
-	if req.PostId == "" || req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if req.PostId == "" || userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
 	}
 
@@ -27,7 +28,7 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 	var prevVoteVal bool
 	err = tx.QueryRowContext(ctx,
 		"SELECT vote FROM community.post_votes WHERE post_id = $1 AND user_id = $2",
-		req.PostId, req.UserId).Scan(&prevVoteVal)
+		req.PostId, userID).Scan(&prevVoteVal)
 	if err == nil {
 		prevVote = &prevVoteVal
 	}
@@ -41,7 +42,7 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 		// 다른 값이면 UPDATE + 카운터 반전
 		_, err = tx.ExecContext(ctx,
 			"UPDATE community.post_votes SET vote = $1 WHERE post_id = $2 AND user_id = $3",
-			req.Vote, req.PostId, req.UserId)
+			req.Vote, req.PostId, userID)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "Failed to update vote")
 		}
@@ -62,7 +63,7 @@ func (h *Handler) VotePost(ctx context.Context, req *pb.VotePostRequest) (*pb.Vo
 		// 첫 투표 INSERT + 카운터 증가
 		_, err = tx.ExecContext(ctx,
 			"INSERT INTO community.post_votes (id, post_id, user_id, vote) VALUES ($1, $2, $3, $4)",
-			uuid.New().String(), req.PostId, req.UserId, req.Vote)
+			uuid.New().String(), req.PostId, userID, req.Vote)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "Failed to vote")
 		}
@@ -109,13 +110,14 @@ func (h *Handler) GetVoteResult(ctx context.Context, req *pb.GetVoteResultReques
 
 // GetUserVote - 유저 투표 여부 확인
 func (h *Handler) GetUserVote(ctx context.Context, req *pb.GetUserVoteRequest) (*pb.GetUserVoteResponse, error) {
-	if req.PostId == "" || req.UserId == "" {
+	userID := userIDFromContext(ctx, req.UserId)
+	if req.PostId == "" || userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "post_id and user_id are required")
 	}
 	var vote bool
 	err := h.db.QueryRowContext(ctx,
 		"SELECT vote FROM community.post_votes WHERE post_id = $1 AND user_id = $2",
-		req.PostId, req.UserId).Scan(&vote)
+		req.PostId, userID).Scan(&vote)
 	if err == sql.ErrNoRows {
 		return &pb.GetUserVoteResponse{Voted: false}, nil
 	}

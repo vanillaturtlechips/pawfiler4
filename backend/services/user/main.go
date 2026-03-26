@@ -101,6 +101,10 @@ func main() {
 	allowedOriginsList := strings.Split(corsOrigins, ",")
 
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Istio가 주입한 x-user-id 헤더를 gRPC metadata로 전달
+		if uid := r.Header.Get("X-User-Id"); uid != "" {
+			r.Header.Set("Grpc-Metadata-X-User-Id", uid)
+		}
 		if r.URL.Path == "/health" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
