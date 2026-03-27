@@ -28,5 +28,8 @@
   },
   "include": [
     "frontend/src"
+  ],
+  "exclude": [
+    "frontend/src/test"
   ]
 }
