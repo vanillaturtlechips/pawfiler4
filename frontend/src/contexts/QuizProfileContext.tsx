@@ -39,10 +39,17 @@ export const QuizProfileProvider = ({ children }: { children: ReactNode }) => {
         setQuizProfile(profile);
         return;
       }
-      // fallback: GetUserStats 응답의 profile 필드 사용
+      // fallback: GetUserStats 응답에서 게임 프로필 구성
       const stats = await fetchUserStats();
-      if (stats.profile) {
-        setQuizProfile(stats.profile);
+      if (stats) {
+        setQuizProfile({
+          level: stats.level ?? 1,
+          tierName: stats.tierName ?? "알병아리",
+          totalExp: stats.totalExp ?? 0,
+          totalCoins: stats.totalCoins ?? 0,
+          energy: stats.energy ?? 100,
+          maxEnergy: stats.maxEnergy ?? 100,
+        });
       }
     } catch {
       // 실패해도 기존 값 유지

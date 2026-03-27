@@ -21,7 +21,7 @@ const Header = ({ isVisible = true }: HeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
-  const { quizProfile, isPlaying, setPendingNav } = useQuizProfile();
+  const { quizProfile, updateQuizProfile, refreshQuizProfile, isPlaying, setPendingNav } = useQuizProfile();
   const [showProfilePanel, setShowProfilePanel] = useState(false);
 
   const handleNav = (path: string) => {
