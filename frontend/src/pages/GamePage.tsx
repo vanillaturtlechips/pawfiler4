@@ -27,7 +27,7 @@ const GamePage = () => {
 
   // 선택 화면 옵션
   const [selectedDifficulty, setSelectedDifficulty] = useState("all");
-  const [selectedCount, setSelectedCount] = useState(10);
+  const [selectedCount, setSelectedCount] = useState<number>(10);
 
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [loading, setLoading] = useState(false);
