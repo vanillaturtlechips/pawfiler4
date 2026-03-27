@@ -253,6 +253,20 @@ const AnalysisPage = () => {
             )}
           </AnimatePresence>
 
+          {/* Agent Pipeline (during analysis) */}
+          <AnimatePresence>
+            {a.isAnalyzing && a.agentTimings.length > 0 && (
+              <motion.div
+                className="mb-5"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <AgentPipeline timings={a.agentTimings} totalMs={a.report?.totalProcessingTimeMs || 5000} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Analyze button */}
           <motion.button
             className="relative w-full overflow-hidden rounded-2xl py-5 font-jua text-xl text-white cursor-pointer border-none outline-none"
