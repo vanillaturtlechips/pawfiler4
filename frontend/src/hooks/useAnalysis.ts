@@ -318,10 +318,11 @@ export function useAnalysis() {
   };
 
   // Agent selective re-run
-  const [rerunningAgents, setRerunningAgents] = useState<string[]>([]);
+  type AgentKey = "visual" | "audio" | "llm" | "metadata";
+  const [rerunningAgents, setRerunningAgents] = useState<AgentKey[]>([]);
   const [isRerunning, setIsRerunning] = useState(false);
 
-  const handleAgentRerun = async (agents: string[]) => {
+  const handleAgentRerun = async (agents: AgentKey[]) => {
     if (!report) return;
     setIsRerunning(true);
     setRerunningAgents(agents);

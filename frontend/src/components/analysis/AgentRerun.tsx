@@ -4,7 +4,7 @@ import type { UnifiedReport } from "@/lib/types";
 
 const spring = { type: "spring" as const, stiffness: 300, damping: 20 };
 
-type AgentKey = "visual" | "audio" | "llm" | "metadata";
+export type AgentKey = "visual" | "audio" | "llm" | "metadata";
 
 interface Props {
   report: UnifiedReport;
