@@ -258,7 +258,7 @@ const AnalysisPage = () => {
                   {a.report.explanation && (
                     <div className="rounded-2xl p-5" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
                       <p className="font-jua text-sm mb-2">🤖 AI 의견</p>
-                      <p className="font-gothic text-xs text-foreground/50 leading-relaxed">{(a.report as any).explanation}</p>
+                      <p className="font-gothic text-xs text-foreground/50 leading-relaxed">{a.report.explanation}</p>
                     </div>
                   )}
                   <div className="rounded-xl p-3 text-xs text-foreground/25 font-gothic" style={{ background: "rgba(255,255,255,0.02)" }}>
