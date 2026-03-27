@@ -3,7 +3,6 @@ import { useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import GameButton from "@/components/GameButton";
 import ApiKeyManager from "@/components/ApiKeyManager";
-import AnalysisLogConsole from "@/components/analysis/AnalysisLogConsole";
 import AnalysisHistory from "@/components/analysis/AnalysisHistory";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
@@ -13,7 +12,6 @@ const spring = { type: "spring" as const, stiffness: 300, damping: 20 };
 const AnalysisPage = () => {
   const a = useAnalysis();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [showLogs, setShowLogs] = useState(true);
   const [showShareToast, setShowShareToast] = useState(false);
   const confettiFired = useRef(false);
 
@@ -247,23 +245,7 @@ const AnalysisPage = () => {
                   ))}
                 </div>
 
-                {/* Log console toggle */}
-                <button
-                  className="mt-4 w-full flex items-center justify-center gap-2 text-xs font-gothic text-foreground/30 hover:text-foreground/50 cursor-pointer bg-transparent border-none transition-colors"
-                  onClick={() => setShowLogs(!showLogs)}
-                >
-                  <span>🖥️ {showLogs ? "로그 숨기기" : "실시간 로그 보기"}</span>
-                </button>
               </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Log Console */}
-          <AnimatePresence>
-            {(a.isAnalyzing || a.logs.length > 0) && showLogs && (
-              <div className="mb-5">
-                <AnalysisLogConsole logs={a.logs} isOpen={showLogs} />
-              </div>
             )}
           </AnimatePresence>
 
