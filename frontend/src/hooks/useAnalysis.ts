@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { runVideoAnalysis, getUnifiedResult, fetchAnalysisQuota, type AnalysisQuota } from "@/lib/api";
 import { config } from "@/lib/config";
-import type { AnalysisStage, UnifiedReport } from "@/lib/types";
+import type { AnalysisStage, UnifiedReport, AgentTiming } from "@/lib/types";
 
 export const MAX_FILE_SIZE_MB = 100;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -65,6 +65,7 @@ export function useAnalysis() {
   const [isDragging, setIsDragging] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
+  const [agentTimings, setAgentTimings] = useState<AgentTiming[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
