@@ -466,6 +466,19 @@ const AnalysisPage = () => {
               </div>
             </motion.section>
 
+            {/* Agent Rerun + Adversarial Simulation */}
+            <motion.section className="flex flex-col items-center px-4 pb-12" {...sectionSpring}>
+              <div className="w-full max-w-lg space-y-4">
+                <AgentRerun
+                  report={a.report}
+                  onRerun={a.handleAgentRerun}
+                  isRerunning={a.isRerunning}
+                  rerunningAgents={a.rerunningAgents}
+                />
+                <AdversarialSimulation report={a.report} />
+              </div>
+            </motion.section>
+
             {/* Actions */}
             <motion.section className="flex flex-col items-center px-4 pb-16" {...sectionSpring}>
               <div className="w-full max-w-lg flex flex-col gap-3">
