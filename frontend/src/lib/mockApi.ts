@@ -345,7 +345,7 @@ export async function fetchQuizStats(token: string): Promise<QuizStats> {
     currentStreak: 3,
     bestStreak: 12,
     lives: 2,
-    profile: { level: 1, tierName: "알병아리", totalExp: 0, totalCoins: 1200, energy: 80, maxEnergy: 100 },
+    level: 1, tierName: "알병아리", totalExp: 0, totalCoins: 1200, energy: 80, maxEnergy: 100,
   };
 }
 

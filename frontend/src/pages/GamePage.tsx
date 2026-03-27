@@ -27,13 +27,13 @@ const GamePage = () => {
 
   // 선택 화면 옵션
   const [selectedDifficulty, setSelectedDifficulty] = useState("all");
-  const [selectedCount, setSelectedCount] = useState(10);
+  const [selectedCount, setSelectedCount] = useState<number>(10);
 
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<QuizStats | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
-  const [maxQuestions, setMaxQuestions] = useState(config.quizQuestionsPerGame);
+  const [maxQuestions, setMaxQuestions] = useState<number>(config.quizQuestionsPerGame);
   const [gameFinished, setGameFinished] = useState(false);
 
   // 현재 세션 통계 (로컬)
