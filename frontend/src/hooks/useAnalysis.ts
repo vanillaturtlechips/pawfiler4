@@ -312,10 +312,52 @@ export function useAnalysis() {
   };
 
   const handleRetry = () => {
-    // Retry with same file
     setReport(null);
     setStage("IDLE");
     setLogs([]);
+  };
+
+  // Agent selective re-run
+  type AgentKey = "visual" | "audio" | "llm" | "metadata";
+  const [rerunningAgents, setRerunningAgents] = useState<AgentKey[]>([]);
+  const [isRerunning, setIsRerunning] = useState(false);
+
+  const handleAgentRerun = async (agents: AgentKey[]) => {
+    if (!report) return;
+    setIsRerunning(true);
+    setRerunningAgents(agents);
+
+    await delay(1500 + Math.random() * 1000);
+
+    // Generate new mock data for selected agents
+    const pick = report.finalVerdict;
+    const updatedReport = { ...report };
+
+    for (const agent of agents) {
+      const newConf = parseFloat((0.65 + Math.random() * 0.3).toFixed(2));
+      if (agent === "visual" && updatedReport.visual) {
+        updatedReport.visual = { ...updatedReport.visual, confidence: newConf };
+      } else if (agent === "audio" && updatedReport.audio) {
+        updatedReport.audio = { ...updatedReport.audio, confidence: newConf };
+      } else if (agent === "llm" && updatedReport.llm) {
+        updatedReport.llm = { ...updatedReport.llm, confidence: newConf };
+      } else if (agent === "metadata" && updatedReport.metadata) {
+        updatedReport.metadata = { ...updatedReport.metadata, confidence: newConf };
+      }
+    }
+
+    // Recalculate overall confidence
+    const confs = [
+      updatedReport.visual?.confidence ?? 0,
+      updatedReport.audio?.confidence ?? 0,
+      updatedReport.llm?.confidence ?? 0,
+      updatedReport.metadata?.confidence ?? 0,
+    ];
+    updatedReport.confidence = parseFloat((confs.reduce((a, b) => a + b, 0) / confs.length).toFixed(2));
+
+    setReport(updatedReport);
+    setIsRerunning(false);
+    setRerunningAgents([]);
   };
 
   const handleReset = () => {
@@ -379,7 +421,7 @@ export function useAnalysis() {
     isDragging, setIsDragging, fileInputRef, logs, history, agentTimings,
     handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
     handleSave, handleShare, handleShareLink, handleFileSelect,
-    loadHistoryReport, clearHistory,
-    isAnalyzing, currentStageIdx, navigate,
+    loadHistoryReport, clearHistory, handleAgentRerun, isRerunning, rerunningAgents,
+    isAnalyzing, currentStageIdx, navigate, setReport,
   };
 }

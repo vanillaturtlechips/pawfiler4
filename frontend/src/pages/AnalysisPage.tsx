@@ -8,6 +8,9 @@ import AgentDetailTabs from "@/components/analysis/AgentDetailTabs";
 import EnsembleRadarChart from "@/components/analysis/EnsembleRadarChart";
 import StreamingText from "@/components/analysis/StreamingText";
 import AgentPipeline from "@/components/analysis/AgentPipeline";
+import AgentRerun from "@/components/analysis/AgentRerun";
+import BatchQueue from "@/components/analysis/BatchQueue";
+import AdversarialSimulation from "@/components/analysis/AdversarialSimulation";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
 
@@ -114,12 +117,17 @@ const AnalysisPage = () => {
       </motion.section>
 
       {/* ── History Section ── */}
-      <div className="px-4 pb-8 max-w-lg mx-auto">
+      <div className="px-4 pb-4 max-w-lg mx-auto">
         <AnalysisHistory
           history={a.history}
           onSelect={a.loadHistoryReport}
           onClear={a.clearHistory}
         />
+      </div>
+
+      {/* ── Batch Queue ── */}
+      <div className="px-4 pb-8 max-w-lg mx-auto">
+        <BatchQueue onAnalyzeFile={a.handleFileSelect} />
       </div>
 
       {/* ── Section 2: Upload ── */}
@@ -455,6 +463,19 @@ const AnalysisPage = () => {
                 >
                   ⏱ {(a.report.totalProcessingTimeMs / 1000).toFixed(1)}초 · 🖼 {a.report.visual?.framesAnalyzed || 0}프레임 · 🤖 4 에이전트
                 </motion.div>
+              </div>
+            </motion.section>
+
+            {/* Agent Rerun + Adversarial Simulation */}
+            <motion.section className="flex flex-col items-center px-4 pb-12" {...sectionSpring}>
+              <div className="w-full max-w-lg space-y-4">
+                <AgentRerun
+                  report={a.report}
+                  onRerun={a.handleAgentRerun}
+                  isRerunning={a.isRerunning}
+                  rerunningAgents={a.rerunningAgents}
+                />
+                <AdversarialSimulation report={a.report} />
               </div>
             </motion.section>
 
