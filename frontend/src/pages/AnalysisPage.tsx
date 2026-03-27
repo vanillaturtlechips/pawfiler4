@@ -8,6 +8,9 @@ import AgentDetailTabs from "@/components/analysis/AgentDetailTabs";
 import EnsembleRadarChart from "@/components/analysis/EnsembleRadarChart";
 import StreamingText from "@/components/analysis/StreamingText";
 import AgentPipeline from "@/components/analysis/AgentPipeline";
+import AgentRerun from "@/components/analysis/AgentRerun";
+import BatchQueue from "@/components/analysis/BatchQueue";
+import AdversarialSimulation from "@/components/analysis/AdversarialSimulation";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
 
