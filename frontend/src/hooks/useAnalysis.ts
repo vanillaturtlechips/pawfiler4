@@ -37,7 +37,13 @@ export function useAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user?.id) fetchAnalysisQuota(user.id).then(setQuota);
+    if (user?.id) {
+      if (config.useMockApi || config.useMockAuth) {
+        setQuota({ used: 2, limit: 5, remaining: 3 });
+      } else {
+        fetchAnalysisQuota(user.id).then(setQuota);
+      }
+    }
   }, [user?.id]);
 
   const handleFileSelect = useCallback((file: File) => {
