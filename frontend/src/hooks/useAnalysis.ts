@@ -376,7 +376,7 @@ export function useAnalysis() {
 
   return {
     stage, report, selectedFile, previewUrl, fileError, quota,
-    isDragging, setIsDragging, fileInputRef, logs, history,
+    isDragging, setIsDragging, fileInputRef, logs, history, agentTimings,
     handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
     handleSave, handleShare, handleShareLink, handleFileSelect,
     loadHistoryReport, clearHistory,

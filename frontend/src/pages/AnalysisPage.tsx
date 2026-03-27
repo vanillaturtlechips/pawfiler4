@@ -4,6 +4,10 @@ import confetti from "canvas-confetti";
 import GameButton from "@/components/GameButton";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import AnalysisHistory from "@/components/analysis/AnalysisHistory";
+import AgentDetailTabs from "@/components/analysis/AgentDetailTabs";
+import EnsembleRadarChart from "@/components/analysis/EnsembleRadarChart";
+import StreamingText from "@/components/analysis/StreamingText";
+import AgentPipeline from "@/components/analysis/AgentPipeline";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
 
