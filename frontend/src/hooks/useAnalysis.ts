@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { runVideoAnalysis, getUnifiedResult, fetchAnalysisQuota, type AnalysisQuota } from "@/lib/api";
+import { config } from "@/lib/config";
 import type { AnalysisStage, UnifiedReport } from "@/lib/types";
 
 export const MAX_FILE_SIZE_MB = 100;
@@ -36,7 +37,13 @@ export function useAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user?.id) fetchAnalysisQuota(user.id).then(setQuota);
+    if (user?.id) {
+      if (config.useMockApi || config.useMockAuth) {
+        setQuota({ used: 2, limit: 5, remaining: 3 });
+      } else {
+        fetchAnalysisQuota(user.id).then(setQuota);
+      }
+    }
   }, [user?.id]);
 
   const handleFileSelect = useCallback((file: File) => {
@@ -68,8 +75,47 @@ export function useAnalysis() {
     if (file) handleFileSelect(file);
   };
 
+  const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  const mockAnalyze = async () => {
+    setReport(null);
+    setStage("UPLOADING");
+    await delay(1200);
+    setStage("MCP_CONNECTING");
+    await delay(1500);
+    setStage("SAGEMAKER_PROCESSING");
+    await delay(2000);
+    setStage("COMPLETED");
+
+    const verdicts = ["FAKE", "REAL", "UNCERTAIN"] as const;
+    const pick = verdicts[Math.floor(Math.random() * 3)];
+    const conf = 0.7 + Math.random() * 0.25;
+
+    setReport({
+      taskId: `mock-${Date.now()}`,
+      finalVerdict: pick,
+      confidence: parseFloat(conf.toFixed(2)),
+      visual: {
+        verdict: pick === "UNCERTAIN" ? "REAL" : pick,
+        confidence: parseFloat((conf - 0.02 + Math.random() * 0.04).toFixed(2)),
+        aiModel: { modelName: "Sora", confidence: 0.87, candidates: [{ name: "Sora", score: 0.87 }, { name: "Runway Gen-3", score: 0.12 }] },
+        framesAnalyzed: 24 + Math.floor(Math.random() * 20),
+      },
+      audio: {
+        isSynthetic: pick === "FAKE",
+        confidence: parseFloat((0.65 + Math.random() * 0.3).toFixed(2)),
+        method: pick === "FAKE" ? "TTS" : "natural",
+      },
+      warnings: [],
+      totalProcessingTimeMs: 4700 + Math.floor(Math.random() * 1000),
+    } as UnifiedReport);
+  };
+
   const handleAnalyze = async () => {
     if (!token || !selectedFile) return;
+    if (config.useMockApi || config.useMockAuth) {
+      return mockAnalyze();
+    }
     setReport(null);
     setStage("UPLOADING");
     try {
