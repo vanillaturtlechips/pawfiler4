@@ -208,9 +208,44 @@ export interface UnifiedReport {
   visual?: VisualAnalysis;
   audio?: AudioAnalysis;
   lipsync?: SyncAnalysis;
+  llm?: LLMAnalysis;
+  metadata?: MetadataAnalysis;
   explanation?: string;
   warnings: string[];
   totalProcessingTimeMs: number;
+  agentTimings?: AgentTiming[];
+}
+
+// LLM Agent
+export interface LLMAnalysis {
+  verdict: string;
+  confidence: number;
+  reasoning: string; // full CoT
+  keyFindings: string[];
+  modelUsed: string;
+}
+
+// Metadata Agent
+export interface MetadataAnalysis {
+  verdict: string;
+  confidence: number;
+  codec: string;
+  resolution: string;
+  fps: number;
+  bitrate: string;
+  encodingHistory: string[];
+  exifData: Record<string, string>;
+  compressionArtifacts: number; // 0-1
+  tamperingIndicators: string[];
+}
+
+// Agent timing for pipeline viz
+export interface AgentTiming {
+  agentName: string;
+  agentIcon: string;
+  startMs: number;
+  endMs: number;
+  status: "pending" | "running" | "completed" | "error";
 }
 
 export interface VisualAnalysis {

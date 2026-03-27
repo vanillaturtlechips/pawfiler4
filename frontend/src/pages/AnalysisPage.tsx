@@ -4,6 +4,10 @@ import confetti from "canvas-confetti";
 import GameButton from "@/components/GameButton";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import AnalysisHistory from "@/components/analysis/AnalysisHistory";
+import AgentDetailTabs from "@/components/analysis/AgentDetailTabs";
+import EnsembleRadarChart from "@/components/analysis/EnsembleRadarChart";
+import StreamingText from "@/components/analysis/StreamingText";
+import AgentPipeline from "@/components/analysis/AgentPipeline";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
 
@@ -249,6 +253,20 @@ const AnalysisPage = () => {
             )}
           </AnimatePresence>
 
+          {/* Agent Pipeline (during analysis) */}
+          <AnimatePresence>
+            {a.isAnalyzing && a.agentTimings.length > 0 && (
+              <motion.div
+                className="mb-5"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <AgentPipeline timings={a.agentTimings} totalMs={a.report?.totalProcessingTimeMs || 5000} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Analyze button */}
           <motion.button
             className="relative w-full overflow-hidden rounded-2xl py-5 font-jua text-xl text-white cursor-pointer border-none outline-none"
@@ -381,7 +399,42 @@ const AnalysisPage = () => {
               </div>
             </motion.section>
 
-            {/* Detail */}
+            {/* Agent Pipeline (completed) */}
+            {a.report.agentTimings && a.report.agentTimings.length > 0 && (
+              <motion.section className="flex flex-col items-center px-4 pb-8" {...sectionSpring}>
+                <div className="w-full max-w-lg">
+                  <AgentPipeline timings={a.report.agentTimings} totalMs={a.report.totalProcessingTimeMs} />
+                </div>
+              </motion.section>
+            )}
+
+            {/* Ensemble Radar Chart */}
+            <motion.section className="flex flex-col items-center px-4 pb-8" {...sectionSpring}>
+              <div className="w-full max-w-lg">
+                <EnsembleRadarChart report={a.report} />
+              </div>
+            </motion.section>
+
+            {/* AI Opinion (Streaming) */}
+            {a.report.explanation && (
+              <motion.section className="flex flex-col items-center px-4 pb-8" {...sectionSpring}>
+                <div className="w-full max-w-lg">
+                  <motion.div
+                    className="rounded-2xl p-5"
+                    style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}
+                  >
+                    <p className="font-jua text-sm mb-3">🤖 AI 종합 의견</p>
+                    <StreamingText
+                      text={a.report.explanation}
+                      speed={20}
+                      className="font-gothic text-xs text-foreground/50 leading-relaxed"
+                    />
+                  </motion.div>
+                </div>
+              </motion.section>
+            )}
+
+            {/* Detail Tabs */}
             <motion.section className="flex flex-col items-center px-4 pb-12" {...sectionSpring}>
               <div className="w-full max-w-lg">
                 <div className="flex items-center gap-3 mb-6">
@@ -390,42 +443,18 @@ const AnalysisPage = () => {
                     style={{ background: "rgba(0,137,188,0.2)", color: "hsl(var(--magic-blue))" }}
                     whileHover={{ scale: 1.2, rotate: 10 }}
                   >4</motion.div>
-                  <h2 className="font-jua text-2xl text-foreground text-shadow-deep">🔍 상세 분석</h2>
+                  <h2 className="font-jua text-2xl text-foreground text-shadow-deep">🔍 에이전트별 상세 분석</h2>
                 </div>
-
-                <div className="flex flex-col gap-4">
-                  {a.report.visual && (
-                    <ScrollCard icon="🎬" title="영상 프레임" verdict={a.report.visual.verdict === "FAKE" ? "AI 의심" : "실제"} isBad={a.report.visual.verdict === "FAKE"} confidence={a.report.visual.confidence} sub={`${a.report.visual.framesAnalyzed}프레임 분석`} delay={0} />
-                  )}
-                  {a.report.audio && (
-                    <ScrollCard icon="🎙️" title="음성 분석" verdict={a.report.audio.isSynthetic ? "합성 의심" : "실제"} isBad={a.report.audio.isSynthetic} confidence={a.report.audio.confidence} delay={0.1} />
-                  )}
-                  {a.report.visual?.aiModel && (
-                    <ScrollCard icon="🤖" title="AI 모델 추정" verdict={a.report.visual.aiModel.modelName} isBad={true} confidence={a.report.visual.aiModel.confidence} sub={a.report.visual.aiModel.candidates.map(c => `${c.name}: ${(c.score * 100).toFixed(0)}%`).join(" · ")} delay={0.2} />
-                  )}
-                  {a.report.explanation && (
-                    <motion.div
-                      className="rounded-2xl p-5"
-                      style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.3, ...spring }}
-                    >
-                      <p className="font-jua text-sm mb-2">🤖 AI 의견</p>
-                      <p className="font-gothic text-xs text-foreground/50 leading-relaxed">{a.report.explanation}</p>
-                    </motion.div>
-                  )}
-                  <motion.div
-                    className="rounded-xl p-3 text-xs text-foreground/25 font-gothic"
-                    style={{ background: "rgba(255,255,255,0.02)" }}
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }}
-                  >
-                    ⏱ {(a.report.totalProcessingTimeMs / 1000).toFixed(1)}초 · 🖼 {a.report.visual?.framesAnalyzed || 0}프레임
-                  </motion.div>
-                </div>
+                <AgentDetailTabs report={a.report} />
+                <motion.div
+                  className="rounded-xl p-3 mt-4 text-xs text-foreground/25 font-gothic"
+                  style={{ background: "rgba(255,255,255,0.02)" }}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                >
+                  ⏱ {(a.report.totalProcessingTimeMs / 1000).toFixed(1)}초 · 🖼 {a.report.visual?.framesAnalyzed || 0}프레임 · 🤖 4 에이전트
+                </motion.div>
               </div>
             </motion.section>
 
@@ -472,53 +501,5 @@ const AnalysisPage = () => {
     </div>
   );
 };
-
-const ScrollCard = ({ icon, title, verdict, isBad, confidence, sub, delay: d = 0 }: {
-  icon: string; title: string; verdict: string; isBad: boolean; confidence: number; sub?: string; delay?: number;
-}) => (
-  <motion.div
-    className="rounded-2xl p-5"
-    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(10px)" }}
-    initial={{ opacity: 0, x: -30, scale: 0.95 }}
-    whileInView={{ opacity: 1, x: 0, scale: 1 }}
-    viewport={{ once: true }}
-    transition={{ delay: d, ...spring }}
-    whileHover={{ scale: 1.01, x: 5 }}
-  >
-    <div className="flex items-center justify-between mb-3">
-      <span className="font-jua">{icon} {title}</span>
-      <motion.span
-        className="text-xs font-jua px-3 py-1 rounded-full"
-        style={{
-          background: isBad ? "rgba(220,38,38,0.2)" : "rgba(34,197,94,0.2)",
-          color: isBad ? "#fca5a5" : "#86efac",
-        }}
-        initial={{ scale: 0 }}
-        whileInView={{ scale: 1 }}
-        viewport={{ once: true }}
-        transition={{ delay: d + 0.2, type: "spring", stiffness: 500 }}
-      >
-        {verdict}
-      </motion.span>
-    </div>
-    <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-      <motion.div
-        className="h-full rounded-full"
-        style={{
-          background: isBad ? "linear-gradient(90deg,#ef4444,#f87171)" : "linear-gradient(90deg,#22c55e,#4ade80)",
-          boxShadow: `0 0 10px ${isBad ? "rgba(239,68,68,0.4)" : "rgba(34,197,94,0.4)"}`,
-        }}
-        initial={{ width: 0 }}
-        whileInView={{ width: `${(confidence * 100).toFixed(0)}%` }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8, delay: d + 0.3 }}
-      />
-    </div>
-    <div className="flex justify-between mt-1.5 text-xs font-gothic">
-      <span className="text-foreground/30">{sub || ""}</span>
-      <span className="text-foreground/50">{(confidence * 100).toFixed(0)}%</span>
-    </div>
-  </motion.div>
-);
 
 export default AnalysisPage;

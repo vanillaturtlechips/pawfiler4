@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { runVideoAnalysis, getUnifiedResult, fetchAnalysisQuota, type AnalysisQuota } from "@/lib/api";
 import { config } from "@/lib/config";
-import type { AnalysisStage, UnifiedReport } from "@/lib/types";
+import type { AnalysisStage, UnifiedReport, AgentTiming } from "@/lib/types";
 
 export const MAX_FILE_SIZE_MB = 100;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -65,6 +65,7 @@ export function useAnalysis() {
   const [isDragging, setIsDragging] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
+  const [agentTimings, setAgentTimings] = useState<AgentTiming[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -117,6 +118,15 @@ export function useAnalysis() {
     setReport(null);
     setLogs([]);
 
+    // Initialize agent timings (parallel)
+    const agents: AgentTiming[] = [
+      { agentName: "Visual Agent", agentIcon: "🎬", startMs: 0, endMs: 0, status: "pending" },
+      { agentName: "Audio Agent", agentIcon: "🎙️", startMs: 0, endMs: 0, status: "pending" },
+      { agentName: "LLM Agent", agentIcon: "🧠", startMs: 0, endMs: 0, status: "pending" },
+      { agentName: "Metadata Agent", agentIcon: "📦", startMs: 0, endMs: 0, status: "pending" },
+    ];
+    setAgentTimings([...agents]);
+
     addLog("📤 영상 파일 업로드 시작...", "info");
     setStage("UPLOADING");
     await delay(600);
@@ -127,21 +137,55 @@ export function useAnalysis() {
     setStage("MCP_CONNECTING");
     addLog("🔗 MCP 오케스트레이터 연결 중...", "info");
     await delay(500);
-    addLog("🔌 SageMaker 엔드포인트 확인 중...", "info");
-    await delay(500);
-    addLog("📡 GPU 인스턴스 할당 완료 (ml.g5.xlarge)", "success");
-    await delay(500);
+    addLog("📡 Ray Serve 클러스터 연결 완료", "success");
+    await delay(300);
 
     setStage("SAGEMAKER_PROCESSING");
-    addLog("🧠 딥페이크 탐지 모델 로드 중...", "info");
+    addLog("⚡ 멀티 에이전트 병렬 분석 시작...", "info");
+
+    // Simulate parallel agents
+    const baseTime = 1200;
+    // Start all agents
+    agents[0] = { ...agents[0], startMs: 0, status: "running" };
+    agents[1] = { ...agents[1], startMs: 200, status: "running" };
+    agents[2] = { ...agents[2], startMs: 100, status: "running" };
+    agents[3] = { ...agents[3], startMs: 50, status: "running" };
+    setAgentTimings([...agents]);
+
     await delay(400);
-    addLog("🎬 프레임 추출 중... (30fps sampling)", "info");
+    addLog("📦 Metadata Agent: EXIF/인코딩 분석 중...", "info");
+
+    await delay(500);
+    agents[3] = { ...agents[3], endMs: baseTime * 0.5, status: "completed" };
+    setAgentTimings([...agents]);
+    addLog("✅ Metadata Agent 완료 (0.6s)", "success");
+
     await delay(400);
-    addLog("🔍 EfficientNet-B7 추론 시작...", "info");
+    addLog("🎙️ Audio Agent: 스펙트로그램 분석 중...", "info");
+
+    await delay(600);
+    agents[1] = { ...agents[1], endMs: baseTime * 0.8, status: "completed" };
+    setAgentTimings([...agents]);
+    addLog("✅ Audio Agent 완료 (1.0s)", "success");
+
     await delay(400);
-    addLog("🎙️ 오디오 트랙 분리 및 분석 중...", "info");
-    await delay(400);
-    addLog("📊 멀티모달 결과 종합 중...", "info");
+    addLog("🎬 Visual Agent: 프레임 추론 중...", "info");
+
+    await delay(600);
+    agents[0] = { ...agents[0], endMs: baseTime * 1.0, status: "completed" };
+    setAgentTimings([...agents]);
+    addLog("✅ Visual Agent 완료 (1.2s)", "success");
+
+    await delay(300);
+    addLog("🧠 LLM Agent: Chain of Thought 생성 중...", "info");
+
+    await delay(700);
+    agents[2] = { ...agents[2], endMs: baseTime * 1.2, status: "completed" };
+    setAgentTimings([...agents]);
+    addLog("✅ LLM Agent 완료 (1.4s)", "success");
+
+    await delay(300);
+    addLog("📊 앙상블 결과 종합 중...", "info");
     await delay(400);
 
     setStage("COMPLETED");
@@ -171,6 +215,47 @@ export function useAnalysis() {
         isSynthetic: pick === "FAKE",
         confidence: parseFloat((0.65 + Math.random() * 0.3).toFixed(2)),
         method: pick === "FAKE" ? "TTS" : "natural",
+        segments: Array.from({ length: 8 }, (_, i) => ({
+          startMs: i * 500,
+          endMs: (i + 1) * 500,
+          syntheticScore: pick === "FAKE" ? 0.5 + Math.random() * 0.45 : Math.random() * 0.25,
+        })),
+      },
+      llm: {
+        verdict: pick === "FAKE" ? "AI 생성 가짜 영상" : pick === "REAL" ? "실제 영상" : "판단 불확실",
+        confidence: parseFloat((0.7 + Math.random() * 0.25).toFixed(2)),
+        reasoning: pick === "FAKE"
+          ? "1단계: 프레임 간 일관성 분석 → 피부 텍스처가 프레임마다 미세하게 변동됨\n2단계: 눈 깜빡임 패턴 → 자연스러운 분포(3-5초 간격)에서 벗어남\n3단계: 조명 반사 분석 → 좌안과 우안의 반사 패턴이 일치하지 않음\n4단계: 오디오-입술 동기화 → 0.15초 오프셋 감지\n5단계: GAN 아티팩트 → 얼굴 윤곽선에서 체커보드 패턴 발견\n\n결론: 복수의 지표가 AI 생성 콘텐츠를 강력히 시사합니다."
+          : pick === "REAL"
+          ? "1단계: 프레임 간 일관성 분석 → 자연스러운 노이즈 패턴 확인\n2단계: 눈 깜빡임 패턴 → 정상 분포(3.5초 평균)\n3단계: 조명 반사 분석 → 양안 반사 패턴 일치\n4단계: 카메라 흔들림 → 자연스러운 핸드헬드 진동 확인\n5단계: 압축 아티팩트 → 일반적인 H.264 인코딩 패턴\n\n결론: 모든 지표가 실제 촬영 영상임을 나타냅니다."
+          : "1단계: 프레임 분석 → 일부 구간에서 미세한 이상 감지\n2단계: 오디오 분석 → 경계선 수준의 합성 점수\n3단계: 조명 분석 → 부분적으로 불일치\n\n결론: 확정적 판단이 어려우며, 추가 분석이 권장됩니다.",
+        keyFindings: pick === "FAKE"
+          ? ["얼굴 윤곽선에서 GAN 체커보드 아티팩트 발견", "눈 깜빡임 주기가 비자연적 (7.2초 평균)", "오디오-입술 동기화 0.15초 지연", "Sora 모델 시그니처와 87% 일치"]
+          : pick === "REAL"
+          ? ["자연스러운 카메라 흔들림 패턴 확인", "피부 텍스처 일관성 유지", "배경 노이즈 자연 분포"]
+          : ["일부 프레임에서 경계선 수준의 이상 감지", "오디오 합성 점수가 판정 기준 근처"],
+        modelUsed: "Claude Sonnet 4 (Ulema Agent)",
+      },
+      metadata: {
+        verdict: pick === "FAKE" ? "변조 의심" : "정상",
+        confidence: parseFloat((0.6 + Math.random() * 0.3).toFixed(2)),
+        codec: "H.264 (AVC)",
+        resolution: "1920x1080",
+        fps: 30,
+        bitrate: "8.5 Mbps",
+        encodingHistory: pick === "FAKE"
+          ? ["원본 인코딩: H.265 → H.264 트랜스코딩 감지", "2차 인코딩 흔적 발견 (품질 손실)", "메타데이터 타임스탬프 불일치"]
+          : ["단일 인코딩: H.264 Main Profile", "정상적인 인코딩 체인"],
+        exifData: {
+          "촬영 기기": pick === "FAKE" ? "정보 없음" : "iPhone 15 Pro",
+          "촬영 날짜": "2024-12-15 14:32:00",
+          "GPS 좌표": pick === "FAKE" ? "정보 없음" : "37.5665° N, 126.9780° E",
+          "소프트웨어": pick === "FAKE" ? "FFmpeg 6.1" : "iOS 17.2",
+        },
+        compressionArtifacts: pick === "FAKE" ? 0.72 : 0.15,
+        tamperingIndicators: pick === "FAKE"
+          ? ["이중 인코딩 흔적", "메타데이터 타임스탬프 불일치", "비정상적 양자화 테이블"]
+          : [],
       },
       explanation: pick === "FAKE"
         ? "이 영상은 Sora 모델로 생성된 AI 합성 영상으로 판단됩니다. 프레임 간 일관성 부족, 비자연적 피부 텍스처, 그리고 눈 깜빡임 패턴의 이상이 감지되었습니다."
@@ -179,6 +264,7 @@ export function useAnalysis() {
         : "이 영상의 진위 여부를 확실히 판단하기 어렵습니다. 일부 프레임에서 AI 생성 흔적이 감지되었으나, 압축 아티팩트와 구분이 어려운 수준입니다.",
       warnings: [],
       totalProcessingTimeMs: 4700 + Math.floor(Math.random() * 1000),
+      agentTimings: agents.map(a => ({ ...a })),
     };
 
     setReport(newReport);
@@ -290,7 +376,7 @@ export function useAnalysis() {
 
   return {
     stage, report, selectedFile, previewUrl, fileError, quota,
-    isDragging, setIsDragging, fileInputRef, logs, history,
+    isDragging, setIsDragging, fileInputRef, logs, history, agentTimings,
     handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
     handleSave, handleShare, handleShareLink, handleFileSelect,
     loadHistoryReport, clearHistory,
