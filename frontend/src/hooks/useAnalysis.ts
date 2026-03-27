@@ -24,6 +24,35 @@ export const verdictConfig = {
   UNCERTAIN: { emoji: "🤔", label: "불확실", bg: "rgba(234,179,8,0.12)", border: "hsl(var(--magic-orange))", glow: "0 0 40px rgba(234,179,8,0.3)" },
 };
 
+export interface LogEntry {
+  timestamp: string;
+  message: string;
+  type: "info" | "success" | "warning" | "error";
+}
+
+export interface HistoryItem {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  verdict: "REAL" | "FAKE" | "UNCERTAIN";
+  confidence: number;
+  date: string;
+  report: UnifiedReport;
+}
+
+const HISTORY_KEY = "pawfiler_analysis_history";
+const MAX_HISTORY = 10;
+
+function loadHistory(): HistoryItem[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+  } catch { return []; }
+}
+
+function saveHistory(items: HistoryItem[]) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
+}
+
 export function useAnalysis() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
@@ -34,6 +63,8 @@ export function useAnalysis() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [quota, setQuota] = useState<AnalysisQuota | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -45,6 +76,10 @@ export function useAnalysis() {
       }
     }
   }, [user?.id]);
+
+  const addLog = useCallback((message: string, type: LogEntry["type"] = "info") => {
+    setLogs(prev => [...prev, { timestamp: new Date().toISOString(), message, type }]);
+  }, []);
 
   const handleFileSelect = useCallback((file: File) => {
     setFileError(null);
@@ -61,6 +96,7 @@ export function useAnalysis() {
     setPreviewUrl(URL.createObjectURL(file));
     setReport(null);
     setStage("IDLE");
+    setLogs([]);
   }, [previewUrl]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,19 +115,44 @@ export function useAnalysis() {
 
   const mockAnalyze = async () => {
     setReport(null);
+    setLogs([]);
+
+    addLog("📤 영상 파일 업로드 시작...", "info");
     setStage("UPLOADING");
-    await delay(1200);
+    await delay(600);
+    addLog(`📁 파일: ${selectedFile?.name} (${((selectedFile?.size || 0) / 1024 / 1024).toFixed(1)}MB)`, "info");
+    await delay(600);
+    addLog("✅ 업로드 완료", "success");
+
     setStage("MCP_CONNECTING");
-    await delay(1500);
+    addLog("🔗 MCP 오케스트레이터 연결 중...", "info");
+    await delay(500);
+    addLog("🔌 SageMaker 엔드포인트 확인 중...", "info");
+    await delay(500);
+    addLog("📡 GPU 인스턴스 할당 완료 (ml.g5.xlarge)", "success");
+    await delay(500);
+
     setStage("SAGEMAKER_PROCESSING");
-    await delay(2000);
+    addLog("🧠 딥페이크 탐지 모델 로드 중...", "info");
+    await delay(400);
+    addLog("🎬 프레임 추출 중... (30fps sampling)", "info");
+    await delay(400);
+    addLog("🔍 EfficientNet-B7 추론 시작...", "info");
+    await delay(400);
+    addLog("🎙️ 오디오 트랙 분리 및 분석 중...", "info");
+    await delay(400);
+    addLog("📊 멀티모달 결과 종합 중...", "info");
+    await delay(400);
+
     setStage("COMPLETED");
+    addLog("✅ 분석 완료!", "success");
 
     const verdicts = ["FAKE", "REAL", "UNCERTAIN"] as const;
     const pick = verdicts[Math.floor(Math.random() * 3)];
     const conf = 0.7 + Math.random() * 0.25;
+    const framesAnalyzed = 24 + Math.floor(Math.random() * 20);
 
-    setReport({
+    const newReport: UnifiedReport = {
       taskId: `mock-${Date.now()}`,
       finalVerdict: pick,
       confidence: parseFloat(conf.toFixed(2)),
@@ -99,7 +160,12 @@ export function useAnalysis() {
         verdict: pick === "UNCERTAIN" ? "REAL" : pick,
         confidence: parseFloat((conf - 0.02 + Math.random() * 0.04).toFixed(2)),
         aiModel: { modelName: "Sora", confidence: 0.87, candidates: [{ name: "Sora", score: 0.87 }, { name: "Runway Gen-3", score: 0.12 }] },
-        framesAnalyzed: 24 + Math.floor(Math.random() * 20),
+        framesAnalyzed,
+        frames: Array.from({ length: Math.min(framesAnalyzed, 20) }, (_, i) => ({
+          frameNumber: i * 3,
+          deepfakeScore: pick === "FAKE" ? 0.6 + Math.random() * 0.35 : Math.random() * 0.3,
+          timestampMs: i * 100,
+        })),
       },
       audio: {
         isSynthetic: pick === "FAKE",
@@ -113,7 +179,25 @@ export function useAnalysis() {
         : "이 영상의 진위 여부를 확실히 판단하기 어렵습니다. 일부 프레임에서 AI 생성 흔적이 감지되었으나, 압축 아티팩트와 구분이 어려운 수준입니다.",
       warnings: [],
       totalProcessingTimeMs: 4700 + Math.floor(Math.random() * 1000),
-    } as UnifiedReport);
+    };
+
+    setReport(newReport);
+
+    // Save to history
+    if (selectedFile) {
+      const item: HistoryItem = {
+        id: newReport.taskId,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        verdict: pick,
+        confidence: parseFloat(conf.toFixed(2)),
+        date: new Date().toISOString(),
+        report: newReport,
+      };
+      const updated = [item, ...history].slice(0, MAX_HISTORY);
+      setHistory(updated);
+      saveHistory(updated);
+    }
   };
 
   const handleAnalyze = async () => {
@@ -122,15 +206,30 @@ export function useAnalysis() {
       return mockAnalyze();
     }
     setReport(null);
+    setLogs([]);
     setStage("UPLOADING");
+    addLog("📤 영상 업로드 시작...", "info");
     try {
-      const basicResult = await runVideoAnalysis(selectedFile, (s: string) => setStage(s as AnalysisStage));
+      const basicResult = await runVideoAnalysis(selectedFile, (s: string) => {
+        setStage(s as AnalysisStage);
+        addLog(`⏳ 단계 전환: ${s}`, "info");
+      });
+      addLog("📊 통합 결과 요청 중...", "info");
       const unified = await getUnifiedResult(basicResult.taskId);
       setStage("COMPLETED");
+      addLog("✅ 분석 완료!", "success");
       setReport(unified);
     } catch {
       setStage("ERROR");
+      addLog("❌ 분석 실패", "error");
     }
+  };
+
+  const handleRetry = () => {
+    // Retry with same file
+    setReport(null);
+    setStage("IDLE");
+    setLogs([]);
   };
 
   const handleReset = () => {
@@ -140,6 +239,7 @@ export function useAnalysis() {
     setReport(null);
     setStage("IDLE");
     setFileError(null);
+    setLogs([]);
   };
 
   const handleSave = () => {
@@ -165,14 +265,35 @@ export function useAnalysis() {
     }
   };
 
+  const handleShareLink = async () => {
+    if (!report) return;
+    // In real app this would generate a unique URL via backend
+    const shareUrl = `${window.location.origin}/analysis/result/${report.taskId}`;
+    await navigator.clipboard.writeText(shareUrl);
+    alert("공유 링크가 복사됐어요!");
+  };
+
+  const loadHistoryReport = (item: HistoryItem) => {
+    setReport(item.report);
+    setStage("COMPLETED");
+    setSelectedFile(null);
+    setPreviewUrl(null);
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem(HISTORY_KEY);
+  };
+
   const isAnalyzing = stage !== "IDLE" && stage !== "COMPLETED" && stage !== "ERROR";
   const currentStageIdx = stageIndex(stage);
 
   return {
     stage, report, selectedFile, previewUrl, fileError, quota,
-    isDragging, setIsDragging, fileInputRef,
-    handleInputChange, handleDrop, handleAnalyze, handleReset,
-    handleSave, handleShare, handleFileSelect,
+    isDragging, setIsDragging, fileInputRef, logs, history,
+    handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
+    handleSave, handleShare, handleShareLink, handleFileSelect,
+    loadHistoryReport, clearHistory,
     isAnalyzing, currentStageIdx, navigate,
   };
 }
