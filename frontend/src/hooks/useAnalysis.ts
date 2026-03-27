@@ -420,7 +420,7 @@ export function useAnalysis() {
     isDragging, setIsDragging, fileInputRef, logs, history, agentTimings,
     handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
     handleSave, handleShare, handleShareLink, handleFileSelect,
-    loadHistoryReport, clearHistory,
-    isAnalyzing, currentStageIdx, navigate,
+    loadHistoryReport, clearHistory, handleAgentRerun, isRerunning, rerunningAgents,
+    isAnalyzing, currentStageIdx, navigate, setReport,
   };
 }
