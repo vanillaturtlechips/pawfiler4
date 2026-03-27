@@ -106,6 +106,11 @@ export function useAnalysis() {
         confidence: parseFloat((0.65 + Math.random() * 0.3).toFixed(2)),
         method: pick === "FAKE" ? "TTS" : "natural",
       },
+      explanation: pick === "FAKE"
+        ? "이 영상은 Sora 모델로 생성된 AI 합성 영상으로 판단됩니다. 프레임 간 일관성 부족, 비자연적 피부 텍스처, 그리고 눈 깜빡임 패턴의 이상이 감지되었습니다."
+        : pick === "REAL"
+        ? "이 영상은 실제 촬영된 진짜 영상으로 판단됩니다. 자연스러운 조명 변화, 카메라 흔들림, 그리고 일관된 노이즈 패턴이 확인되었습니다."
+        : "이 영상의 진위 여부를 확실히 판단하기 어렵습니다. 일부 프레임에서 AI 생성 흔적이 감지되었으나, 압축 아티팩트와 구분이 어려운 수준입니다.",
       warnings: [],
       totalProcessingTimeMs: 4700 + Math.floor(Math.random() * 1000),
     } as UnifiedReport);
