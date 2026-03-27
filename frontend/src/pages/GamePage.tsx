@@ -33,7 +33,7 @@ const GamePage = () => {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<QuizStats | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
-  const [maxQuestions, setMaxQuestions] = useState(config.quizQuestionsPerGame);
+  const [maxQuestions, setMaxQuestions] = useState<number>(config.quizQuestionsPerGame);
   const [gameFinished, setGameFinished] = useState(false);
 
   // 현재 세션 통계 (로컬)
