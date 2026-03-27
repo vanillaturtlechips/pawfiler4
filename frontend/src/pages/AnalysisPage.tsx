@@ -117,12 +117,17 @@ const AnalysisPage = () => {
       </motion.section>
 
       {/* ── History Section ── */}
-      <div className="px-4 pb-8 max-w-lg mx-auto">
+      <div className="px-4 pb-4 max-w-lg mx-auto">
         <AnalysisHistory
           history={a.history}
           onSelect={a.loadHistoryReport}
           onClear={a.clearHistory}
         />
+      </div>
+
+      {/* ── Batch Queue ── */}
+      <div className="px-4 pb-8 max-w-lg mx-auto">
+        <BatchQueue onAnalyzeFile={a.handleFileSelect} />
       </div>
 
       {/* ── Section 2: Upload ── */}
