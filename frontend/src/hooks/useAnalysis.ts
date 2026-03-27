@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { runVideoAnalysis, getUnifiedResult, fetchAnalysisQuota, type AnalysisQuota } from "@/lib/api";
+import { config } from "@/lib/config";
 import type { AnalysisStage, UnifiedReport } from "@/lib/types";
 
 export const MAX_FILE_SIZE_MB = 100;
