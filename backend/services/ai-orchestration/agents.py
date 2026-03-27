@@ -91,7 +91,7 @@ class VideoAgent:
         ]
 
         predicted_class = self.class_names[top_idx]
-        is_fake = predicted_class != "real"
+        is_fake = predicted_class.lower() not in ("real",)
 
         elapsed = (time.perf_counter() - t0) * 1000
         logger.debug(f"VideoAgent: {predicted_class} ({confidence:.2%}) in {elapsed:.1f}ms")
@@ -105,10 +105,8 @@ class VideoAgent:
         }
 
     def _normalize(self, frames: np.ndarray) -> np.ndarray:
-        """ImageNet 정규화. 실제로는 decord/torchvision transforms 사용."""
-        mean = np.array([0.485, 0.456, 0.406]).reshape(1, 3, 1, 1)
-        std = np.array([0.229, 0.224, 0.225]).reshape(1, 3, 1, 1)
-        return ((frames - mean) / std).astype(np.float32)
+        """학습 시 /255.0만 적용했으므로 추가 정규화 없음."""
+        return frames
 
     def _softmax(self, logits: np.ndarray) -> np.ndarray:
         exp = np.exp(logits - np.max(logits))
@@ -116,17 +114,15 @@ class VideoAgent:
 
     def _load_class_names(self) -> list:
         """35 클래스 이름 매핑. 실제로는 JSON 파일에서 로드."""
-        # AIGVDBench 23종 + 특수 클래스
+        # latest.pt 학습 시 사용한 클래스 목록 (35개)
         return [
-            "real", "fake", "audio_fake",
-            "Sora", "Gen2", "Pika", "Kling", "HaiLuo",
-            "Stable_Video", "AnimateDiff", "ModelScope",
-            "Luma", "CogVideo", "LaVie", "Show1",
-            "VideoCrafter", "OpenSora", "OpenSoraPlan",
-            "Vidu", "Jimeng", "PixVerse", "Morph",
-            "Magi", "HunyuanVideo", "NOVA",
-            # 여유 클래스
-            *[f"reserved_{i}" for i in range(10)]
+            'AccVideo', 'AnimateDiff', 'Cogvideox1.5', 'EasyAnimate',
+            'Gen2', 'Gen3', 'HunyuanVideo', 'IPOC', 'Jimeng', 'LTX',
+            'Luma', 'Open-Sora', 'OpenSource_I2V_EasyAnimate', 'OpenSource_I2V_LTX',
+            'OpenSource_I2V_Pyramid-Flow', 'OpenSource_I2V_SEINE', 'OpenSource_I2V_SVD',
+            'OpenSource_I2V_VideoCrafter', 'OpenSource_V2V_Cogvideox1.5', 'OpenSource_V2V_LTX',
+            'Opensora', 'Pyramid-Flow', 'Real', 'RepVideo', 'SEINE', 'SVD', 'Sora',
+            'VideoCrafter', 'Wan2.1', 'causvid_24fps', 'vidu', 'wan', 'real', 'fake', 'audio_fake',
         ]
 
 
@@ -464,16 +460,39 @@ class FusionAgent:
             return []
 
     async def _generate_explanation(self, breakdown: dict, verdict: str) -> str:
-        """
-        Nova Lite로 자연어 설명 생성.
-        Bedrock 없으면 템플릿 fallback.
-        """
-        if self._bedrock:
-            try:
-                return await self._nova_explain(breakdown, verdict)
-            except Exception as e:
-                logger.warning(f"Nova Lite failed: {e}, falling back to template")
+        try:
+            return await self._ollama_explain(breakdown, verdict)
+        except Exception as e:
+            logger.warning(f"Ollama failed: {e}, falling back to template")
         return self._template_explanation(breakdown)
+
+    async def _ollama_explain(self, breakdown: dict, verdict: str) -> str:
+        import json, asyncio, urllib.request
+        video = breakdown.get("video", {})
+        audio = breakdown.get("audio", {})
+        sync = breakdown.get("sync", {})
+
+        prompt = (
+            "당신은 AI 생성 영상 탐지 전문가입니다. 아래 분석 결과를 바탕으로 전문적이고 명확한 한국어 보고서를 작성해주세요.\n\n"
+            f"[최종 판정] {'AI 생성 영상' if verdict == 'fake' else '실제 영상'}\n"
+            f"[영상 분석] {'AI 생성 의심' if video.get('is_fake') else '실제 영상'} (신뢰도: {video.get('confidence', 0):.0%})\n"
+            f"[음성 분석] {'합성 음성' if audio.get('is_synthetic') else '실제 음성'} (신뢰도: {audio.get('confidence', 0):.0%})\n"
+            f"[립싱크 일치도] {sync.get('sync_score', 0.5):.0%}\n\n"
+            "위 데이터를 바탕으로 다음 형식으로 3문장 이내로 설명해주세요:\n"
+            "1. 판정 결과와 주요 근거\n"
+            "2. 신뢰도 수준과 주의사항\n"
+            "기술 용어는 쉽게 풀어서 설명하고, 단정적 표현보다 확률적 표현을 사용하세요."
+        )
+        body = json.dumps({"model": "gemma3:4b", "prompt": prompt, "stream": False}).encode()
+        loop = asyncio.get_event_loop()
+        def call():
+            req = urllib.request.Request(
+                "http://host.docker.internal:11434/api/generate",
+                data=body, headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read())["response"].strip()
+        return await loop.run_in_executor(None, call)
 
     async def _nova_explain(self, breakdown: dict, verdict: str) -> str:
         import json, asyncio

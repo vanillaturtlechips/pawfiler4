@@ -67,18 +67,21 @@ class XGBoostGate:
 
         if self.model is not None:
             import xgboost as xgb
-            if isinstance(self.model, xgb.Booster):
-                dmat = xgb.DMatrix(feature_vec.reshape(1, -1))
-                pred = self.model.predict(dmat)[0]
-                # Booster.predict() 결과: 이진분류 시 스칼라 or [p0,p1] 배열
-                prob_fake = float(pred[1]) if hasattr(pred, '__len__') else float(pred)
-            else:
-                probs = self.model.predict_proba(feature_vec.reshape(1, -1))
-                p = probs[0]
-                prob_fake = float(p[1]) if hasattr(p, '__len__') else float(p)
+            dmat = xgb.DMatrix(feature_vec.reshape(1, -1))
+            pred = self.model.predict(dmat)[0]  # shape: (num_class,)
+            # class 0 = real, 나머지 = AI 생성 도구
+            prob_real = float(pred[0]) if hasattr(pred, '__len__') else float(pred)
+            prob_fake = 1.0 - prob_real
+            best_fake_class = int(np.argmax(pred[1:])) + 1 if hasattr(pred, '__len__') and len(pred) > 1 else 1
         else:
             # 모델 없으면 항상 Deep Path로
-            prob_fake = 0.5
+            return {
+                "confident": False,
+                "verdict": "real",
+                "confidence": 0.5,
+                "breakdown": {"video": {"is_fake": False, "ai_model": None, "confidence": 0.5}},
+                "explanation": "경량 분석 불가: Deep Path로 전달",
+            }
 
         confidence = max(prob_fake, 1 - prob_fake)
         is_fake = prob_fake > 0.5

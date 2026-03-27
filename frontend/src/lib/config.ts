@@ -5,11 +5,11 @@ const _origin = typeof window !== 'undefined'
 const _isProd = _origin.includes('pawfiler.site');
 
 export const config = {
-  apiBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'),
-  communityBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_COMMUNITY_BASE_URL || 'http://localhost:8080'),
-  adminServiceBaseUrl: import.meta.env.VITE_ADMIN_SERVICE_BASE_URL || 'http://localhost:8082',
-  userServiceBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8083'),
-  aiAgentBaseUrl: import.meta.env.VITE_AI_AGENT_BASE_URL || 'http://localhost:8088',
+  apiBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_API_BASE_URL ?? ''),
+  communityBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_COMMUNITY_BASE_URL ?? ''),
+  adminServiceBaseUrl: import.meta.env.VITE_ADMIN_SERVICE_BASE_URL ?? '',
+  userServiceBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_USER_SERVICE_BASE_URL ?? ''),
+  aiAgentBaseUrl: import.meta.env.VITE_AI_AGENT_BASE_URL ?? '',
 
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',

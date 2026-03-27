@@ -11,6 +11,20 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/quiz.': { target: 'http://localhost:8080', changeOrigin: true },
+      '/community.': { target: 'http://localhost:8081', changeOrigin: true },
+      '/user.': { target: 'http://localhost:8083', changeOrigin: true },
+      '/api/auth': { target: 'http://localhost:8084', changeOrigin: true, rewrite: (p: string) => p.replace('/api/auth', '') },
+      '/api/report': { target: 'http://localhost:8090', changeOrigin: true },
+      '/api/upload-video': { target: 'http://localhost:8085', changeOrigin: true },
+      '/api/video_analysis.': { target: 'http://localhost:8085', changeOrigin: true },
+      '/api/analysis': { target: 'http://localhost:8085', changeOrigin: true },
+      '/api/keys': { target: 'http://localhost:8085', changeOrigin: true },
+      '/internal': { target: 'http://localhost:8085', changeOrigin: true },
+      '/video_analysis.': { target: 'http://localhost:8085', changeOrigin: true, rewrite: (p: string) => '/api' + p },
+      '/upload-video': { target: 'http://localhost:8085', changeOrigin: true, rewrite: (p: string) => p.replace('/upload-video', '/api/upload-video') },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

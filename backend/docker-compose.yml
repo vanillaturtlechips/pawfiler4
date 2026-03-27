@@ -27,7 +27,7 @@ services:
     image: redis:7-alpine
     container_name: pawfiler-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - pawfiler-network
 
@@ -64,9 +64,10 @@ services:
       HTTP_PORT: "8081"
       AWS_REGION: ap-northeast-2
       S3_COMMUNITY_BUCKET: pawfiler-community-media
-      CLOUDFRONT_COMMUNITY_DOMAIN: ${CLOUDFRONT_COMMUNITY_DOMAIN}
-    volumes:
-      - ~/.aws:/root/.aws:ro
+      CLOUDFRONT_COMMUNITY_DOMAIN: localhost:4566
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     ports:
       - "50053:50053"
       - "8081:8081"
@@ -109,9 +110,10 @@ services:
       PORT: "8082"
       AWS_REGION: ap-northeast-2
       S3_BUCKET: pawfiler-quiz-media
-      CLOUDFRONT_DOMAIN: ${CLOUDFRONT_DOMAIN}
-    volumes:
-      - ~/.aws:/root/.aws:ro
+      CLOUDFRONT_DOMAIN: localhost:4566
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     ports:
       - "8082:8082"
     depends_on:
@@ -133,6 +135,86 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - pawfiler-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: pawfiler-auth
+    environment:
+      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+      JWT_SECRET: local_dev_secret
+      PORT: "8084"
+      USER_SERVICE_URL: http://user-service:8083
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pawfiler-network
+
+  # MinIO (S3 로컬 대체 - 계정 불필요)
+  minio:
+    image: minio/minio:latest
+    container_name: pawfiler-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: test
+      MINIO_ROOT_PASSWORD: testtest
+    ports:
+      - "4566:9000"
+      - "9001:9001"
+    networks:
+      - pawfiler-network
+
+  # Video Analysis Service
+  video-analysis:
+    build:
+      context: ./services/video-analysis
+      dockerfile: Dockerfile
+    container_name: pawfiler-video-analysis
+    environment:
+      DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      S3_BUCKET: pawfiler-videos
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: testtest
+      AWS_DEFAULT_REGION: ap-northeast-2
+      AI_ORCHESTRATION_URL: http://ai-orchestration:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "50054:50054"
+      - "8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - pawfiler-network
+
+  # AI Orchestration (Ray Serve)
+  ai-orchestration:
+    build:
+      context: ./services/ai-orchestration
+      dockerfile: Dockerfile.local
+    container_name: pawfiler-ai-orchestration
+    environment:
+      MODEL_DIR: /app/efs_models
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: testtest
+      AWS_DEFAULT_REGION: ap-northeast-2
+      AWS_ENDPOINT_URL: http://minio:9000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
     networks:
       - pawfiler-network
 

@@ -86,7 +86,8 @@ class Orchestrator:
         preprocessed = await self._preprocess(media_url, modality)
 
         # ── 3. Cascade Gate (XGBoost, CPU, ~50ms) ──
-        if preprocessed.get("frames") is not None:
+        # 모델 미학습 상태이므로 항상 Deep Path로
+        if False and preprocessed.get("frames") is not None:
             cascade_result = await self.cascade.predict.remote(
                 preprocessed["hand_crafted_features"]
             )
@@ -102,12 +103,10 @@ class Orchestrator:
                 )
 
         # ── 4. Deep Path: Fan-out (비동기 병렬) ──
-        #    Plasma Store에 텐서를 한 번만 put하고,
-        #    각 에이전트에는 ObjectRef(주소)만 전달.
         tasks = {}
 
         if modality in ("video", "both") and preprocessed.get("frames") is not None:
-            frames_ref = ray.put(preprocessed["frames"])  # Plasma에 저장
+            frames_ref = ray.put(preprocessed["frames"])
             tasks["video"] = self.video.predict.remote(frames_ref)
 
         if modality in ("audio", "both") and preprocessed.get("audio") is not None:
@@ -115,16 +114,11 @@ class Orchestrator:
             tasks["audio"] = self.audio.predict.remote(audio_ref)
 
         if modality == "both" and len(tasks) == 2:
-            tasks["sync"] = self.sync.predict.remote(
-                frames_ref, audio_ref
-            )
+            tasks["sync"] = self.sync.predict.remote(frames_ref, audio_ref)
 
-        # ── 5. Fan-in: 모든 에이전트 결과 수집 ──
+        # ── 5. Fan-in ──
         results = {}
-        gathered = await asyncio.gather(
-            *[tasks[k] for k in tasks],
-            return_exceptions=True,
-        )
+        gathered = await asyncio.gather(*[tasks[k] for k in tasks], return_exceptions=True)
         for key, result in zip(tasks.keys(), gathered):
             if isinstance(result, Exception):
                 logger.error(f"Agent {key} failed: {result}")
@@ -141,6 +135,65 @@ class Orchestrator:
         return JSONResponse(self._format_response(verdict, elapsed, deep=True))
 
     # ── Health Check ──
+    def _infer_deepfake(self, frames_np) -> dict:
+        """latest.pt DeepfakeClassifier로 추론"""
+        import torch, torch.nn as nn, timm, os
+        AI_MODELS = [
+            'AccVideo','AnimateDiff','Cogvideox1.5','EasyAnimate','Gen2','Gen3',
+            'HunyuanVideo','IPOC','Jimeng','LTX','Luma','Open-Sora',
+            'OpenSource_I2V_EasyAnimate','OpenSource_I2V_LTX','OpenSource_I2V_Pyramid-Flow',
+            'OpenSource_I2V_SEINE','OpenSource_I2V_SVD','OpenSource_I2V_VideoCrafter',
+            'OpenSource_V2V_Cogvideox1.5','OpenSource_V2V_LTX','Opensora','Pyramid-Flow',
+            'Real','RepVideo','SEINE','SVD','Sora','VideoCrafter','Wan2.1',
+            'causvid_24fps','vidu','wan','real','fake','audio_fake',
+        ]
+        REAL_CLASSES = {'Real', 'real'}
+        NUM_CLASSES = len(AI_MODELS)
+
+        class DeepfakeClassifier(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.backbone = timm.create_model('tf_efficientnet_b4', pretrained=False, num_classes=0)
+                self.lstm = nn.LSTM(1792, 512, num_layers=1, batch_first=True)
+                self.classifier = nn.Sequential(
+                    nn.Linear(512, 256), nn.ReLU(), nn.Dropout(0.3), nn.Linear(256, NUM_CLASSES)
+                )
+            def forward(self, x):
+                b, f, c, h, w = x.size()
+                x = x.view(b * f, c, h, w)
+                features = self.backbone(x).view(b, f, -1)
+                _, (h, _) = self.lstm(features)
+                return self.classifier(h.squeeze(0))
+
+        if not hasattr(self, '_deepfake_model'):
+            model_path = os.path.join(os.environ.get('MODEL_DIR', '/app/efs_models'), 'latest.pt')
+            m = DeepfakeClassifier()
+            m.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=False))
+            m.eval()
+            self._deepfake_model = m
+
+        if frames_np is None:
+            return {"confident": False, "verdict": "real", "confidence": 0.5,
+                    "breakdown": {"video": {"is_fake": False, "ai_model": None, "confidence": 0.5}}}
+
+        # frames_np: (16, 3, 224, 224) float32
+        tensor = torch.tensor(frames_np).unsqueeze(0)  # (1, 16, 3, 224, 224)
+        with torch.no_grad():
+            logits = self._deepfake_model(tensor)
+            probs = torch.softmax(logits, dim=1).squeeze().numpy()
+
+        top_idx = int(np.argmax(probs))
+        top_label = AI_MODELS[top_idx]
+        confidence = float(probs[top_idx])
+        is_fake = top_label not in REAL_CLASSES
+
+        return {
+            "confident": True,
+            "verdict": "fake" if is_fake else "real",
+            "confidence": round(confidence, 4),
+            "breakdown": {"video": {"is_fake": is_fake, "ai_model": top_label if is_fake else None, "confidence": round(confidence, 4)}},
+        }
+
     async def check_health(self):
         """K8s readiness probe 용. 모델 로드 실패 시 트래픽 차단."""
         if not self._ready:
@@ -148,6 +201,11 @@ class Orchestrator:
 
     # ── Private helpers ──
     async def _preprocess(self, media_url: str, modality: str) -> dict:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._preprocess_sync, media_url, modality)
+
+    def _preprocess_sync(self, media_url: str, modality: str) -> dict:
         """
         영상 URL → 프레임 추출 + 오디오 분리 + hand-crafted features.
         decord로 프레임 추출, ffmpeg로 오디오 분리.
@@ -156,16 +214,22 @@ class Orchestrator:
         import cv2
         from scipy.fft import dct
 
-        # ── 1. 파일 다운로드 (S3 presigned URL or http) ──
-        with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = tempfile.mkdtemp()
+        try:
             video_path = os.path.join(tmpdir, "input.mp4")
             if media_url.startswith("s3://"):
                 import boto3
-                s3 = boto3.client("s3")
+                s3 = boto3.client(
+                    "s3",
+                    endpoint_url=os.getenv("AWS_ENDPOINT_URL"),
+                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                )
                 bucket, key = media_url[5:].split("/", 1)
                 s3.download_file(bucket, key, video_path)
             else:
                 urllib.request.urlretrieve(media_url, video_path)
+            print(f"[DEBUG] video downloaded, size={os.path.getsize(video_path)}", flush=True)
 
             # ── 2. 프레임 추출 (decord, 16프레임 균등 샘플링) ──
             frames_np = None
@@ -182,8 +246,10 @@ class Orchestrator:
                         for f in frames
                     ]).astype(np.float32) / 255.0
                     frames_np = resized  # (16, 3, 224, 224)
+                    print(f"[DEBUG] frames_np shape={frames_np.shape}", flush=True)
                 except Exception as e:
                     logger.error(f"Frame extraction failed: {e}")
+                    print(f"[DEBUG] Frame extraction failed: {e}", flush=True)
 
             # ── 3. 오디오 추출 (ffmpeg, 16kHz mono wav) ──
             audio_np = None
@@ -199,15 +265,19 @@ class Orchestrator:
                     audio_np, _ = sf.read(audio_path, dtype="float32")
                 except Exception as e:
                     logger.error(f"Audio extraction failed: {e}")
+                    print(f"[DEBUG] Audio extraction failed: {e}", flush=True)
 
             # ── 4. Hand-crafted features (XGBoost용) ──
             hand_crafted = self._extract_hand_crafted(frames_np)
 
-        return {
-            "frames": frames_np,
-            "audio": audio_np,
-            "hand_crafted_features": hand_crafted,
-        }
+            return {
+                "frames": frames_np,
+                "audio": audio_np,
+                "hand_crafted_features": hand_crafted,
+            }
+        finally:
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def _extract_hand_crafted(self, frames_np: np.ndarray) -> dict:
         """
@@ -268,6 +338,7 @@ class Orchestrator:
             "meta": {
                 "latency_ms": round(elapsed_ms, 2),
                 "path": "cascade" if not deep else "deep",
+                "frames_analyzed": 16,
             },
         }
 

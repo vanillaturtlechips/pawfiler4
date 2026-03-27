@@ -79,8 +79,7 @@ const AnalysisPage = () => {
     setReport(null);
     setStage("UPLOADING");
     try {
-      const basicResult = await runVideoAnalysis(selectedFile);
-      setStage("SAGEMAKER_PROCESSING");
+      const basicResult = await runVideoAnalysis(selectedFile, (s: string) => setStage(s as AnalysisStage));
       const unified = await getUnifiedResult(basicResult.taskId);
       setStage("COMPLETED");
       setReport(unified);
@@ -112,7 +111,7 @@ const AnalysisPage = () => {
   const handleShare = async () => {
     if (!report) return;
     const verdict = verdictConfig[report.finalVerdict];
-    const text = `PawFiler 영상 분석 결과: ${verdict.label} (${(report.confidence * 100).toFixed(0)}%)${report.visual?.aiModel ? ` — ${report.visual.aiModel.modelName}` : ""}`;
+    const text = `PawFiler 영상 분석 결과: ${verdict.label} (${(report.confidence * 100).toFixed(0)}%)`;
     if (navigator.share) {
       await navigator.share({ title: "PawFiler 분석 결과", text });
     } else {
@@ -266,34 +265,99 @@ const AnalysisPage = () => {
               >
                 <h2 className="font-jua text-2xl text-shadow-deep">📋 분석 보고서</h2>
 
-                {/* 최종 판정 */}
-                <div className="text-center py-4">
-                  <span className="text-6xl">{verdictConfig[report.finalVerdict]?.emoji}</span>
-                  <div className="font-jua text-3xl mt-2" style={{ color: verdictConfig[report.finalVerdict]?.color }}>
+                {/* 최종 판정 카드 */}
+                <div className="rounded-2xl p-5 text-center border-2" style={{
+                  background: report.finalVerdict === "FAKE" ? "rgba(220,38,38,0.15)" : report.finalVerdict === "REAL" ? "rgba(34,197,94,0.15)" : "rgba(234,179,8,0.15)",
+                  borderColor: verdictConfig[report.finalVerdict]?.color
+                }}>
+                  <div className="text-5xl mb-2">{verdictConfig[report.finalVerdict]?.emoji}</div>
+                  <div className="font-jua text-2xl" style={{ color: verdictConfig[report.finalVerdict]?.color }}>
                     {verdictConfig[report.finalVerdict]?.label}
                   </div>
-                  <div className="font-jua text-5xl mt-1" style={{ color: verdictConfig[report.finalVerdict]?.color }}>
+                  <div className="font-jua text-4xl mt-1" style={{ color: verdictConfig[report.finalVerdict]?.color }}>
                     {(report.confidence * 100).toFixed(0)}%
                   </div>
+                  <div className="text-xs mt-2 opacity-60">종합 신뢰도</div>
                 </div>
 
-                {report.warnings.length > 0 && (
-                  <div className="rounded-xl p-3 bg-yellow-100 border-2 border-yellow-400">
-                    {report.warnings.map((w, i) => (
-                      <div key={i} className="text-sm font-jua" style={{ color: "hsl(var(--wood-darkest))" }}>⚠️ {w}</div>
-                    ))}
+                {/* 영상 분석 */}
+                {report.visual && (
+                  <div className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-lg">🎬</span>
+                      <span className="font-jua text-base">영상 프레임 분석</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm opacity-70">판정</span>
+                      <span className="font-jua text-sm px-3 py-1 rounded-full" style={{
+                        background: report.visual.verdict === "FAKE" ? "rgba(220,38,38,0.3)" : "rgba(34,197,94,0.3)",
+                        color: report.visual.verdict === "FAKE" ? "#fca5a5" : "#86efac"
+                      }}>
+                        {report.visual.verdict === "FAKE" ? "AI 생성 의심" : report.visual.verdict === "REAL" ? "실제 영상" : "불확실"}
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="opacity-60">신뢰도</span>
+                        <span>{(report.visual.confidence * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className="w-full rounded-full h-2" style={{ background: "rgba(255,255,255,0.1)" }}>
+                        <div className="h-2 rounded-full transition-all" style={{
+                          width: `${(report.visual.confidence * 100).toFixed(0)}%`,
+                          background: report.visual.verdict === "FAKE" ? "#ef4444" : "#22c55e"
+                        }} />
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs opacity-50">분석 프레임 수: {report.visual.framesAnalyzed}개</div>
                   </div>
                 )}
 
-                {report.visual?.aiModel && <AIModelCard prediction={report.visual.aiModel} />}
-                {report.audio && <AudioPanel audio={report.audio} />}
-                {report.visual?.frames && report.visual.frames.length > 0 && (
-                  <FrameTimeline frames={report.visual.frames} />
+                {/* 음성 분석 */}
+                {report.audio && (
+                  <div className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-lg">🎙️</span>
+                      <span className="font-jua text-base">음성 분석</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm opacity-70">판정</span>
+                      <span className="font-jua text-sm px-3 py-1 rounded-full" style={{
+                        background: report.audio.isSynthetic ? "rgba(220,38,38,0.3)" : "rgba(34,197,94,0.3)",
+                        color: report.audio.isSynthetic ? "#fca5a5" : "#86efac"
+                      }}>
+                        {report.audio.isSynthetic ? "합성 음성 의심" : "실제 음성"}
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="opacity-60">신뢰도</span>
+                        <span>{(report.audio.confidence * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className="w-full rounded-full h-2" style={{ background: "rgba(255,255,255,0.1)" }}>
+                        <div className="h-2 rounded-full transition-all" style={{
+                          width: `${(report.audio.confidence * 100).toFixed(0)}%`,
+                          background: report.audio.isSynthetic ? "#ef4444" : "#22c55e"
+                        }} />
+                      </div>
+                    </div>
+                  </div>
                 )}
 
-                <div className="rounded-xl p-3 text-xs opacity-70" style={{ background: "hsl(var(--wood-dark))" }}>
-                  <div>프레임 분석: {report.visual?.framesAnalyzed || 0}개</div>
-                  <div>처리 시간: {(report.totalProcessingTimeMs / 1000).toFixed(1)}초</div>
+                {/* AI 설명 */}
+                {(report as any).explanation && (
+                  <div className="rounded-xl p-4" style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)" }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">🤖</span>
+                      <span className="font-jua text-base">AI 분석 의견</span>
+                    </div>
+                    <p className="text-sm leading-relaxed opacity-90">{(report as any).explanation}</p>
+                  </div>
+                )}
+
+                {/* 메타 정보 */}
+                <div className="rounded-xl p-3 text-xs opacity-50 flex gap-4" style={{ background: "rgba(0,0,0,0.2)" }}>
+                  <span>⏱ 처리 시간: {(report.totalProcessingTimeMs / 1000).toFixed(1)}초</span>
+                  <span>🖼 분석 프레임: {report.visual?.framesAnalyzed || 0}개</span>
                 </div>
 
                 {/* 퀴즈 연동 */}

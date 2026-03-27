@@ -155,12 +155,12 @@ class VideoModel(nn.Module):
 
 @serve.deployment(
     name="shared_model_worker",
-    num_replicas=1,  # ★ 싱글톤: 반드시 1개
+    num_replicas=1,
     ray_actor_options={
-        "num_gpus": 1,  # GPU 1장 점유
+        "num_gpus": 0,  # 로컬 테스트: GPU 없이 CPU로
         "num_cpus": 1,
     },
-    max_ongoing_requests=32,  # 동시 추론 요청 상한
+    max_ongoing_requests=32,
     health_check_period_s=30,
 )
 class SharedModelWorker:
@@ -223,53 +223,14 @@ class SharedModelWorker:
             audio = torch.from_numpy(audio_np).unsqueeze(0).to(self.device)
             # Wav2Vec2 feature extraction
             outputs = self.audio_model(audio)
-            features = outputs.mean(dim=1)  # 시간 축 평균 → (1, 768)
+            features = outputs.last_hidden_state.mean(dim=1)  # 시간 축 평균 → (1, 768)
             return {
                 "features": features.cpu().numpy(),
             }
 
     def sync_inference(self, frames_np: np.ndarray, audio_np: np.ndarray) -> dict:
-        """
-        SyncAgent가 호출. 립싱크 일치도 계산.
-
-        원본 SyncNet 입력 포맷으로 변환:
-            frames_np: (T, C, H, W) → 입술 영역 crop → (1, 1, 5, 112, 112)
-            audio_np:  (samples,)   → MFCC 추출     → (1, 1, 20, 13)
-
-        Returns:
-            {"sync_score": float}  # 0~1, 높을수록 일치
-        """
-        import librosa
-        with torch.inference_mode():
-            # ── 영상: 중앙 하단 입술 영역 crop, grayscale, 5프레임 ──
-            T = frames_np.shape[0]
-            indices = np.linspace(0, T - 1, 5, dtype=int)
-            lips = []
-            for i in indices:
-                frame = frames_np[i]  # (C, H, W)
-                gray = (frame[0] * 0.299 + frame[1] * 0.587 + frame[2] * 0.114)  # (H, W)
-                import cv2
-                h, w = gray.shape
-                lip = gray[h // 2:, w // 4: 3 * w // 4]  # 하단 중앙 크롭
-                lip = cv2.resize(lip, (112, 112))
-                lips.append(lip)
-            # (1, 1, 5, 112, 112)
-            lip_tensor = torch.from_numpy(
-                np.stack(lips)[np.newaxis, np.newaxis].astype(np.float32)
-            ).to(self.device)
-
-            # ── 오디오: MFCC (1, 1, 20, 13) ──
-            mfcc = librosa.feature.mfcc(y=audio_np, sr=16000, n_mfcc=13, n_fft=512, hop_length=160)
-            # mfcc: (13, T_frames) → 20프레임 균등 샘플링 → (20, 13)
-            t_frames = mfcc.shape[1]
-            idx = np.linspace(0, t_frames - 1, 20, dtype=int)
-            mfcc_sampled = mfcc[:, idx].T  # (20, 13)
-            mfcc_tensor = torch.from_numpy(
-                mfcc_sampled[np.newaxis, np.newaxis].astype(np.float32)
-            ).to(self.device)  # (1, 1, 20, 13)
-
-            score = self.sync_model(lip_tensor, mfcc_tensor)
-            return {"sync_score": float(score.item())}
+        """SyncNet 모델 미학습 상태 — 비활성화."""
+        return {"sync_score": 0.5}
 
     # ── Health Check ──
     def check_health(self):
@@ -301,6 +262,9 @@ class SharedModelWorker:
                 return model
             else:
                 state = checkpoint
+
+            # classifier → head 키 remapping (latest.pt 호환)
+            state = {k.replace('classifier.', 'head.'): v for k, v in state.items()}
 
             # Key mismatch 허용 (학습 코드와 구조 차이 대응)
             missing, unexpected = model.load_state_dict(state, strict=False)

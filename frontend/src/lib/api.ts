@@ -472,7 +472,7 @@ export const fetchUserProfile = async (): Promise<QuizGameProfile> => {
   }
 };
 
-export const runVideoAnalysis = async (videoFile: File | string): Promise<DeepfakeReport> => {
+export const runVideoAnalysis = async (videoFile: File | string, onStage?: (stage: string) => void): Promise<DeepfakeReport> => {
   if (config.useMockApi) {
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockRunVideoAnalysis(token || "", videoFile, () => {});
@@ -525,11 +525,15 @@ export const runVideoAnalysis = async (videoFile: File | string): Promise<Deepfa
       
       const data = await response.json();
       const taskId = data.taskId || data.task_id;
-      
+
+      onStage?.("MCP_CONNECTING");
+
       // Poll for result
       for (let i = 0; i < 60; i++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
+        if (i === 1) onStage?.("SAGEMAKER_PROCESSING");
+
         const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -590,7 +594,13 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
     // DeepfakeReport → UnifiedReport 변환
     return {
       taskId,
-      finalVerdict: data.verdict || "UNCERTAIN",
+      finalVerdict: (() => {
+        const v = (data.verdict || "").toUpperCase();
+        const c = data.confidence_score || 0;
+        if (v === "FAKE" && c >= 0.6) return "FAKE";
+        if (v === "REAL" && c >= 0.6) return "REAL";
+        return "UNCERTAIN";
+      })(),
       confidence: data.confidence_score || 0,
       visual: data.breakdown?.video ? {
         verdict: data.breakdown.video.is_fake ? "FAKE" : "REAL",
@@ -609,7 +619,8 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
       } : undefined,
       warnings: [],
       totalProcessingTimeMs: data.processing_time_ms || 0,
-    };
+      explanation: data.explanation || "",
+    } as UnifiedReport & { explanation: string };
   } catch (error) {
     return handleApiError(error, '통합 결과 조회');
   }
@@ -967,7 +978,7 @@ export interface ApiKeyItem {
   key?: string; // 생성 직후에만 존재
 }
 
-const VIDEO_ANALYSIS_REST = config.apiBaseUrl.replace('/api', '') + ':8080';
+const VIDEO_ANALYSIS_REST = '';
 
 export const fetchAnalysisHistory = async (userId: string): Promise<AnalysisHistoryItem[]> => {
   try {

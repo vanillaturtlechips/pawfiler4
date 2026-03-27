@@ -1,6 +1,6 @@
 """
 PawFiler ML Training - Fine-tuning (Real class 교정)
-최적화 완료: Numpy 벡터화 연산 적용 (GPU 병목 / for문 제거)
+최적화 완료: Numpy 벡터화 연산 + RAM 다이어트(스와핑 방지) 적용
 """
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -131,15 +131,17 @@ def collate_fn(samples):
     for i, f in enumerate(frames_list): padded[i, :f.shape[0]] = f
     return np.array(hc), padded, torch.tensor(labels)
 
-def make_dataloader(shards, batch_size, num_workers=24):
+# 🚨 [핵심 해결책] RAM 터지는 현상(스와핑) 방지를 위한 메모리 다이어트
+def make_dataloader(shards, batch_size, num_workers=8):  # 워커 24 -> 8로 축소
     dataset = (
-        wds.WebDataset(shards, shardshuffle=5000, handler=wds.warn_and_continue)
+        wds.WebDataset(shards, shardshuffle=1000, handler=wds.warn_and_continue)
         .map(create_decoder())
         .select(lambda x: x is not None)
-        .shuffle(2000)
+        .shuffle(400)  # 🚨 RAM 차지하는 버퍼 크기 2000 -> 400으로 대폭 축소
         .batched(batch_size, collation_fn=collate_fn)
     )
-    return wds.WebLoader(dataset, batch_size=None, num_workers=num_workers, prefetch_factor=8)
+    # prefetch도 절반으로 축소
+    return wds.WebLoader(dataset, batch_size=None, num_workers=num_workers, prefetch_factor=4)
 
 def get_shard_paths(data_dir, start_idx, end_idx):
     shards = []
@@ -181,7 +183,6 @@ def train(args):
     obj = s3.get_object(Bucket=BUCKET, Key='models/xgboost_phase1.pkl')
     xgb_model = pickle.load(io.BytesIO(obj['Body'].read()))
 
-    # 클래스 가중치 하드코딩
     class_weights = torch.ones(NUM_CLASSES, dtype=torch.float32).to(DEVICE)
     class_weights[LABEL2IDX['Real']] = 3.0
     class_weights[LABEL2IDX['OpenSource_V2V_Cogvideox1.5']] = 2.0
@@ -201,7 +202,6 @@ def train(args):
     if SM_NUM_GPUS > 1:
         model = nn.DataParallel(model)
 
-    # Numpy 벡터화를 위한 타겟 인덱스 배열 준비
     target_idx_np = np.array([
         LABEL2IDX['Real'], 
         LABEL2IDX['OpenSource_V2V_Cogvideox1.5'], 
@@ -224,7 +224,7 @@ def train(args):
                 lr_scale = min(1.0, float(global_step + 1) / args.warmup_steps)
                 for pg in optimizer.param_groups: pg['lr'] = args.learning_rate * lr_scale
 
-            # 초고속 Numpy 벡터 연산 (병목 완전 제거)
+            # 초고속 벡터 연산 적용
             proba = xgb_model.predict_proba(hc_feats)
             predictions = proba.argmax(axis=1)
             max_probs = proba.max(axis=1)
@@ -233,14 +233,12 @@ def train(args):
             is_target_pred = np.isin(predictions, target_idx_np)
             is_target_prob = proba[:, target_idx_np].max(axis=1) > 0.1
             
-            # 최종 마스크
             final_mask = uncertain | is_target_pred | is_target_prob
 
             if final_mask.sum() == 0:
                 global_step += 1
                 continue
 
-            # PyTorch 텐서 필터링
             torch_mask = torch.from_numpy(final_mask)
             frames, labels = frames[torch_mask].to(DEVICE), labels[torch_mask].to(DEVICE)
 
@@ -330,7 +328,7 @@ def train(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs',             type=int,   default=1)       # 🚨 딱 1 에폭 (3시간 컷)
+    parser.add_argument('--epochs',             type=int,   default=1)       # 🚨 딱 1 에폭 
     parser.add_argument('--batch_size',         type=int,   default=32)
     parser.add_argument('--learning_rate',      type=float, default=5e-5)
     parser.add_argument('--dropout',            type=float, default=0.3)

@@ -679,7 +679,7 @@ const ProfilePage = () => {
                             <span className="text-2xl">{v.emoji}</span>
                             <div className="flex-1 min-w-0">
                               <div className={`font-jua text-sm ${v.color}`}>
-                                {v.label} {item.ai_model ? `(${item.ai_model})` : ""} — {(item.confidence * 100).toFixed(0)}%
+                                {v.label} — {(item.confidence * 100).toFixed(0)}%
                               </div>
                               <div className="text-xs opacity-50 font-gothic truncate">
                                 {new Date(item.created_at).toLocaleDateString("ko-KR", {
