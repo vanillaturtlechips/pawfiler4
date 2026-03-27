@@ -208,6 +208,7 @@ export interface UnifiedReport {
   visual?: VisualAnalysis;
   audio?: AudioAnalysis;
   lipsync?: SyncAnalysis;
+  explanation?: string;
   warnings: string[];
   totalProcessingTimeMs: number;
 }

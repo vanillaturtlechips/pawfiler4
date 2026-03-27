@@ -255,7 +255,7 @@ const AnalysisPage = () => {
                   {a.report.audio && (
                     <ScrollCard icon="🎙️" title="음성 분석" verdict={a.report.audio.isSynthetic ? "합성 의심" : "실제"} isBad={a.report.audio.isSynthetic} confidence={a.report.audio.confidence} />
                   )}
-                  {(a.report as any).explanation && (
+                  {a.report.explanation && (
                     <div className="rounded-2xl p-5" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
                       <p className="font-jua text-sm mb-2">🤖 AI 의견</p>
                       <p className="font-gothic text-xs text-foreground/50 leading-relaxed">{(a.report as any).explanation}</p>
