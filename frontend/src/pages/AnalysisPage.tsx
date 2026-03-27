@@ -3,7 +3,6 @@ import { useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import GameButton from "@/components/GameButton";
 import ApiKeyManager from "@/components/ApiKeyManager";
-import AnalysisLogConsole from "@/components/analysis/AnalysisLogConsole";
 import AnalysisHistory from "@/components/analysis/AnalysisHistory";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
