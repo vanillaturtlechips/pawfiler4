@@ -1,4 +1,5 @@
-torch==2.2.0
+torch==2.4.0
+python-multipart>=0.0.9
 numpy==1.26.4
 timm
 transformers

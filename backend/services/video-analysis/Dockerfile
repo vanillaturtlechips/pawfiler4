@@ -23,7 +23,8 @@ RUN mkdir -p generated && \
         --python_out=./generated \
         --grpc_python_out=./generated \
         proto/*.proto && \
-    touch generated/__init__.py
+    touch generated/__init__.py && \
+    sed -i 's/import video_analysis_pb2/from generated import video_analysis_pb2/' generated/video_analysis_pb2_grpc.py
 
 # 나머지 코드 복사
 COPY . .

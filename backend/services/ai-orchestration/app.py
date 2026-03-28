@@ -15,6 +15,7 @@ PawFiler AI — Ray Serve 멀티 에이전트 AI 영상 딥페이크 음성 탐�
 import asyncio
 import time
 import logging
+import os
 from typing import Optional
 
 import numpy as np
@@ -23,6 +24,7 @@ import ray
 from ray import serve
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
 
 from models import SharedModelWorker
 from agents import VideoAgent, AudioAgent, SyncAgent, FusionAgent
@@ -75,15 +77,48 @@ class Orchestrator:
         logger.info("Orchestrator initialized")
 
     async def __call__(self, request: Request) -> JSONResponse:
+        # CORS preflight
+        if request.method == "OPTIONS":
+            return JSONResponse({}, headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            })
+        
+        # 라우팅
+        path = request.url.path
+        if path == "/rerun":
+            return await self._handle_rerun(request)
+        else:
+            return await self._handle_analysis(request)
+
+    async def _handle_analysis(self, request: Request) -> JSONResponse:
         t0 = time.perf_counter()
 
-        # ── 1. 입력 파싱 ──
-        body = await request.json()
-        media_url: str = body["media_url"]
-        modality: str = body.get("modality", "both")  # video / audio / both
-
-        # ── 2. 전처리: S3/URL → 프레임 + 오디오 ──
-        preprocessed = await self._preprocess(media_url, modality)
+        # ── 1. 입력 파싱 (multipart 파일 업로드 또는 JSON media_url) ──
+        content_type = request.headers.get("content-type", "")
+        if "multipart/form-data" in content_type:
+            form = await request.form()
+            video_file = form.get("video")
+            modality = form.get("modality", "both")
+            if video_file is None:
+                return JSONResponse({"error": "video field required"}, status_code=400)
+            import tempfile, os, shutil
+            tmpdir = tempfile.mkdtemp()
+            video_path = os.path.join(tmpdir, "input.mp4")
+            try:
+                contents = await video_file.read()
+                with open(video_path, "wb") as f:
+                    f.write(contents)
+                media_url = f"file://{video_path}"
+                preprocessed = await self._preprocess(media_url, modality)
+            finally:
+                pass  # tmpdir은 _preprocess_sync 내부에서 정리
+        else:
+            body = await request.json()
+            media_url: str = body["media_url"]
+            modality: str = body.get("modality", "both")
+            preprocessed = await self._preprocess(media_url, modality)
 
         # ── 3. Cascade Gate (XGBoost, CPU, ~50ms) ──
         # 모델 미학습 상태이므로 항상 Deep Path로
@@ -99,7 +134,8 @@ class Orchestrator:
                     "cascade_hit", elapsed_ms=elapsed
                 )
                 return JSONResponse(
-                    self._format_response(cascade_result, elapsed, deep=False)
+                    self._format_response(cascade_result, elapsed, deep=False, metadata=preprocessed.get("metadata", {})),
+                    headers={"Access-Control-Allow-Origin": "*"}
                 )
 
         # ── 4. Deep Path: Fan-out (비동기 병렬) ──
@@ -113,7 +149,7 @@ class Orchestrator:
             audio_ref = ray.put(preprocessed["audio"])
             tasks["audio"] = self.audio.predict.remote(audio_ref)
 
-        if modality == "both" and len(tasks) == 2:
+        if modality == "both" and len(tasks) == 2 and preprocessed.get("has_face", False):
             tasks["sync"] = self.sync.predict.remote(frames_ref, audio_ref)
 
         # ── 5. Fan-in ──
@@ -127,12 +163,60 @@ class Orchestrator:
                 results[key] = result
 
         # ── 6. Fusion ──
+        results["metadata"] = preprocessed.get("metadata", {})
         verdict = await self.fusion.ensemble.remote(results)
 
         elapsed = (time.perf_counter() - t0) * 1000
         await self.metrics.record.remote("deep_path", elapsed_ms=elapsed)
 
-        return JSONResponse(self._format_response(verdict, elapsed, deep=True))
+        return JSONResponse(
+            self._format_response(verdict, elapsed, deep=True, metadata=preprocessed.get("metadata", {})),
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+    async def _handle_rerun(self, request: Request) -> JSONResponse:
+        """특정 에이전트만 재실행"""
+        content_type = request.headers.get("content-type", "")
+        
+        if "multipart/form-data" in content_type:
+            form = await request.form()
+            video_file = form.get("video")
+            agents = form.get("agents", "").split(",")  # "visual,audio,metadata"
+            
+            import tempfile
+            tmpdir = tempfile.mkdtemp()
+            video_path = os.path.join(tmpdir, "input.mp4")
+            contents = await video_file.read()
+            with open(video_path, "wb") as f:
+                f.write(contents)
+            media_url = f"file://{video_path}"
+        else:
+            body = await request.json()
+            media_url = body["media_url"]
+            agents = body["agents"]
+        
+        modality = "both"
+        preprocessed = await self._preprocess(media_url, modality)
+        
+        tasks = {}
+        if "visual" in agents and preprocessed.get("frames") is not None:
+            frames_ref = ray.put(preprocessed["frames"])
+            tasks["video"] = self.video.predict.remote(frames_ref)
+        
+        if "audio" in agents and preprocessed.get("audio") is not None:
+            audio_ref = ray.put(preprocessed["audio"])
+            tasks["audio"] = self.audio.predict.remote(audio_ref)
+        
+        results = {}
+        if tasks:
+            gathered = await asyncio.gather(*[tasks[k] for k in tasks], return_exceptions=True)
+            for key, result in zip(tasks.keys(), gathered):
+                results[key] = result if not isinstance(result, Exception) else self._fallback_result(key)
+        
+        if "metadata" in agents:
+            results["metadata"] = preprocessed.get("metadata", {})
+        
+        return JSONResponse({"agents": results}, headers={"Access-Control-Allow-Origin": "*"})
 
     # ── Health Check ──
     def _infer_deepfake(self, frames_np) -> dict:
@@ -216,19 +300,22 @@ class Orchestrator:
 
         tmpdir = tempfile.mkdtemp()
         try:
-            video_path = os.path.join(tmpdir, "input.mp4")
-            if media_url.startswith("s3://"):
-                import boto3
-                s3 = boto3.client(
-                    "s3",
-                    endpoint_url=os.getenv("AWS_ENDPOINT_URL"),
-                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                )
-                bucket, key = media_url[5:].split("/", 1)
-                s3.download_file(bucket, key, video_path)
+            if media_url.startswith("file://"):
+                video_path = media_url[7:]
             else:
-                urllib.request.urlretrieve(media_url, video_path)
+                video_path = os.path.join(tmpdir, "input.mp4")
+                if media_url.startswith("s3://"):
+                    import boto3
+                    s3 = boto3.client(
+                        "s3",
+                        endpoint_url=os.getenv("AWS_ENDPOINT_URL"),
+                        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                    )
+                    bucket, key = media_url[5:].split("/", 1)
+                    s3.download_file(bucket, key, video_path)
+                else:
+                    urllib.request.urlretrieve(media_url, video_path)
             print(f"[DEBUG] video downloaded, size={os.path.getsize(video_path)}", flush=True)
 
             # ── 2. 프레임 추출 (decord, 16프레임 균등 샘플링) ──
@@ -263,17 +350,65 @@ class Orchestrator:
                     ], check=True, capture_output=True)
                     import soundfile as sf
                     audio_np, _ = sf.read(audio_path, dtype="float32")
+                    # 무음 체크 (RMS < 0.001)
+                    if len(audio_np) == 0 or np.sqrt(np.mean(audio_np**2)) < 0.001:
+                        audio_np = None
+                        print("[DEBUG] Audio is silent, skipping", flush=True)
                 except Exception as e:
                     logger.error(f"Audio extraction failed: {e}")
                     print(f"[DEBUG] Audio extraction failed: {e}", flush=True)
 
-            # ── 4. Hand-crafted features (XGBoost용) ──
+            # ── 4. 얼굴 감지 (Sync 활성화 여부) ──
+            has_face = False
+            if frames_np is not None:
+                try:
+                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+                    face_count = sum(
+                        1 for f in frames_np
+                        if len(face_cascade.detectMultiScale(
+                            (f.transpose(1, 2, 0) * 255).astype(np.uint8),
+                            scaleFactor=1.1, minNeighbors=3
+                        )) > 0
+                    )
+                    has_face = face_count >= len(frames_np) // 2
+                except Exception as e:
+                    logger.warning(f"Face detection failed: {e}")
+
+            # ── 5. Hand-crafted features (XGBoost용) ──
             hand_crafted = self._extract_hand_crafted(frames_np)
+
+            # ── 5. 메타데이터 (ffprobe) ──
+            metadata = {}
+            try:
+                import json as _json
+                probe = subprocess.run([
+                    "ffprobe", "-v", "quiet", "-print_format", "json",
+                    "-show_streams", "-show_format", video_path
+                ], capture_output=True, text=True, timeout=10)
+                if probe.returncode == 0:
+                    info = _json.loads(probe.stdout)
+                    fmt = info.get("format", {})
+                    video_stream = next((s for s in info.get("streams", []) if s.get("codec_type") == "video"), {})
+                    audio_stream = next((s for s in info.get("streams", []) if s.get("codec_type") == "audio"), {})
+                    metadata = {
+                        "codec": video_stream.get("codec_name", "unknown"),
+                        "resolution": f"{video_stream.get('width', 0)}x{video_stream.get('height', 0)}",
+                        "fps": video_stream.get("r_frame_rate", "unknown"),
+                        "bitrate": int(fmt.get("bit_rate", 0)) // 1000,
+                        "duration": round(float(fmt.get("duration", 0)), 2),
+                        "size_mb": round(float(fmt.get("size", 0)) / 1024 / 1024, 2),
+                        "audio_codec": audio_stream.get("codec_name", "none"),
+                        "format": fmt.get("format_name", "unknown"),
+                    }
+            except Exception as e:
+                logger.warning(f"ffprobe failed: {e}")
 
             return {
                 "frames": frames_np,
                 "audio": audio_np,
                 "hand_crafted_features": hand_crafted,
+                "metadata": metadata,
+                "has_face": has_face,
             }
         finally:
             import shutil
@@ -327,14 +462,34 @@ class Orchestrator:
             "temporal_diff_std": temporal_diff_std,
         }
 
-    def _format_response(self, result: dict, elapsed_ms: float, deep: bool) -> dict:
+    def _format_response(self, result: dict, elapsed_ms: float, deep: bool, metadata: dict = {}) -> dict:
         """문서 §8의 최종 출력 포맷에 맞춤."""
+        breakdown = result.get("breakdown", {})
+        # 프론트엔드 에이전트 탭용 상세 필드 보강
+        agents = {
+            "video": {
+                **breakdown.get("video", {}),
+                "frame_scores": breakdown.get("video", {}).get("frame_scores", []),
+                "top_k": breakdown.get("video", {}).get("top_k", []),
+            },
+            "audio": {
+                **breakdown.get("audio", {}),
+                "segment_scores": breakdown.get("audio", {}).get("segment_scores", []),
+            },
+            "sync": breakdown.get("sync", {}),
+            "fusion": {
+                "weights": {"video": 0.7, "audio": 0.3},
+                "reasoning": result.get("explanation", ""),
+            },
+        }
         return {
             "verdict": result.get("verdict", "unknown"),
             "confidence": result.get("confidence", 0.0),
-            "breakdown": result.get("breakdown", {}),
+            "breakdown": breakdown,
+            "agents": agents,
             "explanation": result.get("explanation", ""),
             "similar_cases": result.get("similar_cases", []),
+            "metadata": metadata,
             "meta": {
                 "latency_ms": round(elapsed_ms, 2),
                 "path": "cascade" if not deep else "deep",
@@ -355,7 +510,7 @@ class Orchestrator:
 # Deployment Graph 조립
 # ============================================================
 
-def build_app():
+def build_app(args: dict = {}):
     """
     Ray Serve Deployment Graph를 조립하는 팩토리.
     

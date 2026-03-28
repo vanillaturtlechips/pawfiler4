@@ -42,6 +42,7 @@ services:
       GRPC_PORT: "50052"
       HTTP_PORT: "8080"
       REDIS_ADDR: "redis:6379"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
     ports:
       - "50052:50052"
       - "8080:8080"
@@ -68,6 +69,7 @@ services:
       AWS_ENDPOINT_URL: http://minio:9000
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
+      CORS_ALLOWED_ORIGINS: "http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
     ports:
       - "50053:50053"
       - "8081:8081"
@@ -86,6 +88,7 @@ services:
     environment:
       DATABASE_URL: postgres://pawfiler:dev_password@postgres:5432/pawfiler?sslmode=disable
       HTTP_PORT: "8083"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
     ports:
       - "8083:8083"
     depends_on:
@@ -149,6 +152,8 @@ services:
       JWT_SECRET: local_dev_secret
       PORT: "8084"
       USER_SERVICE_URL: http://user-service:8083
+      CORS_ALLOWED_ORIGINS: "http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
+      REDIS_ADDR: "redis:6379"
     ports:
       - "8084:8084"
     depends_on:
@@ -204,6 +209,7 @@ services:
     build:
       context: ./services/ai-orchestration
       dockerfile: Dockerfile.local
+      pull: false
     container_name: pawfiler-ai-orchestration
     environment:
       MODEL_DIR: /app/efs_models
@@ -211,6 +217,9 @@ services:
       AWS_SECRET_ACCESS_KEY: testtest
       AWS_DEFAULT_REGION: ap-northeast-2
       AWS_ENDPOINT_URL: http://minio:9000
+      RAY_ADDRESS: local
+      SERVE_HTTP_HOST: 0.0.0.0
+      UPSTAGE_API_KEY: up_ShFVrqDbFnuuMc4eGzc10su7Pu6dv
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -239,8 +248,19 @@ services:
 
 
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pawfiler-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - pawfiler-network
+
 volumes:
   postgres_data:
+  ollama_data:
 
 networks:
   pawfiler-network:

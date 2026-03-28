@@ -10,6 +10,7 @@ export const config = {
   adminServiceBaseUrl: import.meta.env.VITE_ADMIN_SERVICE_BASE_URL ?? '',
   userServiceBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_USER_SERVICE_BASE_URL ?? ''),
   aiAgentBaseUrl: import.meta.env.VITE_AI_AGENT_BASE_URL ?? '',
+  aiOrchestrationUrl: import.meta.env.VITE_AI_ORCHESTRATION_URL ?? 'http://localhost:8000',
 
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',

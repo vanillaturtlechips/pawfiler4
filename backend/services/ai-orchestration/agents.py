@@ -92,6 +92,23 @@ class VideoAgent:
 
         predicted_class = self.class_names[top_idx]
         is_fake = predicted_class.lower() not in ("real",)
+        
+        # 신뢰도가 낮으면 uncertain 처리
+        if probs[top_idx] < 0.75:
+            is_fake = False  # uncertain으로 처리
+
+        # 프레임별 점수 (라인 차트용) — 각 프레임의 fake 확률
+        frame_logits = result.get("frame_logits")  # (T, NUM_CLASSES) or None
+        if frame_logits is not None:
+            frame_probs = np.array([self._softmax(fl) for fl in frame_logits])
+            real_idx = self.class_names.index("Real") if "Real" in self.class_names else -1
+            frame_scores = [
+                round(float(1 - fp[real_idx]) if real_idx >= 0 else float(fp.max()), 4)
+                for fp in frame_probs
+            ]
+        else:
+            # frame_logits 없으면 전체 confidence를 16프레임에 균등 분배 (fallback)
+            frame_scores = [round(confidence, 4)] * 16
 
         elapsed = (time.perf_counter() - t0) * 1000
         logger.debug(f"VideoAgent: {predicted_class} ({confidence:.2%}) in {elapsed:.1f}ms")
@@ -102,6 +119,7 @@ class VideoAgent:
             "confidence": round(confidence, 4),
             "features": result["features"].squeeze(0),  # (feature_dim,)
             "top_k": top_k,
+            "frame_scores": frame_scores,
         }
 
     def _normalize(self, frames: np.ndarray) -> np.ndarray:
@@ -194,6 +212,18 @@ class AudioAgent:
 
         voice_model = self._identify_voice_model(wav2vec_features, spectral_flatness) if is_synthetic else None
 
+        # 세그먼트별 점수 (바 차트용) — 1초 단위로 분할
+        sr = 16000
+        seg_len = sr  # 1초
+        n_segs = max(1, len(audio_np) // seg_len)
+        segment_scores = []
+        for i in range(n_segs):
+            seg = audio_np[i * seg_len:(i + 1) * seg_len]
+            seg_mfcc = self._extract_mfcc(seg)
+            seg_flat = self._spectral_flatness(seg)
+            seg_score = self._hmm_classify(wav2vec_features, seg_mfcc)
+            segment_scores.append({"t": i, "score": round(float(seg_score), 4)})
+
         elapsed = (time.perf_counter() - t0) * 1000
         logger.debug(f"AudioAgent: {'synthetic' if is_synthetic else 'real'} ({confidence:.2%}) in {elapsed:.1f}ms")
 
@@ -202,6 +232,7 @@ class AudioAgent:
             "voice_model": voice_model,
             "confidence": round(confidence, 4),
             "features": wav2vec_features,
+            "segment_scores": segment_scores,
         }
 
     async def _hf_classify(self, audio_np: np.ndarray) -> Optional[float]:
@@ -339,7 +370,7 @@ class FusionAgent:
     출력: 문서 §8의 최종 응답 포맷
     """
 
-    WEIGHTS = {"video": 0.7, "audio": 0.3}
+    WEIGHTS = {"video": 0.55, "audio": 0.20, "sync": 0.10, "metadata": 0.15}
 
     def __init__(self):
         import os
@@ -402,22 +433,54 @@ class FusionAgent:
         # ── Sync 결과 ──
         if "sync" in agent_results and agent_results["sync"].get("verdict") != "error":
             s = agent_results["sync"]
+            sync_score = float(s.get("sync_score", 0.5))
+            # 립싱크 불일치(낮은 sync_score)는 fake 신호
+            sync_fake_score = 1.0 - sync_score
             breakdown["sync"] = {
                 "is_synced": s["is_synced"],
                 "confidence": s["confidence"],
+                "sync_score": sync_score,
+                "fake_score": round(sync_fake_score, 4),
             }
+            weighted_confidence += sync_fake_score * self.WEIGHTS["sync"]
+            total_weight += self.WEIGHTS["sync"]
+
+        # ── Metadata 결과 ──
+        if "metadata" in agent_results and agent_results["metadata"]:
+            m = agent_results["metadata"]
+            meta_fake_score = self._score_metadata(m)
+            breakdown["metadata"] = {
+                "fake_score": round(meta_fake_score, 4),
+                "codec": m.get("codec", "unknown"),
+                "resolution": m.get("resolution", "unknown"),
+                "fps": m.get("fps", "unknown"),
+                "bitrate": m.get("bitrate", 0),
+            }
+            weighted_confidence += meta_fake_score * self.WEIGHTS["metadata"]
+            total_weight += self.WEIGHTS["metadata"]
 
         # ── 최종 판단 ──
         final_confidence = (
             weighted_confidence / total_weight if total_weight > 0 else 0.0
         )
 
-        is_fake = any([
-            breakdown.get("video", {}).get("is_fake", False),
-            breakdown.get("audio", {}).get("is_synthetic", False),
-            breakdown.get("sync", {}).get("is_synced") is False  # 립싱크 불일치
-            and breakdown.get("sync", {}).get("confidence", 0) > 0.7,
-        ])
+        # 각 에이전트의 fake 판정 + 신뢰도 체크
+        fake_signals = []
+        
+        video_data = breakdown.get("video", {})
+        if video_data.get("is_fake") and video_data.get("confidence", 0) >= 0.85:
+            fake_signals.append("video")
+        
+        audio_data = breakdown.get("audio", {})
+        if audio_data.get("is_synthetic") and audio_data.get("confidence", 0) >= 0.80:
+            fake_signals.append("audio")
+        
+        sync_data = breakdown.get("sync", {})
+        if sync_data.get("is_synced") is False and sync_data.get("confidence", 0) >= 0.75:
+            fake_signals.append("sync")
+        
+        # 최종 판정: 가중 평균 confidence가 70% 이상이고, 1개 이상 에이전트가 fake 신호
+        is_fake = final_confidence >= 0.70 and len(fake_signals) >= 1
 
         # ── 설명 생성 ──
         explanation = await self._generate_explanation(breakdown, verdict="fake" if is_fake else "real")
@@ -461,10 +524,42 @@ class FusionAgent:
 
     async def _generate_explanation(self, breakdown: dict, verdict: str) -> str:
         try:
-            return await self._ollama_explain(breakdown, verdict)
+            return await self._upstage_explain(breakdown, verdict)
         except Exception as e:
-            logger.warning(f"Ollama failed: {e}, falling back to template")
+            logger.warning(f"Upstage failed: {e}, falling back to template")
         return self._template_explanation(breakdown)
+
+    async def _upstage_explain(self, breakdown: dict, verdict: str) -> str:
+        import json, asyncio, os, urllib.request
+        video = breakdown.get("video", {})
+        audio = breakdown.get("audio", {})
+        sync = breakdown.get("sync", {})
+        metadata = breakdown.get("metadata", {})
+
+        prompt = (
+            f"당신은 AI 생성 영상 탐지 전문가입니다. 아래 분석 결과를 바탕으로 왜 이 영상이 {'AI 생성 영상인지' if verdict == 'fake' else '실제 영상인지'} "
+            f"한국어로 3문장 이내로 설명해주세요. 기술 용어는 쉽게 풀어서 설명하세요.\n\n"
+            f"[영상 분석] {'AI 생성 의심' if video.get('is_fake') else '실제 영상'} - {video.get('ai_model', '알 수 없음')} (신뢰도: {video.get('confidence', 0):.0%})\n"
+            f"[음성 분석] {'합성 음성' if audio.get('is_synthetic') else '실제 음성'} (신뢰도: {audio.get('confidence', 0):.0%})\n"
+            f"[립싱크] {sync.get('sync_score', '미분석')}\n"
+            f"[코덱/해상도] {metadata.get('codec', '알 수 없음')} / {metadata.get('resolution', '알 수 없음')}"
+        )
+        body = json.dumps({
+            "model": "solar-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 200,
+        }).encode()
+        api_key = os.environ.get("UPSTAGE_API_KEY", "")
+        loop = asyncio.get_event_loop()
+        def call():
+            req = urllib.request.Request(
+                "https://api.upstage.ai/v1/chat/completions",
+                data=body,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read())["choices"][0]["message"]["content"].strip()
+        return await loop.run_in_executor(None, call)
 
     async def _ollama_explain(self, breakdown: dict, verdict: str) -> str:
         import json, asyncio, urllib.request
@@ -473,24 +568,20 @@ class FusionAgent:
         sync = breakdown.get("sync", {})
 
         prompt = (
-            "당신은 AI 생성 영상 탐지 전문가입니다. 아래 분석 결과를 바탕으로 전문적이고 명확한 한국어 보고서를 작성해주세요.\n\n"
-            f"[최종 판정] {'AI 생성 영상' if verdict == 'fake' else '실제 영상'}\n"
-            f"[영상 분석] {'AI 생성 의심' if video.get('is_fake') else '실제 영상'} (신뢰도: {video.get('confidence', 0):.0%})\n"
-            f"[음성 분석] {'합성 음성' if audio.get('is_synthetic') else '실제 음성'} (신뢰도: {audio.get('confidence', 0):.0%})\n"
-            f"[립싱크 일치도] {sync.get('sync_score', 0.5):.0%}\n\n"
-            "위 데이터를 바탕으로 다음 형식으로 3문장 이내로 설명해주세요:\n"
-            "1. 판정 결과와 주요 근거\n"
-            "2. 신뢰도 수준과 주의사항\n"
-            "기술 용어는 쉽게 풀어서 설명하고, 단정적 표현보다 확률적 표현을 사용하세요."
+            f"You are a deepfake detection expert. Analyze the result and write a 2-sentence explanation IN KOREAN ONLY.\n"
+            f"Result: {'AI-generated video' if verdict == 'fake' else 'Real video'}\n"
+            f"Video confidence: {video.get('confidence', 0):.0%}, AI model detected: {video.get('ai_model', 'unknown')}\n"
+            f"Audio synthetic: {audio.get('is_synthetic', False)}, confidence: {audio.get('confidence', 0):.0%}\n"
+            f"Write ONLY in Korean, 2 sentences max, no English."
         )
-        body = json.dumps({"model": "gemma3:4b", "prompt": prompt, "stream": False}).encode()
+        body = json.dumps({"model": "tinyllama", "prompt": prompt, "stream": False}).encode()
         loop = asyncio.get_event_loop()
         def call():
             req = urllib.request.Request(
-                "http://host.docker.internal:11434/api/generate",
+                "http://ollama:11434/api/generate",
                 data=body, headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=120) as r:
                 return json.loads(r.read())["response"].strip()
         return await loop.run_in_executor(None, call)
 
@@ -519,6 +610,28 @@ class FusionAgent:
         import json as _json
         result = _json.loads(resp["body"].read())
         return result["output"]["message"]["content"][0]["text"].strip()
+
+    def _score_metadata(self, metadata: dict) -> float:
+        """메타데이터 기반 AI 생성 영상 의심 점수 (0~1)."""
+        score = 0.5  # 기본값 중립
+        # AI 생성 영상은 보통 완벽한 해상도/비트레이트를 가짐
+        bitrate = int(metadata.get("bitrate", 0))
+        fps_str = str(metadata.get("fps", "25/1"))
+        try:
+            fps = float(fps_str.split("/")[0]) / max(float(fps_str.split("/")[1]), 1) if "/" in fps_str else float(fps_str)
+        except Exception:
+            fps = 25.0
+        # 비트레이트가 매우 낮으면 실제 영상일 가능성 높음
+        if bitrate > 0 and bitrate < 500:
+            score -= 0.15
+        # AI 생성 영상은 정확히 24/30fps인 경우 많음
+        if fps in (24.0, 30.0, 60.0):
+            score += 0.1
+        # 코덱이 h264/hevc면 중립, 특이 코덱이면 의심
+        codec = metadata.get("codec", "")
+        if codec not in ("h264", "hevc", "vp9", "av1", ""):
+            score += 0.1
+        return max(0.0, min(1.0, score))
 
     def _template_explanation(self, breakdown: dict) -> str:
         """Nova Lite 없을 때 템플릿 기반 설명."""

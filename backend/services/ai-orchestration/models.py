@@ -186,7 +186,11 @@ class SharedModelWorker:
         self.audio_model = self._load_audio_model()
 
         # ── Sync Model (SyncNet) ──
-        self.sync_model = self._load_sync_model()
+        try:
+            self.sync_model = self._load_sync_model()
+        except Exception as e:
+            logger.warning(f"SyncNet load failed ({e}), sync disabled")
+            self.sync_model = None
 
         self._ready = True
         logger.info("All models loaded successfully")
@@ -301,16 +305,17 @@ class SharedModelWorker:
         SYNCNET_URL = "https://www.robots.ox.ac.uk/~vgg/software/lipsync/data/syncnet_v2.model"
         ckpt_path = self.model_dir / "syncnet.pt"
 
-        # EFS read-only면 /tmp로 fallback
         if not ckpt_path.exists():
             tmp_path = Path("/tmp/syncnet.pt")
             if not tmp_path.exists():
                 logger.info("Downloading SyncNet pretrained weights...")
                 try:
-                    urllib.request.urlretrieve(SYNCNET_URL, ckpt_path)
-                except OSError:
-                    urllib.request.urlretrieve(SYNCNET_URL, tmp_path)
+                    req = urllib.request.urlopen(SYNCNET_URL, timeout=10)
+                    with open(tmp_path, "wb") as f:
+                        f.write(req.read())
                     ckpt_path = tmp_path
+                except Exception as e:
+                    raise RuntimeError(f"SyncNet download failed: {e}")
             else:
                 ckpt_path = tmp_path
 

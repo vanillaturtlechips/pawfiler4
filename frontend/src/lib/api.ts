@@ -477,81 +477,58 @@ export const runVideoAnalysis = async (videoFile: File | string, onStage?: (stag
     const token = localStorage.getItem(config.storageKeys.authToken);
     return mockRunVideoAnalysis(token || "", videoFile, () => {});
   }
-  
+
   try {
+    onStage?.("MCP_CONNECTING");
+
     if (typeof videoFile === 'string') {
-      const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/AnalyzeVideo`, {
+      onStage?.("SAGEMAKER_PROCESSING");
+      const res = await fetch(`${config.aiOrchestrationUrl}/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          video_url: videoFile,
-          user_id: localStorage.getItem(config.storageKeys.quizUserId) || ''
-        }),
+        body: JSON.stringify({ media_url: videoFile, modality: "both" }),
       });
-      const data = await pollRes.json();
-      const taskId = data.taskId || data.task_id;
-
-      for (let i = 0; i < 60; i++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const r = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ task_id: taskId }),
-        });
-        const result: DeepfakeReport = await r.json();
-        if (result.verdict !== 'PROCESSING' && result.verdict !== 'NOT_FOUND') return { ...result, taskId };
-      }
-      throw new Error('Analysis timeout');
+      if (!res.ok) throw new Error(`Ray Serve error: ${res.statusText}`);
+      const data = await res.json();
+      return _mapOrchestrationResponse(data);
     } else {
-      // 파일 크기 체크 (100MB)
-      if (videoFile.size > 100 * 1024 * 1024) {
-        throw new Error('파일 크기는 100MB를 초과할 수 없습니다');
-      }
-      
-      // 파일 업로드 - multipart로 전송
-      const userId = localStorage.getItem(config.storageKeys.quizUserId) || '';
+      if (videoFile.size > 100 * 1024 * 1024) throw new Error('파일 크기는 100MB를 초과할 수 없습니다');
       const formData = new FormData();
       formData.append('video', videoFile);
-      formData.append('user_id', userId);
-      
-      const response = await fetch(`${config.apiBaseUrl}/upload-video`, {
+      formData.append('modality', 'both');
+
+      onStage?.("SAGEMAKER_PROCESSING");
+      const res = await fetch(`${config.aiOrchestrationUrl}/`, {
         method: 'POST',
         body: formData,
       });
-      
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const taskId = data.taskId || data.task_id;
-
-      onStage?.("MCP_CONNECTING");
-
-      // Poll for result
-      for (let i = 0; i < 60; i++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        if (i === 1) onStage?.("SAGEMAKER_PROCESSING");
-
-        const pollRes = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ task_id: taskId }),
-        });
-        const resultResponse: DeepfakeReport = await pollRes.json();
-        
-        if (resultResponse.verdict !== 'PROCESSING' && resultResponse.verdict !== 'NOT_FOUND') {
-          return { ...resultResponse, taskId };
-        }
-      }
-      
-      throw new Error('Analysis timeout');
+      if (!res.ok) throw new Error(`Ray Serve error: ${res.statusText}`);
+      const data = await res.json();
+      return _mapOrchestrationResponse(data);
     }
   } catch (error) {
     return handleApiError(error, '영상 분석');
   }
 };
+
+// Ray Serve 동기 응답 캐시 (taskId → 원시 응답)
+const _orchCache = new Map<string, Record<string, unknown>>();
+
+function _mapOrchestrationResponse(data: Record<string, unknown>): DeepfakeReport {
+  const v = String(data.verdict ?? "unknown").toUpperCase();
+  const verdict = (v === "FAKE" || v === "REAL" || v === "UNCERTAIN") ? v as "FAKE" | "REAL" | "UNCERTAIN" : "UNCERTAIN";
+  const taskId = `orch-${Date.now()}`;
+  _orchCache.set(taskId, data);
+  return {
+    taskId,
+    verdict,
+    confidenceScore: Number(data.confidence ?? 0),
+    explanation: String(data.explanation ?? ""),
+    breakdown: (data.breakdown ?? {}) as Record<string, unknown>,
+    agents: (data.agents ?? {}) as Record<string, unknown>,
+    meta: (data.meta ?? {}) as Record<string, unknown>,
+  } as unknown as DeepfakeReport;
+}
 
 export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> => {
   if (config.useMockApi) {
@@ -583,7 +560,68 @@ export const getUnifiedResult = async (taskId: string): Promise<UnifiedReport> =
       totalProcessingTimeMs: 3200
     };
   }
-  
+
+  // Ray Serve 동기 응답 캐시에서 먼저 조회
+  const cached = _orchCache.get(taskId);
+  if (cached) {
+    _orchCache.delete(taskId);
+    const data = cached;
+    const v = String(data.verdict ?? "").toUpperCase();
+    const c = Number(data.confidence ?? 0);
+    const agents = (data.agents ?? {}) as Record<string, Record<string, unknown>>;
+    const video = agents.video ?? {};
+    const audio = agents.audio ?? {};
+    return {
+      taskId,
+      finalVerdict: v === "FAKE" ? "FAKE" : v === "REAL" ? "REAL" : "UNCERTAIN",
+      confidence: c,
+      visual: Object.keys(video).length ? {
+        verdict: video.is_fake ? "FAKE" : "REAL",
+        confidence: Number(video.confidence ?? 0),
+        aiModel: video.ai_model ? {
+          modelName: String(video.ai_model),
+          confidence: Number(video.confidence ?? 0),
+          candidates: (video.top_k as Array<{class: string; prob: number}> ?? []).map(k => ({ name: k.class, score: k.prob })),
+        } : undefined,
+        framesAnalyzed: Number((data.meta as Record<string, unknown>)?.frames_analyzed ?? 16),
+        frameScores: (video.frame_scores ?? []) as number[],
+      } : undefined,
+      audio: Object.keys(audio).length ? {
+        isSynthetic: Boolean(audio.is_synthetic),
+        confidence: Number(audio.confidence ?? 0),
+        method: String(audio.voice_model ?? "unknown"),
+        segmentScores: (audio.segment_scores ?? []) as Array<{t: number; score: number}>,
+      } : undefined,
+      explanation: String(data.explanation ?? ""),
+      agents,
+      warnings: [],
+      totalProcessingTimeMs: Number((data.meta as Record<string, unknown>)?.latency_ms ?? 0),
+      llm: data.explanation ? {
+        verdict: v === "FAKE" ? "AI 생성 영상" : "실제 영상",
+        confidence: c,
+        reasoning: String(data.explanation),
+        keyFindings: String(data.explanation).split(" | ").filter(Boolean),
+        modelUsed: "tinyllama (template)",
+      } : undefined,
+      metadata: data.metadata ? {
+        verdict: "analyzed",
+        confidence: 1,
+        codec: String((data.metadata as Record<string, unknown>).codec ?? "unknown"),
+        resolution: String((data.metadata as Record<string, unknown>).resolution ?? "unknown"),
+        fps: parseFloat(String((data.metadata as Record<string, unknown>).fps ?? "0").split("/")[0]),
+        bitrate: `${(data.metadata as Record<string, unknown>).bitrate ?? 0} kbps`,
+        encodingHistory: [String((data.metadata as Record<string, unknown>).format ?? "")],
+        exifData: {
+          duration: `${(data.metadata as Record<string, unknown>).duration ?? 0}s`,
+          size: `${(data.metadata as Record<string, unknown>).size_mb ?? 0} MB`,
+          audio_codec: String((data.metadata as Record<string, unknown>).audio_codec ?? "none"),
+        },
+        compressionArtifacts: 0,
+        tamperingIndicators: [],
+      } : undefined,
+    } as unknown as UnifiedReport;
+  }
+
   try {
     const response = await fetch(`${config.apiBaseUrl}/video_analysis.VideoAnalysisService/GetAnalysisResult`, {
       method: "POST",

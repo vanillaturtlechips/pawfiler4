@@ -58,6 +58,8 @@ export function useAnalysis() {
   const navigate = useNavigate();
   const [stage, setStage] = useState<AnalysisStage>("IDLE");
   const [report, setReport] = useState<UnifiedReport | null>(null);
+  const [rerunHistory, setRerunHistory] = useState<UnifiedReport[]>([]);
+  const [currentMediaUrl, setCurrentMediaUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -305,6 +307,21 @@ export function useAnalysis() {
       setStage("COMPLETED");
       addLog("✅ 분석 완료!", "success");
       setReport(unified);
+      setCurrentMediaUrl(URL.createObjectURL(selectedFile));
+      
+      // 이력 저장
+      const item: HistoryItem = {
+        id: unified.taskId,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        verdict: unified.finalVerdict,
+        confidence: unified.confidence,
+        date: new Date().toISOString(),
+        report: unified,
+      };
+      const updated = [item, ...history].slice(0, MAX_HISTORY);
+      setHistory(updated);
+      saveHistory(updated);
     } catch {
       setStage("ERROR");
       addLog("❌ 분석 실패", "error");
@@ -323,41 +340,87 @@ export function useAnalysis() {
   const [isRerunning, setIsRerunning] = useState(false);
 
   const handleAgentRerun = async (agents: AgentKey[]) => {
-    if (!report) return;
+    if (!report || !selectedFile) return;
     setIsRerunning(true);
     setRerunningAgents(agents);
 
-    await delay(1500 + Math.random() * 1000);
+    try {
+      const formData = new FormData();
+      formData.append("video", selectedFile);
+      formData.append("agents", agents.join(","));
 
-    // Generate new mock data for selected agents
-    const pick = report.finalVerdict;
-    const updatedReport = { ...report };
-
-    for (const agent of agents) {
-      const newConf = parseFloat((0.65 + Math.random() * 0.3).toFixed(2));
-      if (agent === "visual" && updatedReport.visual) {
-        updatedReport.visual = { ...updatedReport.visual, confidence: newConf };
-      } else if (agent === "audio" && updatedReport.audio) {
-        updatedReport.audio = { ...updatedReport.audio, confidence: newConf };
-      } else if (agent === "llm" && updatedReport.llm) {
-        updatedReport.llm = { ...updatedReport.llm, confidence: newConf };
-      } else if (agent === "metadata" && updatedReport.metadata) {
-        updatedReport.metadata = { ...updatedReport.metadata, confidence: newConf };
+      const resp = await fetch("http://localhost:8000/rerun", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await resp.json();
+      
+      const updatedReport = { ...report };
+      
+      // Visual 에이전트 업데이트
+      if (data.agents.video && agents.includes("visual")) {
+        const v = data.agents.video;
+        updatedReport.visual = {
+          verdict: v.is_fake ? "FAKE" : "REAL",
+          confidence: v.confidence ?? 0,
+          framesAnalyzed: 16,
+          aiModel: v.ai_model ? {
+            modelName: v.ai_model,
+            confidence: v.confidence ?? 0,
+            candidates: v.top_k?.map((t: any) => ({ name: t.class, score: t.prob })) ?? [],
+          } : undefined,
+          frames: v.frame_scores?.map((score: number, i: number) => ({
+            frameNumber: i + 1,
+            deepfakeScore: score,
+          })) ?? [],
+        };
       }
+      
+      // Audio 에이전트 업데이트
+      if (data.agents.audio && agents.includes("audio")) {
+        const a = data.agents.audio;
+        updatedReport.audio = {
+          isSynthetic: a.is_synthetic ?? false,
+          confidence: a.confidence ?? 0,
+          method: a.voice_model ?? "unknown",
+          segments: a.segment_scores?.map((score: number, i: number) => ({
+            startMs: i * 1000,
+            endMs: (i + 1) * 1000,
+            syntheticScore: score,
+          })) ?? [],
+        };
+      }
+      
+      // Metadata 업데이트
+      if (data.agents.metadata && agents.includes("metadata")) {
+        updatedReport.metadata = {
+          verdict: "분석 완료",
+          confidence: 0.5,
+          codec: data.agents.metadata.codec ?? "unknown",
+          resolution: data.agents.metadata.resolution ?? "unknown",
+          fps: parseFloat(String(data.agents.metadata.fps ?? "0").split("/")[0]),
+          bitrate: `${data.agents.metadata.bitrate ?? 0} kbps`,
+          encodingHistory: [data.agents.metadata.format ?? ""],
+          tamperingIndicators: [],
+        };
+      }
+
+      const confs = [
+        updatedReport.visual?.confidence ?? 0,
+        updatedReport.audio?.confidence ?? 0,
+        updatedReport.llm?.confidence ?? 0,
+        updatedReport.metadata?.confidence ?? 0,
+      ];
+      updatedReport.confidence = parseFloat((confs.reduce((a, b) => a + b, 0) / confs.length).toFixed(2));
+
+      setRerunHistory(prev => [...prev, report]);
+      setReport(updatedReport);
+    } catch (err) {
+      console.error("Rerun failed:", err);
+    } finally {
+      setIsRerunning(false);
+      setRerunningAgents([]);
     }
-
-    // Recalculate overall confidence
-    const confs = [
-      updatedReport.visual?.confidence ?? 0,
-      updatedReport.audio?.confidence ?? 0,
-      updatedReport.llm?.confidence ?? 0,
-      updatedReport.metadata?.confidence ?? 0,
-    ];
-    updatedReport.confidence = parseFloat((confs.reduce((a, b) => a + b, 0) / confs.length).toFixed(2));
-
-    setReport(updatedReport);
-    setIsRerunning(false);
-    setRerunningAgents([]);
   };
 
   const handleReset = () => {
@@ -421,7 +484,7 @@ export function useAnalysis() {
     isDragging, setIsDragging, fileInputRef, logs, history, agentTimings,
     handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
     handleSave, handleShare, handleShareLink, handleFileSelect,
-    loadHistoryReport, clearHistory, handleAgentRerun, isRerunning, rerunningAgents,
+    loadHistoryReport, clearHistory, handleAgentRerun, isRerunning, rerunningAgents, rerunHistory,
     isAnalyzing, currentStageIdx, navigate, setReport,
   };
 }

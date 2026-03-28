@@ -9,6 +9,7 @@ import EnsembleRadarChart from "@/components/analysis/EnsembleRadarChart";
 import StreamingText from "@/components/analysis/StreamingText";
 import AgentPipeline from "@/components/analysis/AgentPipeline";
 import AgentRerun from "@/components/analysis/AgentRerun";
+import RerunComparison from "@/components/analysis/RerunComparison";
 import BatchQueue from "@/components/analysis/BatchQueue";
 import AdversarialSimulation from "@/components/analysis/AdversarialSimulation";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
@@ -475,6 +476,9 @@ const AnalysisPage = () => {
                   isRerunning={a.isRerunning}
                   rerunningAgents={a.rerunningAgents}
                 />
+                {a.rerunHistory && a.rerunHistory.length > 0 && (
+                  <RerunComparison history={a.rerunHistory} current={a.report} />
+                )}
                 <AdversarialSimulation report={a.report} />
               </div>
             </motion.section>

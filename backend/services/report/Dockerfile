@@ -10,7 +10,7 @@ RUN curl -L -o /usr/share/fonts/NotoSansCJK.ttc \
     && fc-cache -fv
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 

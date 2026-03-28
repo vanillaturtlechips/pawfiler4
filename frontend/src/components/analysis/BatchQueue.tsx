@@ -54,27 +54,26 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
 
     const queued = items.filter(i => i.status === "queued");
     for (const item of queued) {
-      // Set analyzing
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: "analyzing" as const, progress: 0 } : i));
 
-      // Simulate progress
-      for (let p = 0; p <= 100; p += 20) {
-        await delay(300 + Math.random() * 200);
-        setItems(prev => prev.map(i => i.id === item.id ? { ...i, progress: Math.min(p, 100) } : i));
+      try {
+        const formData = new FormData();
+        formData.append("video", item.file);
+        formData.append("modality", "both");
+
+        const resp = await fetch("http://localhost:8000/", { method: "POST", body: formData });
+        const data = await resp.json();
+
+        setItems(prev => prev.map(i => i.id === item.id ? {
+          ...i,
+          status: "completed" as const,
+          verdict: data.verdict?.toUpperCase() as "FAKE" | "REAL" | "UNCERTAIN",
+          confidence: data.confidence ?? 0,
+          progress: 100,
+        } : i));
+      } catch {
+        setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: "queued" as const, progress: 0 } : i));
       }
-
-      // Mock result
-      const verdicts = ["FAKE", "REAL", "UNCERTAIN"] as const;
-      const pick = verdicts[Math.floor(Math.random() * 3)];
-      const conf = 0.7 + Math.random() * 0.25;
-
-      setItems(prev => prev.map(i => i.id === item.id ? {
-        ...i,
-        status: "completed" as const,
-        verdict: pick,
-        confidence: parseFloat(conf.toFixed(2)),
-        progress: 100,
-      } : i));
     }
 
     setIsProcessing(false);
