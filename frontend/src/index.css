@@ -147,6 +147,62 @@
     box-shadow: 0 6px 0 hsl(122, 52%, 20%);
   }
 
+  /* Starlight Lab utilities */
+  .star-card {
+    background: linear-gradient(180deg, hsl(var(--star-card)), hsl(var(--star-deep)));
+    border: 1px solid hsl(var(--star-border) / 0.35);
+    border-radius: 1.25rem;
+  }
+
+  .star-card-glow {
+    background: linear-gradient(160deg, hsl(var(--star-card)), hsl(var(--star-deep)), hsl(280 30% 8%));
+    border: 1px solid hsl(var(--star-border) / 0.4);
+    box-shadow: 0 0 80px hsl(var(--star-aurora-a) / 0.08), 0 24px 60px hsl(var(--star-deep) / 0.6);
+    border-radius: 1.5rem;
+  }
+
+  .star-aurora {
+    background: 
+      radial-gradient(ellipse at 25% 15%, hsl(var(--star-aurora-a) / 0.12), transparent 55%),
+      radial-gradient(ellipse at 75% 85%, hsl(var(--star-aurora-b) / 0.08), transparent 55%);
+  }
+
+  .star-bar {
+    background: hsl(var(--star-deep));
+    border: 1px solid hsl(var(--star-border) / 0.25);
+  }
+
+  .star-bar-fill {
+    background: linear-gradient(90deg, hsl(var(--star-accent)), hsl(var(--star-accent-glow)));
+  }
+
+  .star-bar-fill-warm {
+    background: linear-gradient(90deg, hsl(var(--star-aurora-b) / 0.85), hsl(var(--star-warm)));
+  }
+
+  .star-text-glow {
+    text-shadow: 0 0 30px hsl(var(--star-accent) / 0.5), 0 0 60px hsl(var(--star-accent) / 0.2);
+  }
+
+  @keyframes aurora-drift {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.05); }
+  }
+
+  .animate-aurora {
+    animation: aurora-drift 6s ease-in-out infinite;
+  }
+
+  @keyframes star-shimmer {
+    0% { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+  }
+
+  .animate-star-shimmer {
+    animation: star-shimmer 3s ease-in-out infinite;
+  }
+}
+
   .btn-3d-blue {
     background: hsl(var(--magic-blue));
     @apply text-white font-jua;
