@@ -105,7 +105,13 @@ export default function AdversarialSimulation({ report }: Props) {
 
   return (
     <motion.div
-      className="star-card-glow overflow-hidden"
+      className="overflow-hidden rounded-2xl"
+      style={{
+        background: "linear-gradient(165deg, hsl(235 30% 22% / 0.98), hsl(230 35% 15% / 0.98))",
+        border: "1px solid hsl(228 28% 45% / 0.6)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 hsl(228 28% 50% / 0.2)",
+        backdropFilter: "blur(20px)",
+      }}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -116,10 +122,25 @@ export default function AdversarialSimulation({ report }: Props) {
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
-          <span className="text-lg">🕵️</span>
-          <span className="font-jua text-base" style={{ color: "hsl(var(--star-text))" }}>적대적 공격 시뮬레이션</span>
+          <span className="text-2xl">🕵️</span>
+          <div>
+            <span className="font-jua text-lg block" style={{ color: "#e8eaf6" }}>
+              적대적 공격 시뮬레이션
+            </span>
+            {!expanded && (
+              <span className="text-xs block mt-0.5" style={{ color: "#9fa8da" }}>
+                클릭하여 펼치기
+              </span>
+            )}
+          </div>
         </div>
-        <motion.span className="text-sm" style={{ color: "hsl(var(--star-text-dim))" }} animate={{ rotate: expanded ? 180 : 0 }}>▼</motion.span>
+        <motion.span
+          className="text-sm font-bold"
+          style={{ color: "#7986cb" }}
+          animate={{ rotate: expanded ? 180 : 0 }}
+        >
+          ▼
+        </motion.span>
       </button>
 
       <AnimatePresence>
@@ -131,33 +152,44 @@ export default function AdversarialSimulation({ report }: Props) {
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <p className="font-gothic text-xs mb-4" style={{ color: "hsl(var(--star-text-dim))" }}>
+            <p className="font-gothic text-sm mb-4 font-medium" style={{ color: "#b0bec5" }}>
               다양한 적대적 공격이 현재 탐지 결과를 우회할 수 있는지 시뮬레이션합니다
             </p>
 
             {!attacks && (
               <motion.button
-                className="w-full py-3.5 rounded-xl font-jua text-sm cursor-pointer border-none"
+                className="w-full py-4 rounded-xl font-jua text-base cursor-pointer border-none relative overflow-hidden"
                 style={{
                   background: simulating
-                    ? "hsl(var(--star-surface))"
-                    : "linear-gradient(135deg, hsl(350 70% 50%), hsl(15 80% 50%))",
-                  color: simulating ? "hsl(var(--star-text-dim))" : "white",
-                  boxShadow: !simulating ? "0 4px 20px hsl(350 70% 50% / 0.3)" : "none",
+                    ? "hsl(232 28% 22%)"
+                    : "linear-gradient(135deg, #e11d48, #f97316)",
+                  color: simulating ? "#7986cb" : "white",
+                  boxShadow: !simulating ? "0 6px 24px rgba(225,29,72,0.35)" : "none",
+                  border: !simulating ? "1px solid rgba(249,115,22,0.4)" : "1px solid hsl(228 28% 35% / 0.4)",
                   pointerEvents: simulating ? "none" : "auto",
                 }}
-                whileHover={!simulating ? { scale: 1.02 } : {}}
-                whileTap={!simulating ? { scale: 0.98 } : {}}
+                whileHover={!simulating ? { scale: 1.02, boxShadow: "0 8px 32px rgba(225,29,72,0.5)" } : {}}
+                whileTap={!simulating ? { scale: 0.97 } : {}}
                 onClick={runSimulation}
               >
-                {simulating ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>⚙️</motion.span>
-                    공격 벡터 시뮬레이션 중...
-                  </span>
-                ) : (
-                  "⚔️ 시뮬레이션 시작"
+                {!simulating && (
+                  <motion.div
+                    className="absolute inset-0 opacity-30"
+                    style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)" }}
+                    animate={{ x: ["-100%", "200%"] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                  />
                 )}
+                <span className="relative z-10">
+                  {simulating ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>⚙️</motion.span>
+                      공격 벡터 시뮬레이션 중...
+                    </span>
+                  ) : (
+                    "⚔️ 시뮬레이션 시작"
+                  )}
+                </span>
               </motion.button>
             )}
 
@@ -168,7 +200,14 @@ export default function AdversarialSimulation({ report }: Props) {
                 transition={{ duration: 0.5 }}
               >
                 {/* Robustness Score */}
-                <div className="flex items-center gap-4 mb-5 rounded-xl p-4" style={{ background: "hsl(var(--star-surface) / 0.7)", border: "1px solid hsl(var(--star-border) / 0.3)" }}>
+                <div
+                  className="flex items-center gap-4 mb-5 rounded-xl p-4"
+                  style={{
+                    background: "hsl(232 28% 20% / 0.9)",
+                    border: "1px solid hsl(228 28% 38% / 0.5)",
+                    boxShadow: "inset 0 1px 0 hsl(228 28% 40% / 0.15)",
+                  }}
+                >
                   <div className="w-24 h-24 flex-shrink-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadialBarChart
@@ -183,21 +222,21 @@ export default function AdversarialSimulation({ report }: Props) {
                         <RadialBar
                           dataKey="value"
                           cornerRadius={10}
-                          background={{ fill: "hsl(var(--star-border) / 0.3)" }}
+                          background={{ fill: "hsl(228 28% 30% / 0.5)" }}
                         />
                       </RadialBarChart>
                     </ResponsiveContainer>
                     <div className="relative -mt-16 text-center">
-                      <span className="font-jua text-xl" style={{ color: robustnessColor }}>
+                      <span className="font-jua text-xl font-bold" style={{ color: robustnessColor }}>
                         {(robustness * 100).toFixed(0)}
                       </span>
                     </div>
                   </div>
                   <div>
-                    <p className="font-jua text-base" style={{ color: robustnessColor }}>
+                    <p className="font-jua text-lg font-bold" style={{ color: robustnessColor }}>
                       강건도: {robustnessLabel}
                     </p>
-                    <p className="font-gothic text-xs mt-1" style={{ color: "hsl(var(--star-text-dim))" }}>
+                    <p className="font-gothic text-sm mt-1 font-medium" style={{ color: "#b0bec5" }}>
                       {robustness > 0.7
                         ? "대부분의 적대적 공격에 대해 탐지가 유지됩니다"
                         : robustness > 0.4
@@ -209,41 +248,57 @@ export default function AdversarialSimulation({ report }: Props) {
                 </div>
 
                 {/* Attack list */}
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {attacks.map((attack, i) => (
                     <motion.div
                       key={attack.name}
-                      className="rounded-xl px-4 py-3.5"
-                      style={{ background: "hsl(var(--star-surface) / 0.5)", border: "1px solid hsl(var(--star-border) / 0.2)" }}
+                      className="rounded-xl px-5 py-4"
+                      style={{
+                        background: "hsl(232 28% 20% / 0.9)",
+                        border: "1px solid hsl(228 28% 38% / 0.4)",
+                        boxShadow: "inset 0 1px 0 hsl(228 28% 40% / 0.1)",
+                      }}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.08 }}
+                      whileHover={{ 
+                        borderColor: "hsl(228 28% 50% / 0.6)",
+                        boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+                      }}
                     >
-                      <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">{attack.icon}</span>
-                          <span className="font-jua text-sm" style={{ color: "hsl(var(--star-text))" }}>{attack.name}</span>
+                          <span className="text-lg">{attack.icon}</span>
+                          <span className="font-jua text-base font-bold" style={{ color: "#e8eaf6" }}>
+                            {attack.name}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <span
-                            className="text-[10px] font-gothic font-bold px-2 py-0.5 rounded-full"
+                            className="text-xs font-gothic font-bold px-2.5 py-1 rounded-full"
                             style={{
-                              background: `${difficultyColors[attack.difficultyLevel]}20`,
+                              background: `${difficultyColors[attack.difficultyLevel]}22`,
                               color: difficultyColors[attack.difficultyLevel],
+                              border: `1px solid ${difficultyColors[attack.difficultyLevel]}33`,
                             }}
                           >
                             {difficultyLabels[attack.difficultyLevel]}
                           </span>
                           <span
-                            className="font-gothic text-xs font-bold"
+                            className="font-gothic text-sm font-extrabold tabular-nums"
                             style={{ color: attack.bypassRate > 0.5 ? "#ef4444" : attack.bypassRate > 0.3 ? "#eab308" : "#22c55e" }}
                           >
                             {(attack.bypassRate * 100).toFixed(0)}%
                           </span>
                         </div>
                       </div>
-                      <p className="font-gothic text-xs" style={{ color: "hsl(var(--star-text-dim))" }}>{attack.description}</p>
-                      <div className="w-full h-2 rounded-full mt-2.5 overflow-hidden" style={{ background: "hsl(var(--star-border) / 0.3)" }}>
+                      <p className="font-gothic text-sm font-medium" style={{ color: "#90a4ae" }}>
+                        {attack.description}
+                      </p>
+                      <div
+                        className="w-full h-2.5 rounded-full mt-3 overflow-hidden"
+                        style={{ background: "hsl(228 28% 25% / 0.8)" }}
+                      >
                         <motion.div
                           className="h-full rounded-full"
                           style={{
@@ -252,6 +307,7 @@ export default function AdversarialSimulation({ report }: Props) {
                               : attack.bypassRate > 0.3
                                 ? "linear-gradient(90deg, #eab308, #facc15)"
                                 : "linear-gradient(90deg, #22c55e, #4ade80)",
+                            boxShadow: `0 0 8px ${attack.bypassRate > 0.5 ? "#ef444466" : attack.bypassRate > 0.3 ? "#eab30866" : "#22c55e66"}`,
                           }}
                           initial={{ width: 0 }}
                           animate={{ width: `${attack.bypassRate * 100}%` }}
@@ -262,13 +318,15 @@ export default function AdversarialSimulation({ report }: Props) {
                   ))}
                 </div>
 
-                <button
-                  className="w-full mt-4 text-center font-gothic text-xs cursor-pointer bg-transparent border-none py-2 transition-colors"
-                  style={{ color: "hsl(var(--star-text-dim))" }}
+                <motion.button
+                  className="w-full mt-5 text-center font-gothic text-sm cursor-pointer bg-transparent border-none py-3 font-bold rounded-xl"
+                  style={{ color: "#7986cb", border: "1px solid hsl(228 28% 35% / 0.4)" }}
+                  whileHover={{ color: "#9fa8da", borderColor: "hsl(228 28% 50% / 0.6)" }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={runSimulation}
                 >
                   🔄 다시 시뮬레이션
-                </button>
+                </motion.button>
               </motion.div>
             )}
           </motion.div>
