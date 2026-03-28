@@ -84,27 +84,37 @@ const AnalysisPage = () => {
 
       {/* ── Hero ── */}
       <motion.section
-        className="flex flex-col items-center justify-center text-center py-20 px-4 relative z-10"
-        style={{ minHeight: "55vh" }}
+        className="flex flex-col items-center justify-center text-center py-16 px-4 relative z-10"
+        style={{ minHeight: "50vh" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
+        {/* Floating orb behind emoji */}
         <motion.div
-          className="text-8xl mb-8 relative"
-          animate={{ y: [-8, 8, -8] }}
+          className="absolute top-[15%] w-[300px] h-[300px] rounded-full pointer-events-none"
+          style={{
+            background: "radial-gradient(circle, hsla(210, 90%, 70%, 0.15), hsla(270, 60%, 60%, 0.08), transparent 70%)",
+            filter: "blur(40px)",
+          }}
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+          transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="text-8xl mb-6 relative"
+          animate={{ y: [-8, 8, -8], rotate: [-2, 2, -2] }}
           transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
         >
           🌌
           <motion.div
-            className="absolute inset-0 blur-2xl opacity-40"
-            style={{ background: "radial-gradient(circle, hsl(var(--star-accent) / 0.6), transparent 70%)" }}
-            animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.5, 0.3] }}
+            className="absolute -inset-8 blur-3xl opacity-50 rounded-full"
+            style={{ background: "radial-gradient(circle, hsl(var(--star-accent) / 0.5), hsl(var(--star-aurora-b) / 0.3), transparent 70%)" }}
+            animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.6, 0.3] }}
             transition={{ repeat: Infinity, duration: 3 }}
           />
         </motion.div>
         <motion.h1
-          className="font-jua text-5xl md:text-6xl leading-tight star-text-glow"
-          style={{ color: "hsl(var(--star-text))" }}
+          className="font-jua text-5xl md:text-7xl leading-tight"
+          style={{ color: "hsl(var(--star-text))", textShadow: "0 0 40px hsl(var(--star-accent) / 0.4), 0 0 80px hsl(var(--star-aurora-b) / 0.2)" }}
           initial={{ opacity: 0, y: 30, scale: 0.85 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ ...spring, delay: 0.2 }}
@@ -112,15 +122,20 @@ const AnalysisPage = () => {
           별빛<br />분석기
         </motion.h1>
         <motion.p
-          className="font-gothic text-base mt-5 max-w-md"
+          className="font-gothic text-base mt-5 max-w-md leading-relaxed"
           style={{ color: "hsl(var(--star-text-dim))" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
           진짜 영상과 AI가 만든 가짜 영상을 구별하는<br />별빛 연구소의 분석을 시작하세요
         </motion.p>
-        <motion.div className="mt-10 text-2xl" style={{ color: "hsl(var(--star-text-dim) / 0.5)" }} animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+        <motion.div
+          className="mt-8 text-2xl"
+          style={{ color: "hsl(var(--star-accent) / 0.6)" }}
+          animate={{ y: [0, 10, 0], opacity: [0.4, 0.8, 0.4] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
           ↓
         </motion.div>
       </motion.section>
@@ -140,8 +155,8 @@ const AnalysisPage = () => {
         <div className="w-full max-w-xl">
           <div className="flex items-center gap-4 mb-8">
             <motion.div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-              style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+              className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+              style={{ background: "linear-gradient(135deg, hsl(175 70% 50%), hsl(195 80% 55%))", boxShadow: "0 4px 15px hsl(175 70% 50% / 0.3)" }}
               whileHover={{ scale: 1.15, rotate: 8 }}
             >1</motion.div>
             <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>📜 영상을 올려주세요</h2>
@@ -153,18 +168,29 @@ const AnalysisPage = () => {
             className="rounded-3xl p-10 text-center cursor-pointer relative overflow-hidden"
             style={{
               background: a.isDragging
-                ? "linear-gradient(145deg, hsl(var(--star-accent) / 0.08), hsl(var(--star-card)))"
-                : "linear-gradient(145deg, hsl(var(--star-card)), hsl(var(--star-deep)))",
-              border: a.isDragging ? "2px dashed hsl(var(--star-accent))" : "2px dashed hsl(var(--star-border) / 0.4)",
-              boxShadow: "0 20px 60px hsl(var(--star-deep) / 0.5)",
+                ? "linear-gradient(145deg, hsl(var(--star-accent) / 0.12), hsl(var(--star-card)))"
+                : "linear-gradient(145deg, hsl(var(--star-card) / 0.95), hsl(var(--star-deep) / 0.9))",
+              border: a.isDragging ? "2px dashed hsl(var(--star-accent))" : "2px dashed hsl(var(--star-border) / 0.5)",
+              boxShadow: a.isDragging
+                ? "0 0 40px hsl(var(--star-accent) / 0.2), 0 20px 60px hsl(var(--star-deep) / 0.5)"
+                : "0 20px 60px hsl(var(--star-deep) / 0.4), inset 0 1px 0 hsl(var(--star-border) / 0.1)",
             }}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
+            whileHover={{ scale: 1.02, boxShadow: "0 0 30px hsl(var(--star-accent) / 0.15), 0 20px 60px hsl(var(--star-deep) / 0.5)" }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => !a.isAnalyzing && a.fileInputRef.current?.click()}
             onDrop={a.handleDrop}
             onDragOver={(e) => { e.preventDefault(); a.setIsDragging(true); }}
             onDragLeave={() => a.setIsDragging(false)}
           >
+            {/* Subtle shimmer */}
+            {!a.previewUrl && (
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: "linear-gradient(105deg, transparent 30%, hsl(var(--star-accent) / 0.04) 48%, hsl(var(--star-accent) / 0.08) 50%, hsl(var(--star-accent) / 0.04) 52%, transparent 70%)" }}
+                animate={{ x: ["-100%", "200%"] }}
+                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", repeatDelay: 2 }}
+              />
+            )}
             {a.previewUrl ? (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={spring}>
                 <video src={a.previewUrl} className="w-full max-h-60 rounded-2xl object-contain mx-auto" controls onClick={(e) => e.stopPropagation()} />
@@ -174,13 +200,28 @@ const AnalysisPage = () => {
               </motion.div>
             ) : (
               <>
-                <motion.div className="text-7xl mb-5" animate={{ y: [-5, 5, -5] }} transition={{ repeat: Infinity, duration: 3 }}>
+                <motion.div
+                  className="text-7xl mb-5 relative"
+                  animate={{ y: [-5, 5, -5] }}
+                  transition={{ repeat: Infinity, duration: 3 }}
+                >
                   ☁️
+                  <motion.div
+                    className="absolute -inset-4 rounded-full blur-xl"
+                    style={{ background: "radial-gradient(circle, hsl(var(--star-aurora-a) / 0.15), transparent 70%)" }}
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 2.5 }}
+                  />
                 </motion.div>
                 <p className="font-jua text-xl" style={{ color: "hsl(var(--star-text))" }}>영상을 여기에 드래그하세요</p>
+                <p className="font-gothic text-xs mt-2" style={{ color: "hsl(var(--star-text-dim))" }}>또는 클릭해서 파일 선택</p>
                 <div className="flex items-center justify-center gap-3 mt-5 flex-wrap">
-                  {["📏 최대 100MB", "⏱ 3분 이하", "🎞 mp4·mov·avi"].map(t => (
-                    <span key={t} className="text-xs font-gothic px-3 py-1.5 rounded-full" style={{ background: "hsl(var(--star-surface))", color: "hsl(var(--star-text-dim))", border: "1px solid hsl(var(--star-border) / 0.2)" }}>{t}</span>
+                  {[
+                    { text: "📏 최대 100MB", color: "175 70% 50%" },
+                    { text: "⏱ 3분 이하", color: "265 65% 60%" },
+                    { text: "🎞 mp4·mov·avi", color: "45 85% 55%" },
+                  ].map(t => (
+                    <span key={t.text} className="text-xs font-gothic px-3 py-1.5 rounded-full" style={{ background: `hsl(${t.color} / 0.12)`, color: `hsl(${t.color})`, border: `1px solid hsl(${t.color} / 0.2)` }}>{t.text}</span>
                   ))}
                 </div>
               </>
@@ -203,8 +244,8 @@ const AnalysisPage = () => {
         <div className="w-full max-w-xl">
           <div className="flex items-center gap-4 mb-8">
             <motion.div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-              style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+              className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+              style={{ background: "linear-gradient(135deg, hsl(265 65% 55%), hsl(285 70% 60%))", boxShadow: "0 4px 15px hsl(265 65% 55% / 0.3)" }}
               whileHover={{ scale: 1.15, rotate: 8 }}
             >2</motion.div>
             <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>✨ 분석 시작</h2>
@@ -358,8 +399,8 @@ const AnalysisPage = () => {
               <div className="w-full max-w-xl">
                 <div className="flex items-center gap-4 mb-8">
                   <motion.div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-                    style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+                    style={{ background: "linear-gradient(135deg, hsl(340 70% 55%), hsl(10 80% 55%))", boxShadow: "0 4px 15px hsl(340 70% 55% / 0.3)" }}
                     whileHover={{ scale: 1.15, rotate: 8 }}
                   >3</motion.div>
                   <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>📋 판정 결과</h2>
@@ -446,8 +487,8 @@ const AnalysisPage = () => {
               <div className="w-full max-w-xl star-card-glow p-5 sm:p-7">
                 <div className="flex items-center gap-4 mb-8">
                   <motion.div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-                    style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+                    style={{ background: "linear-gradient(135deg, hsl(45 85% 50%), hsl(35 90% 55%))", boxShadow: "0 4px 15px hsl(45 85% 50% / 0.3)" }}
                     whileHover={{ scale: 1.15, rotate: 8 }}
                   >4</motion.div>
                   <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>🔍 에이전트별 상세 분석</h2>
@@ -481,8 +522,8 @@ const AnalysisPage = () => {
               <div className="w-full max-w-xl flex flex-col gap-4">
                 <div className="flex items-center gap-4 mb-4">
                   <motion.div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-                    style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+                    style={{ background: "linear-gradient(135deg, hsl(142 60% 45%), hsl(160 55% 50%))", boxShadow: "0 4px 15px hsl(142 60% 45% / 0.3)" }}
                     whileHover={{ scale: 1.15, rotate: 8 }}
                   >5</motion.div>
                   <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>🎯 다음은?</h2>
