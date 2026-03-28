@@ -461,8 +461,8 @@ const AnalysisPage = () => {
               <div className="w-full max-w-xl star-card-glow p-5 sm:p-7">
                 <div className="flex items-center gap-4 mb-8">
                   <motion.div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-                    style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+                    style={{ background: "linear-gradient(135deg, hsl(45 85% 50%), hsl(35 90% 55%))", boxShadow: "0 4px 15px hsl(45 85% 50% / 0.3)" }}
                     whileHover={{ scale: 1.15, rotate: 8 }}
                   >4</motion.div>
                   <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>🔍 에이전트별 상세 분석</h2>
@@ -496,8 +496,8 @@ const AnalysisPage = () => {
               <div className="w-full max-w-xl flex flex-col gap-4">
                 <div className="flex items-center gap-4 mb-4">
                   <motion.div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg"
-                    style={{ background: "hsl(var(--star-accent) / 0.15)", color: "hsl(var(--star-accent))", border: "1px solid hsl(var(--star-accent) / 0.25)" }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-lg text-white"
+                    style={{ background: "linear-gradient(135deg, hsl(142 60% 45%), hsl(160 55% 50%))", boxShadow: "0 4px 15px hsl(142 60% 45% / 0.3)" }}
                     whileHover={{ scale: 1.15, rotate: 8 }}
                   >5</motion.div>
                   <h2 className="font-jua text-2xl" style={{ color: "hsl(var(--star-text))" }}>🎯 다음은?</h2>
