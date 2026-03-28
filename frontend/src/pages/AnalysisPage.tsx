@@ -84,27 +84,37 @@ const AnalysisPage = () => {
 
       {/* ── Hero ── */}
       <motion.section
-        className="flex flex-col items-center justify-center text-center py-20 px-4 relative z-10"
-        style={{ minHeight: "55vh" }}
+        className="flex flex-col items-center justify-center text-center py-16 px-4 relative z-10"
+        style={{ minHeight: "50vh" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
+        {/* Floating orb behind emoji */}
         <motion.div
-          className="text-8xl mb-8 relative"
-          animate={{ y: [-8, 8, -8] }}
+          className="absolute top-[15%] w-[300px] h-[300px] rounded-full pointer-events-none"
+          style={{
+            background: "radial-gradient(circle, hsla(210, 90%, 70%, 0.15), hsla(270, 60%, 60%, 0.08), transparent 70%)",
+            filter: "blur(40px)",
+          }}
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+          transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="text-8xl mb-6 relative"
+          animate={{ y: [-8, 8, -8], rotate: [-2, 2, -2] }}
           transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
         >
           🌌
           <motion.div
-            className="absolute inset-0 blur-2xl opacity-40"
-            style={{ background: "radial-gradient(circle, hsl(var(--star-accent) / 0.6), transparent 70%)" }}
-            animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.5, 0.3] }}
+            className="absolute -inset-8 blur-3xl opacity-50 rounded-full"
+            style={{ background: "radial-gradient(circle, hsl(var(--star-accent) / 0.5), hsl(var(--star-aurora-b) / 0.3), transparent 70%)" }}
+            animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.6, 0.3] }}
             transition={{ repeat: Infinity, duration: 3 }}
           />
         </motion.div>
         <motion.h1
-          className="font-jua text-5xl md:text-6xl leading-tight star-text-glow"
-          style={{ color: "hsl(var(--star-text))" }}
+          className="font-jua text-5xl md:text-7xl leading-tight"
+          style={{ color: "hsl(var(--star-text))", textShadow: "0 0 40px hsl(var(--star-accent) / 0.4), 0 0 80px hsl(var(--star-aurora-b) / 0.2)" }}
           initial={{ opacity: 0, y: 30, scale: 0.85 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ ...spring, delay: 0.2 }}
@@ -112,15 +122,20 @@ const AnalysisPage = () => {
           별빛<br />분석기
         </motion.h1>
         <motion.p
-          className="font-gothic text-base mt-5 max-w-md"
+          className="font-gothic text-base mt-5 max-w-md leading-relaxed"
           style={{ color: "hsl(var(--star-text-dim))" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
           진짜 영상과 AI가 만든 가짜 영상을 구별하는<br />별빛 연구소의 분석을 시작하세요
         </motion.p>
-        <motion.div className="mt-10 text-2xl" style={{ color: "hsl(var(--star-text-dim) / 0.5)" }} animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+        <motion.div
+          className="mt-8 text-2xl"
+          style={{ color: "hsl(var(--star-accent) / 0.6)" }}
+          animate={{ y: [0, 10, 0], opacity: [0.4, 0.8, 0.4] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
           ↓
         </motion.div>
       </motion.section>
