@@ -299,24 +299,25 @@ const AnalysisPage = () => {
             className="relative w-full overflow-hidden rounded-2xl py-6 font-jua text-xl cursor-pointer border-none outline-none"
             style={{
               background: a.isAnalyzing
-                ? "linear-gradient(135deg, hsl(var(--star-accent) / 0.6), hsl(var(--star-aurora-b) / 0.4))"
+                ? "linear-gradient(135deg, hsl(var(--star-accent)), hsl(var(--star-aurora-b)))"
                 : !a.selectedFile
                   ? "linear-gradient(135deg, hsl(var(--star-surface)), hsl(var(--star-card)))"
-                  : "linear-gradient(135deg, hsl(var(--star-accent)), hsl(220 70% 50%))",
+                  : "linear-gradient(135deg, hsl(210 85% 58%), hsl(230 75% 55%), hsl(260 60% 55%))",
               boxShadow: a.selectedFile && !a.isAnalyzing
-                ? "0 8px 40px hsl(var(--star-accent) / 0.35), 0 0 0 1px hsl(var(--star-accent) / 0.2)"
-                : a.isAnalyzing ? "0 0 40px hsl(var(--star-accent) / 0.2)" : "none",
+                ? "0 6px 0 hsl(230 70% 35%), 0 12px 40px hsl(var(--star-accent) / 0.4), 0 0 60px hsl(var(--star-accent) / 0.15)"
+                : a.isAnalyzing ? "0 4px 30px hsl(var(--star-accent) / 0.3)" : "none",
               color: !a.selectedFile ? "hsl(var(--star-text-dim) / 0.4)" : "white",
               pointerEvents: !a.selectedFile || a.isAnalyzing ? "none" : "auto",
+              textShadow: a.selectedFile ? "1px 2px 3px rgba(0,0,0,0.3)" : "none",
             }}
-            whileHover={a.selectedFile && !a.isAnalyzing ? { scale: 1.02, y: -3 } : {}}
-            whileTap={a.selectedFile && !a.isAnalyzing ? { scale: 0.97 } : {}}
+            whileHover={a.selectedFile && !a.isAnalyzing ? { scale: 1.03, y: -4, boxShadow: "0 6px 0 hsl(230 70% 35%), 0 16px 50px hsl(var(--star-accent) / 0.5), 0 0 80px hsl(var(--star-accent) / 0.2)" } : {}}
+            whileTap={a.selectedFile && !a.isAnalyzing ? { scale: 0.97, y: 3, boxShadow: "0 2px 0 hsl(230 70% 35%)" } : {}}
             onClick={a.handleAnalyze}
           >
             {a.selectedFile && !a.isAnalyzing && (
               <motion.div
                 className="absolute inset-0"
-                style={{ background: "linear-gradient(105deg, transparent 35%, hsl(0 0% 100% / 0.12) 50%, transparent 65%)" }}
+                style={{ background: "linear-gradient(105deg, transparent 30%, hsl(0 0% 100% / 0.18) 48%, hsl(0 0% 100% / 0.28) 50%, hsl(0 0% 100% / 0.18) 52%, transparent 70%)" }}
                 animate={{ x: ["-100%", "200%"] }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut", repeatDelay: 1 }}
               />
