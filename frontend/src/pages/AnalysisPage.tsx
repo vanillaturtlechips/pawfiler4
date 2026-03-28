@@ -14,28 +14,9 @@ import BatchQueue from "@/components/analysis/BatchQueue";
 import AdversarialSimulation from "@/components/analysis/AdversarialSimulation";
 import { useAnalysis, MAX_FILE_SIZE_MB, STAGES, verdictConfig } from "@/hooks/useAnalysis";
 import { generateAnalysisPdf } from "@/lib/generatePdf";
+import StarfieldBackground from "@/components/analysis/StarfieldBackground";
 
 const spring = { type: "spring" as const, stiffness: 260, damping: 22 };
-
-/* ── Aurora background component ── */
-function AuroraBackground() {
-  return (
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <motion.div
-        className="absolute -top-1/3 -left-1/4 w-[80vw] h-[60vh] rounded-full blur-[120px]"
-        style={{ background: "hsl(var(--star-aurora-a) / 0.07)" }}
-        animate={{ x: [0, 40, 0], y: [0, 20, 0], scale: [1, 1.08, 1] }}
-        transition={{ repeat: Infinity, duration: 12, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute -bottom-1/4 -right-1/4 w-[70vw] h-[50vh] rounded-full blur-[100px]"
-        style={{ background: "hsl(var(--star-aurora-b) / 0.05)" }}
-        animate={{ x: [0, -30, 0], y: [0, -25, 0], scale: [1, 1.06, 1] }}
-        transition={{ repeat: Infinity, duration: 10, ease: "easeInOut", delay: 2 }}
-      />
-    </div>
-  );
-}
 
 const AnalysisPage = () => {
   const a = useAnalysis();
@@ -84,7 +65,7 @@ const AnalysisPage = () => {
 
   return (
     <div ref={containerRef} className="w-full overflow-y-auto relative" style={{ minHeight: "calc(100vh - 5rem)" }}>
-      <AuroraBackground />
+      <StarfieldBackground />
 
       {/* Share toast */}
       <AnimatePresence>
