@@ -53,38 +53,37 @@ export default function AgentRerun({ report, onRerun, isRerunning, rerunningAgen
 
   return (
     <motion.div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+      className="star-card-glow overflow-hidden"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={spring}
     >
       <button
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer bg-transparent border-none text-left"
+        className="w-full flex items-center justify-between px-6 py-5 cursor-pointer bg-transparent border-none text-left"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">🔄</span>
-          <span className="font-jua text-sm text-foreground">에이전트 선택적 재실행</span>
+          <span className="font-jua text-base" style={{ color: "hsl(var(--star-text))" }}>에이전트 선택적 재실행</span>
         </div>
-        <motion.span className="text-foreground/30 text-sm" animate={{ rotate: expanded ? 180 : 0 }}>▼</motion.span>
+        <motion.span className="text-sm" style={{ color: "hsl(var(--star-text-dim))" }} animate={{ rotate: expanded ? 180 : 0 }}>▼</motion.span>
       </button>
 
       <AnimatePresence>
         {expanded && (
           <motion.div
-            className="px-4 pb-4"
+            className="px-5 pb-5"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <p className="font-gothic text-[10px] text-foreground/30 mb-3">
+            <p className="font-gothic text-xs mb-4" style={{ color: "hsl(var(--star-text-dim))" }}>
               신뢰도가 낮은 에이전트를 선택하여 재분석할 수 있어요
             </p>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {AGENTS.map((agent) => {
                 const conf = getConfidence(agent.key);
                 const low = isLowConfidence(agent.key);
@@ -94,53 +93,53 @@ export default function AgentRerun({ report, onRerun, isRerunning, rerunningAgen
                 return (
                   <motion.button
                     key={agent.key}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer border-none text-left transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl cursor-pointer border-none text-left"
                     style={{
                       background: isSelected
-                        ? "rgba(0,137,188,0.12)"
-                        : "rgba(255,255,255,0.03)",
+                        ? "hsl(var(--star-accent) / 0.15)"
+                        : "hsl(var(--star-surface) / 0.7)",
                       border: isSelected
-                        ? "1px solid rgba(0,137,188,0.3)"
-                        : "1px solid rgba(255,255,255,0.05)",
+                        ? "1px solid hsl(var(--star-accent) / 0.4)"
+                        : "1px solid hsl(var(--star-border) / 0.3)",
                     }}
-                    whileHover={{ scale: 1.01 }}
+                    whileHover={{ scale: 1.01, backgroundColor: isSelected ? undefined : "hsl(var(--star-surface))" }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => !isRerunning && toggle(agent.key)}
                     disabled={isRerunning}
                   >
-                    <span className="text-lg">{agent.icon}</span>
+                    <span className="text-xl">{agent.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-jua text-xs text-foreground/70">{agent.label}</span>
+                        <span className="font-jua text-sm" style={{ color: "hsl(var(--star-text))" }}>{agent.label}</span>
                         {low && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-gothic" style={{ background: "rgba(234,179,8,0.15)", color: "#facc15" }}>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-gothic font-bold" style={{ background: "rgba(250,204,21,0.2)", color: "#facc15" }}>
                             낮은 신뢰도
                           </span>
                         )}
                       </div>
-                      <p className="font-gothic text-[10px] text-foreground/30 mt-0.5">{getVerdict(agent.key)}</p>
+                      <p className="font-gothic text-xs mt-0.5" style={{ color: "hsl(var(--star-text-dim))" }}>{getVerdict(agent.key)}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-gothic text-xs" style={{ color: low ? "#facc15" : "#86efac" }}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-gothic text-sm font-bold" style={{ color: low ? "#facc15" : "#86efac" }}>
                         {(conf * 100).toFixed(0)}%
                       </span>
                       {isRunning && (
                         <motion.span
-                          className="w-2 h-2 rounded-full"
-                          style={{ background: "hsl(199,97%,47%)" }}
+                          className="w-3 h-3 rounded-full"
+                          style={{ background: "hsl(var(--star-accent))" }}
                           animate={{ opacity: [1, 0.3, 1], scale: [1, 1.3, 1] }}
                           transition={{ repeat: Infinity, duration: 0.8 }}
                         />
                       )}
                       {!isRunning && (
                         <div
-                          className="w-4 h-4 rounded border flex items-center justify-center"
+                          className="w-5 h-5 rounded border-2 flex items-center justify-center"
                           style={{
-                            borderColor: isSelected ? "hsl(199,97%,47%)" : "rgba(255,255,255,0.15)",
-                            background: isSelected ? "hsl(199,97%,47%)" : "transparent",
+                            borderColor: isSelected ? "hsl(var(--star-accent))" : "hsl(var(--star-border))",
+                            background: isSelected ? "hsl(var(--star-accent))" : "transparent",
                           }}
                         >
-                          {isSelected && <span className="text-[8px] text-white">✓</span>}
+                          {isSelected && <span className="text-[10px] text-white font-bold">✓</span>}
                         </div>
                       )}
                     </div>
@@ -150,12 +149,13 @@ export default function AgentRerun({ report, onRerun, isRerunning, rerunningAgen
             </div>
 
             <motion.button
-              className="w-full mt-3 py-3 rounded-xl font-jua text-sm cursor-pointer border-none"
+              className="w-full mt-4 py-3.5 rounded-xl font-jua text-sm cursor-pointer border-none"
               style={{
                 background: selected.size > 0 && !isRerunning
-                  ? "linear-gradient(135deg, hsl(199,97%,37%), hsl(220,90%,45%))"
-                  : "rgba(255,255,255,0.05)",
-                color: selected.size > 0 && !isRerunning ? "white" : "rgba(255,255,255,0.2)",
+                  ? "linear-gradient(135deg, hsl(var(--star-accent)), hsl(225 70% 55%))"
+                  : "hsl(var(--star-surface))",
+                color: selected.size > 0 && !isRerunning ? "white" : "hsl(var(--star-text-dim))",
+                boxShadow: selected.size > 0 && !isRerunning ? "0 4px 20px hsl(var(--star-accent) / 0.3)" : "none",
                 pointerEvents: selected.size === 0 || isRerunning ? "none" : "auto",
               }}
               whileHover={selected.size > 0 ? { scale: 1.02 } : {}}
