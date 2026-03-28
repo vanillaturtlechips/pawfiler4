@@ -36,19 +36,19 @@
     --magic-orange: 27 100% 47%;
     --magic-orange-glow: 28 100% 65%;
 
-    /* Starlight Lab — analysis page (brighter) */
-    --star-deep: 228 38% 14%;
-    --star-surface: 230 32% 20%;
-    --star-card: 232 28% 24%;
-    --star-border: 225 30% 35%;
-    --star-text: 210 30% 88%;
-    --star-text-dim: 215 20% 65%;
-    --star-accent: 210 80% 65%;
-    --star-accent-glow: 210 90% 78%;
-    --star-aurora-a: 180 70% 55%;
-    --star-aurora-b: 275 55% 58%;
-    --star-warm: 345 65% 68%;
-    --star-warm-b: 20 75% 68%;
+    /* Starlight Lab — analysis page (vivid) */
+    --star-deep: 230 35% 16%;
+    --star-surface: 232 28% 24%;
+    --star-card: 235 24% 28%;
+    --star-border: 228 28% 40%;
+    --star-text: 210 25% 92%;
+    --star-text-dim: 215 18% 72%;
+    --star-accent: 210 85% 68%;
+    --star-accent-glow: 200 95% 80%;
+    --star-aurora-a: 175 75% 58%;
+    --star-aurora-b: 270 60% 62%;
+    --star-warm: 345 70% 70%;
+    --star-warm-b: 20 80% 70%;
 
     /* Shadcn semantic mapping */
     --background: 20 68% 9%;
@@ -149,18 +149,19 @@
 
   /* Starlight Lab utilities */
   .star-card {
-    background: linear-gradient(180deg, hsl(var(--star-card)), hsl(var(--star-deep)));
-    border: 1px solid hsl(var(--star-border) / 0.5);
+    background: linear-gradient(180deg, hsl(var(--star-card) / 0.95), hsl(var(--star-deep) / 0.9));
+    border: 1px solid hsl(var(--star-border) / 0.45);
     border-radius: 1.25rem;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px hsl(var(--star-deep) / 0.3);
   }
 
   .star-card-glow {
-    background: linear-gradient(160deg, hsl(var(--star-card) / 0.9), hsl(var(--star-deep) / 0.85), hsl(275 25% 18% / 0.7));
+    background: linear-gradient(160deg, hsl(var(--star-card) / 0.95), hsl(var(--star-deep) / 0.85), hsl(270 22% 22% / 0.7));
     border: 1px solid hsl(var(--star-border) / 0.5);
-    box-shadow: 0 0 60px hsl(var(--star-aurora-a) / 0.1), 0 20px 50px hsl(var(--star-deep) / 0.5);
+    box-shadow: 0 0 50px hsl(var(--star-aurora-a) / 0.08), 0 16px 40px hsl(var(--star-deep) / 0.4), inset 0 1px 0 hsl(var(--star-border) / 0.15);
     border-radius: 1.5rem;
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
   }
 
   .star-aurora {
