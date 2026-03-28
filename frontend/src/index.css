@@ -36,6 +36,20 @@
     --magic-orange: 27 100% 47%;
     --magic-orange-glow: 28 100% 65%;
 
+    /* Starlight Lab — analysis page */
+    --star-deep: 230 40% 8%;
+    --star-surface: 225 35% 11%;
+    --star-card: 228 32% 14%;
+    --star-border: 222 35% 22%;
+    --star-text: 215 40% 72%;
+    --star-text-dim: 220 25% 50%;
+    --star-accent: 210 70% 60%;
+    --star-accent-glow: 210 80% 70%;
+    --star-aurora-a: 200 80% 50%;
+    --star-aurora-b: 280 60% 50%;
+    --star-warm: 350 70% 65%;
+    --star-warm-b: 20 80% 65%;
+
     /* Shadcn semantic mapping */
     --background: 20 68% 9%;
     --foreground: 54 100% 95%;
