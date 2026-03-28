@@ -211,7 +211,7 @@ const AnalysisPage = () => {
             {a.isAnalyzing && (
               <motion.div
                 className="mb-5 rounded-2xl p-5"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
@@ -238,18 +238,32 @@ const AnalysisPage = () => {
                         {i < a.currentStageIdx ? "✓" : s.icon}
                       </motion.div>
                       <div className="flex-1">
-                        <span className="text-sm font-jua" style={{ color: i <= a.currentStageIdx ? "hsl(var(--magic-blue))" : "rgba(255,255,255,0.2)" }}>{s.label}</span>
-                        <div className="w-full h-1.5 rounded-full mt-1 overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                        <span className="text-sm font-jua" style={{ color: i <= a.currentStageIdx ? "hsl(var(--magic-blue))" : "rgba(255,255,255,0.3)" }}>{s.label}</span>
+                        <div className="w-full h-2 rounded-full mt-1 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
                           <motion.div
                             className="h-full rounded-full"
                             style={{
-                              background: i <= a.currentStageIdx
-                                ? "linear-gradient(90deg, hsl(var(--magic-blue)), hsl(199,97%,60%))"
-                                : "transparent",
-                              boxShadow: i === a.currentStageIdx ? "0 0 10px rgba(0,137,188,0.5)" : "none",
+                              background: i < a.currentStageIdx
+                                ? "linear-gradient(90deg, hsl(199,97%,47%), hsl(199,97%,60%))"
+                                : i === a.currentStageIdx
+                                  ? "linear-gradient(90deg, hsl(199,97%,47%), hsl(199,97%,60%))"
+                                  : "transparent",
+                              boxShadow: i === a.currentStageIdx ? "0 0 12px rgba(0,137,188,0.6)" : "none",
                             }}
-                            animate={{ width: i <= a.currentStageIdx ? "100%" : "0%" }}
-                            transition={{ duration: 0.5 }}
+                            initial={{ width: "0%" }}
+                            animate={{
+                              width: i < a.currentStageIdx
+                                ? "100%"
+                                : i === a.currentStageIdx
+                                  ? ["0%", "30%", "60%", "85%"]
+                                  : "0%",
+                            }}
+                            transition={
+                              i === a.currentStageIdx
+                                ? { duration: 2.5, ease: "easeOut", times: [0, 0.3, 0.6, 1] }
+                                : { duration: 0.4, ease: "easeOut" }
+                            }
+                            key={`${s.key}-${a.currentStageIdx}`}
                           />
                         </div>
                       </div>
@@ -423,19 +437,19 @@ const AnalysisPage = () => {
               </div>
             </motion.section>
 
-            {/* AI Opinion (Streaming) */}
-            {a.report.explanation && (
+            {/* AI Opinion (Streaming) - only show if LLM tab doesn't have reasoning */}
+            {a.report.explanation && !a.report.llm?.reasoning && (
               <motion.section className="flex flex-col items-center px-4 pb-8" {...sectionSpring}>
                 <div className="w-full max-w-lg">
                   <motion.div
                     className="rounded-2xl p-5"
-                    style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}
+                    style={{ background: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.20)" }}
                   >
-                    <p className="font-jua text-sm mb-3">🤖 AI 종합 의견</p>
+                    <p className="font-jua text-sm mb-3 text-foreground/90">🤖 AI 종합 의견</p>
                     <StreamingText
                       text={a.report.explanation}
                       speed={20}
-                      className="font-gothic text-xs text-foreground/50 leading-relaxed"
+                      className="font-gothic text-sm text-foreground/60 leading-relaxed"
                     />
                   </motion.div>
                 </div>

@@ -19,13 +19,13 @@ export default function AgentPipeline({ timings, totalMs }: Props) {
   return (
     <motion.div
       className="rounded-2xl p-5"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      <p className="font-jua text-sm mb-1 text-foreground/70">⚡ 에이전트 파이프라인</p>
-      <p className="font-gothic text-[10px] text-foreground/30 mb-4">병렬 처리 타임라인</p>
+      <p className="font-jua text-sm mb-1 text-foreground/80">⚡ 에이전트 파이프라인</p>
+      <p className="font-gothic text-xs text-foreground/40 mb-4">병렬 처리 타임라인</p>
 
       <div className="space-y-3">
         {timings.map((agent, i) => {
@@ -37,11 +37,11 @@ export default function AgentPipeline({ timings, totalMs }: Props) {
           return (
             <div key={agent.agentName} className="relative">
               <div className="flex items-center justify-between mb-1">
-                <span className="font-jua text-xs text-foreground/60">
+                <span className="font-jua text-xs text-foreground/70">
                   {agent.agentIcon} {agent.agentName}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-gothic text-[10px] text-foreground/30">{duration}s</span>
+                  <span className="font-gothic text-xs text-foreground/40">{duration}s</span>
                   {agent.status === "running" && (
                     <motion.span
                       className="w-1.5 h-1.5 rounded-full"
@@ -56,7 +56,7 @@ export default function AgentPipeline({ timings, totalMs }: Props) {
               </div>
 
               {/* Timeline bar */}
-              <div className="w-full h-3 rounded-full overflow-hidden relative" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="w-full h-3 rounded-full overflow-hidden relative" style={{ background: "rgba(255,255,255,0.08)" }}>
                 <motion.div
                   className="absolute top-0 h-full rounded-full"
                   style={{
@@ -77,7 +77,7 @@ export default function AgentPipeline({ timings, totalMs }: Props) {
       </div>
 
       {/* Time axis */}
-      <div className="flex justify-between mt-3 text-[10px] font-gothic text-foreground/20">
+      <div className="flex justify-between mt-3 text-xs font-gothic text-foreground/30">
         <span>0s</span>
         <span>{(totalMs / 1000).toFixed(1)}s</span>
       </div>
