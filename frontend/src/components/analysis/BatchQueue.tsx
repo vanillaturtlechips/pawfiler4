@@ -13,7 +13,7 @@ export interface BatchItem {
   status: BatchItemStatus;
   verdict?: "REAL" | "FAKE" | "UNCERTAIN";
   confidence?: number;
-  progress?: number; // 0-100
+  progress?: number;
 }
 
 interface Props {
@@ -27,34 +27,32 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const newItems: BatchItem[] = Array.from(files)
-      .filter(f => f.type.startsWith("video/"))
+      .filter((f) => f.type.startsWith("video/"))
       .slice(0, 10)
-      .map(f => ({
+      .map((f) => ({
         id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         file: f,
         previewUrl: URL.createObjectURL(f),
         status: "queued" as const,
       }));
-    setItems(prev => [...prev, ...newItems].slice(0, 20));
+    setItems((prev) => [...prev, ...newItems].slice(0, 20));
   }, []);
 
   const removeItem = (id: string) => {
-    setItems(prev => {
-      const item = prev.find(i => i.id === id);
+    setItems((prev) => {
+      const item = prev.find((i) => i.id === id);
       if (item) URL.revokeObjectURL(item.previewUrl);
-      return prev.filter(i => i.id !== id);
+      return prev.filter((i) => i.id !== id);
     });
   };
-
-  const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
   const processQueue = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
 
-    const queued = items.filter(i => i.status === "queued");
+    const queued = items.filter((i) => i.status === "queued");
     for (const item of queued) {
-      setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: "analyzing" as const, progress: 0 } : i));
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, status: "analyzing" as const, progress: 0 } : i));
 
       try {
         const formData = new FormData();
@@ -64,7 +62,7 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
         const resp = await fetch("http://localhost:8000/", { method: "POST", body: formData });
         const data = await resp.json();
 
-        setItems(prev => prev.map(i => i.id === item.id ? {
+        setItems((prev) => prev.map((i) => i.id === item.id ? {
           ...i,
           status: "completed" as const,
           verdict: data.verdict?.toUpperCase() as "FAKE" | "REAL" | "UNCERTAIN",
@@ -72,7 +70,7 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
           progress: 100,
         } : i));
       } catch {
-        setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: "queued" as const, progress: 0 } : i));
+        setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, status: "queued" as const, progress: 0 } : i));
       }
     }
 
@@ -80,20 +78,19 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
   };
 
   const clearCompleted = () => {
-    setItems(prev => {
-      prev.filter(i => i.status === "completed").forEach(i => URL.revokeObjectURL(i.previewUrl));
-      return prev.filter(i => i.status !== "completed");
+    setItems((prev) => {
+      prev.filter((i) => i.status === "completed").forEach((i) => URL.revokeObjectURL(i.previewUrl));
+      return prev.filter((i) => i.status !== "completed");
     });
   };
 
-  const queuedCount = items.filter(i => i.status === "queued").length;
-  const analyzingCount = items.filter(i => i.status === "analyzing").length;
-  const completedCount = items.filter(i => i.status === "completed").length;
+  const queuedCount = items.filter((i) => i.status === "queued").length;
+  const analyzingCount = items.filter((i) => i.status === "analyzing").length;
+  const completedCount = items.filter((i) => i.status === "completed").length;
 
   return (
     <motion.div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+      className="star-card-glow overflow-hidden"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -105,14 +102,27 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">📈</span>
-          <span className="font-jua text-sm text-foreground">배치 분석 큐</span>
+          <span className="font-jua text-base" style={{ color: "hsl(var(--star-text))" }}>배치 분석 큐</span>
           {items.length > 0 && (
-            <span className="text-[10px] font-gothic px-2 py-0.5 rounded-full text-foreground/40" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <span
+              className="text-xs font-gothic px-2.5 py-1 rounded-full font-bold"
+              style={{
+                color: "hsl(var(--star-text))",
+                background: "hsl(var(--star-surface) / 0.9)",
+                border: "1px solid hsl(var(--star-border) / 0.45)",
+              }}
+            >
               {items.length}개
             </span>
           )}
         </div>
-        <motion.span className="text-foreground/30 text-sm" animate={{ rotate: expanded ? 180 : 0 }}>▼</motion.span>
+        <motion.span
+          className="text-sm font-bold"
+          style={{ color: "hsl(var(--star-text-dim))" }}
+          animate={{ rotate: expanded ? 180 : 0 }}
+        >
+          ▼
+        </motion.span>
       </button>
 
       <AnimatePresence>
@@ -124,24 +134,32 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Stats */}
             <div className="flex gap-3 mb-3">
               {[
-                { label: "대기", count: queuedCount, color: "rgba(255,255,255,0.2)" },
-                { label: "분석 중", count: analyzingCount, color: "hsl(199,97%,47%)" },
-                { label: "완료", count: completedCount, color: "#22c55e" },
-              ].map(s => (
-                <div key={s.label} className="flex-1 rounded-lg p-2 text-center" style={{ background: "rgba(255,255,255,0.03)" }}>
-                  <p className="font-jua text-lg" style={{ color: s.color }}>{s.count}</p>
-                  <p className="font-gothic text-[9px] text-foreground/30">{s.label}</p>
+                { label: "대기", count: queuedCount, color: "hsl(var(--star-text))" },
+                { label: "분석 중", count: analyzingCount, color: "hsl(var(--star-accent))" },
+                { label: "완료", count: completedCount, color: "hsl(142 70% 60%)" },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="flex-1 rounded-xl p-3 text-center"
+                  style={{
+                    background: "hsl(var(--star-surface) / 0.88)",
+                    border: "1px solid hsl(var(--star-border) / 0.35)",
+                  }}
+                >
+                  <p className="font-jua text-2xl leading-none" style={{ color: s.color }}>{s.count}</p>
+                  <p className="font-gothic text-xs mt-1" style={{ color: "hsl(var(--star-text-dim))" }}>{s.label}</p>
                 </div>
               ))}
             </div>
 
-            {/* Drop zone */}
             <label
               className="block w-full rounded-xl p-4 text-center cursor-pointer mb-3 transition-colors"
-              style={{ border: "2px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)" }}
+              style={{
+                border: "2px dashed hsl(var(--star-border) / 0.5)",
+                background: "hsl(var(--star-surface) / 0.75)",
+              }}
             >
               <input
                 type="file"
@@ -150,45 +168,47 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
                 className="hidden"
                 onChange={(e) => e.target.files && addFiles(e.target.files)}
               />
-              <p className="font-gothic text-xs text-foreground/30">📁 여러 영상 파일을 선택하세요</p>
+              <p className="font-gothic text-sm font-bold" style={{ color: "hsl(var(--star-text))" }}>
+                📁 여러 영상 파일을 선택하세요
+              </p>
             </label>
 
-            {/* Queue list */}
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {items.map((item, i) => (
                 <motion.div
                   key={item.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg"
-                  style={{ background: "rgba(255,255,255,0.03)" }}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl"
+                  style={{
+                    background: "hsl(var(--star-surface) / 0.88)",
+                    border: "1px solid hsl(var(--star-border) / 0.35)",
+                  }}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03 }}
                 >
-                  {/* Status indicator */}
                   <div className="flex-shrink-0">
-                    {item.status === "queued" && <span className="text-foreground/20 text-xs">⏳</span>}
+                    {item.status === "queued" && <span className="text-sm" style={{ color: "hsl(var(--star-text-dim))" }}>⏳</span>}
                     {item.status === "analyzing" && (
                       <motion.span
                         className="block w-2.5 h-2.5 rounded-full"
-                        style={{ background: "hsl(199,97%,47%)" }}
-                        animate={{ opacity: [1, 0.3, 1] }}
+                        style={{ background: "hsl(var(--star-accent))" }}
+                        animate={{ opacity: [1, 0.35, 1] }}
                         transition={{ repeat: Infinity, duration: 0.8 }}
                       />
                     )}
-                    {item.status === "completed" && item.verdict && (
-                      <span className="text-xs">{verdictConfig[item.verdict].emoji}</span>
-                    )}
-                    {item.status === "error" && <span className="text-xs">❌</span>}
+                    {item.status === "completed" && item.verdict && <span className="text-sm">{verdictConfig[item.verdict].emoji}</span>}
+                    {item.status === "error" && <span className="text-sm">❌</span>}
                   </div>
 
-                  {/* File info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-gothic text-[10px] text-foreground/50 truncate">{item.file.name}</p>
+                    <p className="font-gothic text-xs font-bold truncate" style={{ color: "hsl(var(--star-text))" }}>
+                      {item.file.name}
+                    </p>
                     {item.status === "analyzing" && item.progress !== undefined && (
-                      <div className="w-full h-1 rounded-full mt-1 overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                      <div className="w-full h-1.5 rounded-full mt-1.5 overflow-hidden" style={{ background: "hsl(var(--star-deep) / 0.8)" }}>
                         <motion.div
                           className="h-full rounded-full"
-                          style={{ background: "hsl(199,97%,47%)" }}
+                          style={{ background: "linear-gradient(90deg, hsl(var(--star-accent)), hsl(var(--star-accent-glow)))" }}
                           animate={{ width: `${item.progress}%` }}
                           transition={{ duration: 0.3 }}
                         />
@@ -196,16 +216,16 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
                     )}
                   </div>
 
-                  {/* Result / actions */}
                   <div className="flex items-center gap-2">
                     {item.status === "completed" && item.verdict && (
-                      <span className="font-gothic text-[10px]" style={{ color: verdictConfig[item.verdict].border }}>
+                      <span className="font-gothic text-xs font-bold" style={{ color: verdictConfig[item.verdict].border }}>
                         {(item.confidence! * 100).toFixed(0)}%
                       </span>
                     )}
                     {item.status === "completed" && (
                       <button
-                        className="text-[10px] text-foreground/20 hover:text-foreground/50 cursor-pointer bg-transparent border-none"
+                        className="text-xs cursor-pointer bg-transparent border-none"
+                        style={{ color: "hsl(var(--star-text-dim))" }}
                         onClick={() => onAnalyzeFile(item.file)}
                         title="상세 분석"
                       >
@@ -214,7 +234,8 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
                     )}
                     {(item.status === "queued" || item.status === "completed") && (
                       <button
-                        className="text-[10px] text-foreground/20 hover:text-foreground/50 cursor-pointer bg-transparent border-none"
+                        className="text-xs cursor-pointer bg-transparent border-none"
+                        style={{ color: "hsl(var(--star-text-dim))" }}
                         onClick={() => removeItem(item.id)}
                       >
                         ✕
@@ -226,18 +247,23 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
             </div>
 
             {items.length === 0 && (
-              <p className="font-gothic text-[10px] text-foreground/20 text-center py-4">큐가 비어있어요</p>
+              <p className="font-gothic text-sm text-center py-5 font-bold" style={{ color: "hsl(var(--star-text-dim))" }}>
+                큐가 비어있어요
+              </p>
             )}
 
-            {/* Actions */}
             <div className="flex gap-2 mt-3">
               <motion.button
-                className="flex-1 py-2.5 rounded-xl font-jua text-xs cursor-pointer border-none"
+                className="flex-1 py-3 rounded-xl font-jua text-sm cursor-pointer border-none"
                 style={{
                   background: queuedCount > 0 && !isProcessing
-                    ? "linear-gradient(135deg, hsl(199,97%,37%), hsl(220,90%,45%))"
-                    : "rgba(255,255,255,0.05)",
-                  color: queuedCount > 0 && !isProcessing ? "white" : "rgba(255,255,255,0.2)",
+                    ? "linear-gradient(135deg, hsl(var(--star-accent)), hsl(var(--star-accent-glow)))"
+                    : "hsl(var(--star-surface) / 0.9)",
+                  color: queuedCount > 0 && !isProcessing ? "hsl(var(--star-deep))" : "hsl(var(--star-text-dim))",
+                  border: queuedCount > 0 && !isProcessing
+                    ? "1px solid hsl(var(--star-accent-glow) / 0.6)"
+                    : "1px solid hsl(var(--star-border) / 0.35)",
+                  boxShadow: queuedCount > 0 && !isProcessing ? "0 8px 24px hsl(var(--star-accent) / 0.28)" : "none",
                   pointerEvents: queuedCount === 0 || isProcessing ? "none" : "auto",
                 }}
                 whileHover={queuedCount > 0 ? { scale: 1.02 } : {}}
@@ -248,8 +274,12 @@ export default function BatchQueue({ onAnalyzeFile }: Props) {
               </motion.button>
               {completedCount > 0 && (
                 <motion.button
-                  className="py-2.5 px-4 rounded-xl font-gothic text-[10px] cursor-pointer border-none text-foreground/40"
-                  style={{ background: "rgba(255,255,255,0.04)" }}
+                  className="py-3 px-4 rounded-xl font-gothic text-xs cursor-pointer border-none"
+                  style={{
+                    color: "hsl(var(--star-text))",
+                    background: "hsl(var(--star-surface) / 0.9)",
+                    border: "1px solid hsl(var(--star-border) / 0.35)",
+                  }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={clearCompleted}
