@@ -53,6 +53,15 @@ function saveHistory(items: HistoryItem[]) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
 }
 
+const createStageProgress = () => ({
+  IDLE: 0,
+  UPLOADING: 0,
+  MCP_CONNECTING: 0,
+  SAGEMAKER_PROCESSING: 0,
+  COMPLETED: 0,
+  ERROR: 0,
+});
+
 export function useAnalysis() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
@@ -68,6 +77,7 @@ export function useAnalysis() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const [agentTimings, setAgentTimings] = useState<AgentTiming[]>([]);
+  const [stageProgress, setStageProgress] = useState(createStageProgress);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -84,6 +94,20 @@ export function useAnalysis() {
     setLogs(prev => [...prev, { timestamp: new Date().toISOString(), message, type }]);
   }, []);
 
+  const updateStageProgress = useCallback((targetStage: AnalysisStage, value: number) => {
+    setStageProgress((prev) => ({
+      ...prev,
+      [targetStage]: Math.max(prev[targetStage] ?? 0, Math.min(100, value)),
+    }));
+  }, []);
+
+  const resetAnalysisState = useCallback(() => {
+    setReport(null);
+    setLogs([]);
+    setAgentTimings([]);
+    setStageProgress(createStageProgress());
+  }, []);
+
   const handleFileSelect = useCallback((file: File) => {
     setFileError(null);
     if (!file.type.startsWith("video/")) {
@@ -97,10 +121,9 @@ export function useAnalysis() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
-    setReport(null);
     setStage("IDLE");
-    setLogs([]);
-  }, [previewUrl]);
+    resetAnalysisState();
+  }, [previewUrl, resetAnalysisState]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -116,11 +139,16 @@ export function useAnalysis() {
 
   const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-  const mockAnalyze = async () => {
-    setReport(null);
-    setLogs([]);
+  const animateStage = useCallback(async (targetStage: AnalysisStage, checkpoints: number[], stepDelay: number) => {
+    for (const checkpoint of checkpoints) {
+      updateStageProgress(targetStage, checkpoint);
+      await delay(stepDelay);
+    }
+  }, [updateStageProgress]);
 
-    // Initialize agent timings (parallel)
+  const mockAnalyze = async () => {
+    resetAnalysisState();
+
     const agents: AgentTiming[] = [
       { agentName: "Visual Agent", agentIcon: "🎬", startMs: 0, endMs: 0, status: "pending" },
       { agentName: "Audio Agent", agentIcon: "🎙️", startMs: 0, endMs: 0, status: "pending" },
@@ -131,66 +159,71 @@ export function useAnalysis() {
 
     addLog("📤 영상 파일 업로드 시작...", "info");
     setStage("UPLOADING");
-    await delay(600);
+    await animateStage("UPLOADING", [14, 38], 220);
     addLog(`📁 파일: ${selectedFile?.name} (${((selectedFile?.size || 0) / 1024 / 1024).toFixed(1)}MB)`, "info");
-    await delay(600);
+    await animateStage("UPLOADING", [66, 100], 280);
     addLog("✅ 업로드 완료", "success");
 
     setStage("MCP_CONNECTING");
     addLog("🔗 MCP 오케스트레이터 연결 중...", "info");
-    await delay(500);
+    await animateStage("MCP_CONNECTING", [18, 46, 74], 220);
     addLog("📡 Ray Serve 클러스터 연결 완료", "success");
-    await delay(300);
+    await animateStage("MCP_CONNECTING", [100], 240);
 
     setStage("SAGEMAKER_PROCESSING");
     addLog("⚡ 멀티 에이전트 병렬 분석 시작...", "info");
+    updateStageProgress("SAGEMAKER_PROCESSING", 8);
 
-    // Simulate parallel agents
     const baseTime = 1200;
-    // Start all agents
     agents[0] = { ...agents[0], startMs: 0, status: "running" };
     agents[1] = { ...agents[1], startMs: 200, status: "running" };
     agents[2] = { ...agents[2], startMs: 100, status: "running" };
     agents[3] = { ...agents[3], startMs: 50, status: "running" };
     setAgentTimings([...agents]);
 
-    await delay(400);
+    await delay(450);
     addLog("📦 Metadata Agent: EXIF/인코딩 분석 중...", "info");
+    updateStageProgress("SAGEMAKER_PROCESSING", 24);
 
-    await delay(500);
+    await delay(550);
     agents[3] = { ...agents[3], endMs: baseTime * 0.5, status: "completed" };
     setAgentTimings([...agents]);
     addLog("✅ Metadata Agent 완료 (0.6s)", "success");
+    updateStageProgress("SAGEMAKER_PROCESSING", 42);
 
-    await delay(400);
+    await delay(420);
     addLog("🎙️ Audio Agent: 스펙트로그램 분석 중...", "info");
 
-    await delay(600);
+    await delay(620);
     agents[1] = { ...agents[1], endMs: baseTime * 0.8, status: "completed" };
     setAgentTimings([...agents]);
     addLog("✅ Audio Agent 완료 (1.0s)", "success");
+    updateStageProgress("SAGEMAKER_PROCESSING", 61);
 
-    await delay(400);
+    await delay(420);
     addLog("🎬 Visual Agent: 프레임 추론 중...", "info");
 
-    await delay(600);
+    await delay(650);
     agents[0] = { ...agents[0], endMs: baseTime * 1.0, status: "completed" };
     setAgentTimings([...agents]);
     addLog("✅ Visual Agent 완료 (1.2s)", "success");
+    updateStageProgress("SAGEMAKER_PROCESSING", 79);
 
-    await delay(300);
+    await delay(320);
     addLog("🧠 LLM Agent: Chain of Thought 생성 중...", "info");
 
-    await delay(700);
+    await delay(720);
     agents[2] = { ...agents[2], endMs: baseTime * 1.2, status: "completed" };
     setAgentTimings([...agents]);
     addLog("✅ LLM Agent 완료 (1.4s)", "success");
+    updateStageProgress("SAGEMAKER_PROCESSING", 92);
 
-    await delay(300);
+    await delay(320);
     addLog("📊 앙상블 결과 종합 중...", "info");
-    await delay(400);
+    await animateStage("SAGEMAKER_PROCESSING", [100], 260);
 
     setStage("COMPLETED");
+    updateStageProgress("COMPLETED", 100);
     addLog("✅ 분석 완료!", "success");
 
     const verdicts = ["FAKE", "REAL", "UNCERTAIN"] as const;
@@ -293,23 +326,42 @@ export function useAnalysis() {
     if (config.useMockApi || config.useMockAuth) {
       return mockAnalyze();
     }
-    setReport(null);
-    setLogs([]);
+
+    resetAnalysisState();
     setStage("UPLOADING");
+    updateStageProgress("UPLOADING", 12);
     addLog("📤 영상 업로드 시작...", "info");
+
     try {
       const basicResult = await runVideoAnalysis(selectedFile, (s: string) => {
-        setStage(s as AnalysisStage);
+        const nextStage = s as AnalysisStage;
+        setStage(nextStage);
+
+        if (nextStage === "UPLOADING") {
+          updateStageProgress("UPLOADING", 58);
+        }
+        if (nextStage === "MCP_CONNECTING") {
+          updateStageProgress("UPLOADING", 100);
+          updateStageProgress("MCP_CONNECTING", 45);
+        }
+        if (nextStage === "SAGEMAKER_PROCESSING") {
+          updateStageProgress("MCP_CONNECTING", 100);
+          updateStageProgress("SAGEMAKER_PROCESSING", 22);
+        }
+
         addLog(`⏳ 단계 전환: ${s}`, "info");
       });
+
+      updateStageProgress("SAGEMAKER_PROCESSING", 88);
       addLog("📊 통합 결과 요청 중...", "info");
       const unified = await getUnifiedResult(basicResult.taskId);
+      updateStageProgress("SAGEMAKER_PROCESSING", 100);
       setStage("COMPLETED");
+      updateStageProgress("COMPLETED", 100);
       addLog("✅ 분석 완료!", "success");
       setReport(unified);
       setCurrentMediaUrl(URL.createObjectURL(selectedFile));
-      
-      // 이력 저장
+
       const item: HistoryItem = {
         id: unified.taskId,
         fileName: selectedFile.name,
@@ -324,6 +376,7 @@ export function useAnalysis() {
       saveHistory(updated);
     } catch {
       setStage("ERROR");
+      setStageProgress(createStageProgress());
       addLog("❌ 분석 실패", "error");
     }
   };
@@ -429,10 +482,9 @@ export function useAnalysis() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setSelectedFile(null);
     setPreviewUrl(null);
-    setReport(null);
     setStage("IDLE");
     setFileError(null);
-    setLogs([]);
+    resetAnalysisState();
   };
 
   const handleSave = () => {
@@ -460,7 +512,6 @@ export function useAnalysis() {
 
   const handleShareLink = async () => {
     if (!report) return;
-    // In real app this would generate a unique URL via backend
     const shareUrl = `${window.location.origin}/analysis/result/${report.taskId}`;
     await navigator.clipboard.writeText(shareUrl);
     alert("공유 링크가 복사됐어요!");
@@ -469,6 +520,13 @@ export function useAnalysis() {
   const loadHistoryReport = (item: HistoryItem) => {
     setReport(item.report);
     setStage("COMPLETED");
+    setStageProgress({
+      ...createStageProgress(),
+      UPLOADING: 100,
+      MCP_CONNECTING: 100,
+      SAGEMAKER_PROCESSING: 100,
+      COMPLETED: 100,
+    });
     setSelectedFile(null);
     setPreviewUrl(null);
   };
@@ -483,7 +541,7 @@ export function useAnalysis() {
 
   return {
     stage, report, selectedFile, previewUrl, fileError, quota,
-    isDragging, setIsDragging, fileInputRef, logs, history, agentTimings,
+    isDragging, setIsDragging, fileInputRef, logs, history, agentTimings, stageProgress,
     handleInputChange, handleDrop, handleAnalyze, handleReset, handleRetry,
     handleSave, handleShare, handleShareLink, handleFileSelect,
     loadHistoryReport, clearHistory, handleAgentRerun, isRerunning, rerunningAgents, rerunHistory,

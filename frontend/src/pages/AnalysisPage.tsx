@@ -211,67 +211,73 @@ const AnalysisPage = () => {
           <AnimatePresence>
             {a.isAnalyzing && (
               <motion.div
-                className="mb-5 rounded-2xl p-5"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+                className="mb-5 rounded-3xl p-5"
+                style={{ background: "hsl(var(--card) / 0.78)", border: "1px solid hsl(var(--border) / 0.55)", backdropFilter: "blur(20px)", boxShadow: "0 18px 48px hsl(var(--background) / 0.42)" }}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
               >
-                <div className="flex flex-col gap-3">
-                  {STAGES.map((s, i) => (
-                    <motion.div
-                      key={s.key}
-                      className="flex items-center gap-3"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1, ...spring }}
-                    >
-                      <motion.div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0"
-                        style={{
-                          background: i <= a.currentStageIdx ? "linear-gradient(135deg, hsl(199,97%,37%), hsl(199,97%,55%))" : "rgba(255,255,255,0.05)",
-                          color: i <= a.currentStageIdx ? "white" : "rgba(255,255,255,0.2)",
-                          boxShadow: i === a.currentStageIdx ? "0 0 20px rgba(0,137,188,0.5)" : "none",
-                        }}
-                        animate={i === a.currentStageIdx ? { scale: [1, 1.2, 1] } : {}}
-                        transition={{ repeat: Infinity, duration: 1 }}
-                      >
-                        {i < a.currentStageIdx ? "✓" : s.icon}
-                      </motion.div>
-                      <div className="flex-1">
-                        <span className="text-sm font-jua" style={{ color: i <= a.currentStageIdx ? "hsl(var(--magic-blue))" : "rgba(255,255,255,0.3)" }}>{s.label}</span>
-                        <div className="w-full h-2 rounded-full mt-1 overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                          <motion.div
-                            className="h-full rounded-full"
-                            style={{
-                              background: i < a.currentStageIdx
-                                ? "linear-gradient(90deg, hsl(199,97%,47%), hsl(199,97%,60%))"
-                                : i === a.currentStageIdx
-                                  ? "linear-gradient(90deg, hsl(199,97%,47%), hsl(199,97%,60%))"
-                                  : "transparent",
-                              boxShadow: i === a.currentStageIdx ? "0 0 12px rgba(0,137,188,0.6)" : "none",
-                            }}
-                            initial={{ width: "0%" }}
-                            animate={{
-                              width: i < a.currentStageIdx
-                                ? "100%"
-                                : i === a.currentStageIdx
-                                  ? ["0%", "30%", "60%", "85%"]
-                                  : "0%",
-                            }}
-                            transition={
-                              i === a.currentStageIdx
-                                ? { duration: 2.5, ease: "easeOut", times: [0, 0.3, 0.6, 1] }
-                                : { duration: 0.4, ease: "easeOut" }
-                            }
-                            key={`${s.key}-${a.currentStageIdx}`}
-                          />
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
+                <div className="flex flex-col gap-3.5">
+                  {STAGES.map((s, i) => {
+                    const progress = a.stageProgress[s.key] ?? 0;
+                    const isDone = progress >= 100;
+                    const isActive = a.stage === s.key;
+                    const isVisible = progress > 0 || isActive || s.key === "COMPLETED";
 
+                    return (
+                      <motion.div
+                        key={s.key}
+                        className="flex items-center gap-3"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: isVisible ? 1 : 0.55, x: 0 }}
+                        transition={{ delay: i * 0.08, ...spring }}
+                      >
+                        <motion.div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0"
+                          style={{
+                            background: isDone || isActive ? "hsl(var(--primary))" : "hsl(var(--muted) / 0.55)",
+                            color: isDone || isActive ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground) / 0.5)",
+                            boxShadow: isActive ? "0 0 24px hsl(var(--primary) / 0.45)" : "none",
+                          }}
+                          animate={isActive ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+                          transition={{ repeat: isActive ? Infinity : 0, duration: 1.1 }}
+                        >
+                          {isDone ? "✓" : s.icon}
+                        </motion.div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-jua" style={{ color: isDone || isActive ? "hsl(var(--foreground))" : "hsl(var(--foreground) / 0.62)" }}>{s.label}</span>
+                            <span className="font-gothic text-xs" style={{ color: isActive ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground) / 0.52)" }}>
+                              {progress > 0 ? `${Math.round(progress)}%` : "대기"}
+                            </span>
+                          </div>
+                          <div className="w-full h-2.5 rounded-full mt-1.5 overflow-hidden" style={{ background: "hsl(var(--muted) / 0.72)", border: "1px solid hsl(var(--border) / 0.35)" }}>
+                            <motion.div
+                              className="h-full rounded-full relative overflow-hidden"
+                              style={{
+                                width: `${progress}%`,
+                                background: isDone || isActive ? "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)))" : "hsl(var(--muted-foreground) / 0.22)",
+                                boxShadow: isActive ? "0 0 14px hsl(var(--primary) / 0.45)" : "none",
+                              }}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${progress}%` }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                            >
+                              {isActive && progress > 6 && (
+                                <motion.div
+                                  className="absolute inset-y-0 w-16"
+                                  style={{ background: "linear-gradient(90deg, transparent, hsl(var(--primary-foreground) / 0.32), transparent)" }}
+                                  animate={{ x: ["-140%", "260%"] }}
+                                  transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                                />
+                              )}
+                            </motion.div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -443,14 +449,14 @@ const AnalysisPage = () => {
               <motion.section className="flex flex-col items-center px-4 pb-8" {...sectionSpring}>
                 <div className="w-full max-w-lg">
                   <motion.div
-                    className="rounded-2xl p-5"
-                    style={{ background: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.20)" }}
+                    className="rounded-3xl p-5"
+                    style={{ background: "hsl(var(--card) / 0.78)", border: "1px solid hsl(var(--border) / 0.55)" }}
                   >
-                    <p className="font-jua text-sm mb-3 text-foreground/90">🤖 AI 종합 의견</p>
+                    <p className="font-jua text-sm mb-3 text-foreground">🤖 AI 종합 의견</p>
                     <StreamingText
                       text={a.report.explanation}
                       speed={20}
-                      className="font-gothic text-sm text-foreground/60 leading-relaxed"
+                      className="font-gothic text-sm leading-relaxed"
                     />
                   </motion.div>
                 </div>
@@ -459,7 +465,7 @@ const AnalysisPage = () => {
 
             {/* Detail Tabs */}
             <motion.section className="flex flex-col items-center px-4 pb-12" {...sectionSpring}>
-              <div className="w-full max-w-lg">
+              <div className="w-full max-w-lg rounded-[2rem] p-4 sm:p-5" style={{ background: "hsl(var(--card) / 0.72)", border: "1px solid hsl(var(--border) / 0.45)", boxShadow: "0 22px 60px hsl(var(--background) / 0.38)" }}>
                 <div className="flex items-center gap-3 mb-6">
                   <motion.div
                     className="w-10 h-10 rounded-full flex items-center justify-center font-jua text-lg"
@@ -470,8 +476,8 @@ const AnalysisPage = () => {
                 </div>
                 <AgentDetailTabs report={a.report} />
                 <motion.div
-                  className="rounded-xl p-3 mt-4 text-xs text-foreground/25 font-gothic"
-                  style={{ background: "rgba(255,255,255,0.02)" }}
+                  className="rounded-2xl p-3 mt-4 text-xs font-gothic"
+                  style={{ background: "hsl(var(--muted) / 0.48)", color: "hsl(var(--foreground) / 0.72)", border: "1px solid hsl(var(--border) / 0.3)" }}
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
                   viewport={{ once: true }}
