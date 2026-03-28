@@ -17,6 +17,8 @@ import os
 import time
 from typing import Optional
 
+import cv2
+
 import httpx
 import numpy as np
 import ray
@@ -45,9 +47,26 @@ class VideoAgent:
         3. Softmax → Top-K 후보 + confidence 계산 (CPU)
     """
 
+    # 워터마크 키워드 → 클래스명 매핑
+    WATERMARK_MAP = {
+        "sora": "Sora",
+        "kling": "Kling",
+        "runway": "Gen3",
+        "gen-3": "Gen3",
+        "gen3": "Gen3",
+        "luma": "Luma",
+        "pika": "Pika",
+        "open-sora": "Open-Sora",
+        "opensora": "Opensora",
+        "hunyuan": "HunyuanVideo",
+        "wan": "Wan2.1",
+        "vidu": "vidu",
+    }
+
     def __init__(self, model_worker):
         self.model = model_worker  # SharedModelWorker의 handle
         self.class_names = self._load_class_names()
+        self._ocr_reader = None  # lazy init
         logger.info("VideoAgent initialized")
 
     async def predict(self, frames_ref) -> dict:
@@ -91,11 +110,23 @@ class VideoAgent:
         ]
 
         predicted_class = self.class_names[top_idx]
+        
+        # 디버그 로그
+        print(f"[VideoAgent] Top-3: {top_k}", flush=True)
+        print(f"[VideoAgent] Predicted: {predicted_class} ({probs[top_idx]:.4f})", flush=True)
+
+        # 워터마크 오버라이드: 영상에 명시된 브랜드가 있으면 모델 예측보다 우선
+        watermark_class = self._detect_watermark(frames_np)
+        if watermark_class:
+            predicted_class = watermark_class
+            print(f"[VideoAgent] Overridden by watermark → {predicted_class}", flush=True)
+
         is_fake = predicted_class.lower() not in ("real",)
         
         # 신뢰도가 낮으면 uncertain 처리
         if probs[top_idx] < 0.75:
             is_fake = False  # uncertain으로 처리
+            print(f"[VideoAgent] Low confidence, marking as uncertain", flush=True)
 
         # 프레임별 점수 (라인 차트용) — 각 프레임의 fake 확률
         frame_logits = result.get("frame_logits")  # (T, NUM_CLASSES) or None
@@ -121,6 +152,27 @@ class VideoAgent:
             "top_k": top_k,
             "frame_scores": frame_scores,
         }
+
+    def _detect_watermark(self, frames_np: np.ndarray) -> Optional[str]:
+        """첫 3프레임에서 OCR로 워터마크 감지 → 클래스명 반환, 없으면 None."""
+        try:
+            if self._ocr_reader is None:
+                import easyocr
+                self._ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+
+            # (T, C, H, W) → (H, W, C) BGR, 첫 3프레임만 검사
+            for frame in frames_np[:3]:
+                img = (np.transpose(frame, (1, 2, 0)) * 255).astype(np.uint8)
+                img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                results = self._ocr_reader.readtext(img_bgr, detail=0)
+                text = " ".join(results).lower()
+                for keyword, class_name in self.WATERMARK_MAP.items():
+                    if keyword in text:
+                        print(f"[VideoAgent] Watermark detected: '{keyword}' → {class_name}", flush=True)
+                        return class_name
+        except Exception as e:
+            print(f"[VideoAgent] OCR failed: {e}", flush=True)
+        return None
 
     def _normalize(self, frames: np.ndarray) -> np.ndarray:
         """학습 시 /255.0만 적용했으므로 추가 정규화 없음."""
@@ -468,7 +520,8 @@ class FusionAgent:
         fake_signals = []
         
         video_data = breakdown.get("video", {})
-        if video_data.get("is_fake") and video_data.get("confidence", 0) >= 0.85:
+        # Video 에이전트 임계값 낮춤 (85% -> 70%)
+        if video_data.get("is_fake") and video_data.get("confidence", 0) >= 0.70:
             fake_signals.append("video")
         
         audio_data = breakdown.get("audio", {})
@@ -479,14 +532,25 @@ class FusionAgent:
         if sync_data.get("is_synced") is False and sync_data.get("confidence", 0) >= 0.75:
             fake_signals.append("sync")
         
-        # 최종 판정: 가중 평균 confidence가 70% 이상이고, 1개 이상 에이전트가 fake 신호
-        is_fake = final_confidence >= 0.70 and len(fake_signals) >= 1
+        # 최종 판정
+        # 1. 40~60% 구간은 UNCERTAIN
+        if 0.40 <= final_confidence <= 0.60:
+            verdict = "uncertain"
+        # 2. 60% 이상 + fake 신호 있으면 FAKE
+        elif final_confidence >= 0.60 and len(fake_signals) >= 1:
+            verdict = "fake"
+        # 3. 40% 미만이면 REAL
+        elif final_confidence < 0.40:
+            verdict = "real"
+        # 4. 60% 이상인데 fake 신호 없으면 UNCERTAIN
+        else:
+            verdict = "uncertain"
 
         # ── 설명 생성 ──
-        explanation = await self._generate_explanation(breakdown, verdict="fake" if is_fake else "real")
+        explanation = await self._generate_explanation(breakdown, verdict=verdict)
 
         return {
-            "verdict": "fake" if is_fake else "real",
+            "verdict": verdict,
             "confidence": round(final_confidence, 4),
             "breakdown": breakdown,
             "explanation": explanation,
