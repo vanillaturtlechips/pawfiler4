@@ -400,7 +400,9 @@ export function useAnalysis() {
           resolution: data.agents.metadata.resolution ?? "unknown",
           fps: parseFloat(String(data.agents.metadata.fps ?? "0").split("/")[0]),
           bitrate: `${data.agents.metadata.bitrate ?? 0} kbps`,
-          encodingHistory: [data.agents.metadata.format ?? ""],
+          encodingHistory: [data.agents.metadata.format ?? ""].filter(Boolean),
+          exifData: {},
+          compressionArtifacts: 0,
           tamperingIndicators: [],
         };
       }
