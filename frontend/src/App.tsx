@@ -32,6 +32,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "./pages/NotFound";
+import DesignPreviewPage from "@/pages/DesignPreviewPage";
 
 
 const queryClient = new QueryClient();
