@@ -201,7 +201,6 @@
   .animate-star-shimmer {
     animation: star-shimmer 3s ease-in-out infinite;
   }
-}
 
   .btn-3d-blue {
     background: hsl(var(--magic-blue));
