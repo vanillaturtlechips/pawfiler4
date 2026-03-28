@@ -168,18 +168,29 @@ const AnalysisPage = () => {
             className="rounded-3xl p-10 text-center cursor-pointer relative overflow-hidden"
             style={{
               background: a.isDragging
-                ? "linear-gradient(145deg, hsl(var(--star-accent) / 0.08), hsl(var(--star-card)))"
-                : "linear-gradient(145deg, hsl(var(--star-card)), hsl(var(--star-deep)))",
-              border: a.isDragging ? "2px dashed hsl(var(--star-accent))" : "2px dashed hsl(var(--star-border) / 0.4)",
-              boxShadow: "0 20px 60px hsl(var(--star-deep) / 0.5)",
+                ? "linear-gradient(145deg, hsl(var(--star-accent) / 0.12), hsl(var(--star-card)))"
+                : "linear-gradient(145deg, hsl(var(--star-card) / 0.95), hsl(var(--star-deep) / 0.9))",
+              border: a.isDragging ? "2px dashed hsl(var(--star-accent))" : "2px dashed hsl(var(--star-border) / 0.5)",
+              boxShadow: a.isDragging
+                ? "0 0 40px hsl(var(--star-accent) / 0.2), 0 20px 60px hsl(var(--star-deep) / 0.5)"
+                : "0 20px 60px hsl(var(--star-deep) / 0.4), inset 0 1px 0 hsl(var(--star-border) / 0.1)",
             }}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
+            whileHover={{ scale: 1.02, boxShadow: "0 0 30px hsl(var(--star-accent) / 0.15), 0 20px 60px hsl(var(--star-deep) / 0.5)" }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => !a.isAnalyzing && a.fileInputRef.current?.click()}
             onDrop={a.handleDrop}
             onDragOver={(e) => { e.preventDefault(); a.setIsDragging(true); }}
             onDragLeave={() => a.setIsDragging(false)}
           >
+            {/* Subtle shimmer */}
+            {!a.previewUrl && (
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: "linear-gradient(105deg, transparent 30%, hsl(var(--star-accent) / 0.04) 48%, hsl(var(--star-accent) / 0.08) 50%, hsl(var(--star-accent) / 0.04) 52%, transparent 70%)" }}
+                animate={{ x: ["-100%", "200%"] }}
+                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", repeatDelay: 2 }}
+              />
+            )}
             {a.previewUrl ? (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={spring}>
                 <video src={a.previewUrl} className="w-full max-h-60 rounded-2xl object-contain mx-auto" controls onClick={(e) => e.stopPropagation()} />
@@ -189,13 +200,28 @@ const AnalysisPage = () => {
               </motion.div>
             ) : (
               <>
-                <motion.div className="text-7xl mb-5" animate={{ y: [-5, 5, -5] }} transition={{ repeat: Infinity, duration: 3 }}>
+                <motion.div
+                  className="text-7xl mb-5 relative"
+                  animate={{ y: [-5, 5, -5] }}
+                  transition={{ repeat: Infinity, duration: 3 }}
+                >
                   ☁️
+                  <motion.div
+                    className="absolute -inset-4 rounded-full blur-xl"
+                    style={{ background: "radial-gradient(circle, hsl(var(--star-aurora-a) / 0.15), transparent 70%)" }}
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 2.5 }}
+                  />
                 </motion.div>
                 <p className="font-jua text-xl" style={{ color: "hsl(var(--star-text))" }}>영상을 여기에 드래그하세요</p>
+                <p className="font-gothic text-xs mt-2" style={{ color: "hsl(var(--star-text-dim))" }}>또는 클릭해서 파일 선택</p>
                 <div className="flex items-center justify-center gap-3 mt-5 flex-wrap">
-                  {["📏 최대 100MB", "⏱ 3분 이하", "🎞 mp4·mov·avi"].map(t => (
-                    <span key={t} className="text-xs font-gothic px-3 py-1.5 rounded-full" style={{ background: "hsl(var(--star-surface))", color: "hsl(var(--star-text-dim))", border: "1px solid hsl(var(--star-border) / 0.2)" }}>{t}</span>
+                  {[
+                    { text: "📏 최대 100MB", color: "175 70% 50%" },
+                    { text: "⏱ 3분 이하", color: "265 65% 60%" },
+                    { text: "🎞 mp4·mov·avi", color: "45 85% 55%" },
+                  ].map(t => (
+                    <span key={t.text} className="text-xs font-gothic px-3 py-1.5 rounded-full" style={{ background: `hsl(${t.color} / 0.12)`, color: `hsl(${t.color})`, border: `1px solid hsl(${t.color} / 0.2)` }}>{t.text}</span>
                   ))}
                 </div>
               </>
