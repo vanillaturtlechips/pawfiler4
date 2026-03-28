@@ -75,6 +75,7 @@ const AppContent = () => {
                 <Route path="/ranking" element={<AuthGuard><RankingPage /></AuthGuard>} />
                 <Route path="/shop" element={<AuthGuard><ShopPage /></AuthGuard>} />
                 <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+                <Route path="/design-preview" element={<DesignPreviewPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AnimatePresence>
