@@ -1,11 +1,6 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
-/**
- * Animated starfield canvas + layered aurora gradients.
- * Renders twinkling stars, shooting stars, and soft nebula blobs
- * for an "analyzing under the Milky Way" vibe.
- */
 export default function StarfieldBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -25,26 +20,25 @@ export default function StarfieldBackground() {
     resize();
     window.addEventListener("resize", resize);
 
-    // Stars
     interface Star { x: number; y: number; r: number; base: number; speed: number; phase: number; color: string }
     const starColors = [
-      "rgba(200,220,255,", // blue-white
-      "rgba(255,230,200,", // warm
-      "rgba(180,200,255,", // cool blue
-      "rgba(255,200,220,", // pink
-      "rgba(200,255,230,", // mint
+      "rgba(220,235,255,",
+      "rgba(255,240,210,",
+      "rgba(200,220,255,",
+      "rgba(255,210,230,",
+      "rgba(210,255,240,",
+      "rgba(255,255,240,",
     ];
-    const stars: Star[] = Array.from({ length: 280 }, () => ({
+    const stars: Star[] = Array.from({ length: 350 }, () => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
-      r: Math.random() * 1.8 + 0.3,
-      base: Math.random() * 0.6 + 0.3,
+      r: Math.random() * 2.2 + 0.4,
+      base: Math.random() * 0.5 + 0.45,
       speed: Math.random() * 2 + 0.5,
       phase: Math.random() * Math.PI * 2,
       color: starColors[Math.floor(Math.random() * starColors.length)],
     }));
 
-    // Shooting stars
     interface Shooter { x: number; y: number; vx: number; vy: number; life: number; maxLife: number }
     let shooters: Shooter[] = [];
     let shootTimer = 0;
@@ -55,37 +49,34 @@ export default function StarfieldBackground() {
     const draw = (t: number) => {
       ctx.clearRect(0, 0, w(), h());
 
-      // Draw stars
       for (const s of stars) {
-        const twinkle = Math.sin(t * 0.001 * s.speed + s.phase) * 0.4 + s.base;
-        const alpha = Math.max(0.05, Math.min(1, twinkle));
+        const twinkle = Math.sin(t * 0.001 * s.speed + s.phase) * 0.35 + s.base;
+        const alpha = Math.max(0.15, Math.min(1, twinkle));
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fillStyle = s.color + alpha + ")";
         ctx.fill();
 
-        // Glow for larger stars
-        if (s.r > 1.2) {
+        if (s.r > 1.0) {
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
-          ctx.fillStyle = s.color + (alpha * 0.15) + ")";
+          ctx.arc(s.x, s.y, s.r * 4, 0, Math.PI * 2);
+          ctx.fillStyle = s.color + (alpha * 0.12) + ")";
           ctx.fill();
         }
       }
 
-      // Shooting stars
       shootTimer++;
-      if (shootTimer > 180 + Math.random() * 200) {
+      if (shootTimer > 140 + Math.random() * 160) {
         shootTimer = 0;
-        const angle = Math.PI * 0.2 + Math.random() * 0.3;
-        const speed = 4 + Math.random() * 4;
+        const angle = Math.PI * 0.15 + Math.random() * 0.35;
+        const speed = 5 + Math.random() * 4;
         shooters.push({
           x: Math.random() * w() * 0.8,
-          y: Math.random() * h() * 0.3,
+          y: Math.random() * h() * 0.25,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           life: 0,
-          maxLife: 40 + Math.random() * 30,
+          maxLife: 35 + Math.random() * 25,
         });
       }
 
@@ -96,21 +87,19 @@ export default function StarfieldBackground() {
         s.life++;
         const progress = s.life / s.maxLife;
         const fade = progress < 0.3 ? progress / 0.3 : 1 - (progress - 0.3) / 0.7;
-        const len = 25;
 
         ctx.beginPath();
         ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x - s.vx * len * 0.15, s.y - s.vy * len * 0.15);
-        ctx.strokeStyle = `rgba(200, 230, 255, ${fade * 0.9})`;
-        ctx.lineWidth = 2;
+        ctx.lineTo(s.x - s.vx * 4, s.y - s.vy * 4);
+        ctx.strokeStyle = `rgba(220, 240, 255, ${fade * 0.95})`;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        // Trail glow
         ctx.beginPath();
         ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x - s.vx * len * 0.3, s.y - s.vy * len * 0.3);
-        ctx.strokeStyle = `rgba(150, 200, 255, ${fade * 0.3})`;
-        ctx.lineWidth = 5;
+        ctx.lineTo(s.x - s.vx * 8, s.y - s.vy * 8);
+        ctx.strokeStyle = `rgba(180, 210, 255, ${fade * 0.35})`;
+        ctx.lineWidth = 6;
         ctx.stroke();
       }
 
@@ -126,81 +115,80 @@ export default function StarfieldBackground() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/* Deep space gradient base – brighter than before */}
+      {/* Brighter deep space gradient */}
       <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(
             180deg,
-            hsl(230 45% 8%) 0%,
-            hsl(225 40% 12%) 25%,
-            hsl(240 35% 15%) 50%,
-            hsl(260 30% 13%) 75%,
-            hsl(220 40% 10%) 100%
+            hsl(228 40% 12%) 0%,
+            hsl(230 38% 16%) 25%,
+            hsl(245 32% 20%) 50%,
+            hsl(260 28% 18%) 75%,
+            hsl(225 35% 14%) 100%
           )`,
         }}
       />
 
-      {/* Milky Way band */}
+      {/* Milky Way band – more visible */}
       <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(
             135deg,
-            transparent 20%,
-            hsla(220, 60%, 70%, 0.04) 35%,
-            hsla(240, 50%, 80%, 0.07) 45%,
-            hsla(260, 40%, 70%, 0.05) 55%,
-            hsla(280, 50%, 60%, 0.04) 65%,
+            transparent 15%,
+            hsla(220, 60%, 75%, 0.06) 30%,
+            hsla(240, 50%, 85%, 0.1) 45%,
+            hsla(260, 45%, 75%, 0.08) 55%,
+            hsla(280, 50%, 65%, 0.06) 65%,
             transparent 80%
           )`,
         }}
       />
 
-      {/* Canvas for animated stars */}
       <canvas ref={canvasRef} className="absolute inset-0" />
 
-      {/* Aurora blob 1 – teal/cyan */}
+      {/* Aurora blob 1 – brighter teal */}
       <motion.div
-        className="absolute -top-[10%] left-[10%] w-[60vw] h-[40vh] rounded-full"
+        className="absolute -top-[5%] left-[5%] w-[65vw] h-[45vh] rounded-full"
         style={{
-          background: "radial-gradient(ellipse, hsla(180, 70%, 55%, 0.12), hsla(200, 80%, 50%, 0.06), transparent 70%)",
+          background: "radial-gradient(ellipse, hsla(180, 75%, 60%, 0.18), hsla(200, 80%, 55%, 0.08), transparent 70%)",
           filter: "blur(80px)",
         }}
         animate={{ x: [0, 60, -20, 0], y: [0, 30, -10, 0], scale: [1, 1.15, 0.95, 1] }}
         transition={{ repeat: Infinity, duration: 18, ease: "easeInOut" }}
       />
 
-      {/* Aurora blob 2 – purple/magenta */}
+      {/* Aurora blob 2 – brighter purple */}
       <motion.div
-        className="absolute top-[30%] -right-[5%] w-[50vw] h-[45vh] rounded-full"
+        className="absolute top-[25%] -right-[5%] w-[55vw] h-[50vh] rounded-full"
         style={{
-          background: "radial-gradient(ellipse, hsla(280, 60%, 55%, 0.1), hsla(300, 50%, 45%, 0.05), transparent 70%)",
+          background: "radial-gradient(ellipse, hsla(275, 65%, 60%, 0.15), hsla(300, 55%, 50%, 0.07), transparent 70%)",
           filter: "blur(90px)",
         }}
         animate={{ x: [0, -40, 20, 0], y: [0, -20, 30, 0], scale: [1, 1.1, 0.9, 1] }}
         transition={{ repeat: Infinity, duration: 14, ease: "easeInOut", delay: 3 }}
       />
 
-      {/* Aurora blob 3 – warm pink at bottom */}
+      {/* Aurora blob 3 – warm rose at bottom */}
       <motion.div
-        className="absolute -bottom-[15%] left-[20%] w-[55vw] h-[35vh] rounded-full"
+        className="absolute -bottom-[10%] left-[15%] w-[60vw] h-[40vh] rounded-full"
         style={{
-          background: "radial-gradient(ellipse, hsla(340, 60%, 55%, 0.08), hsla(20, 70%, 50%, 0.04), transparent 70%)",
+          background: "radial-gradient(ellipse, hsla(335, 65%, 60%, 0.12), hsla(20, 75%, 55%, 0.06), transparent 70%)",
           filter: "blur(100px)",
         }}
         animate={{ x: [0, 30, -30, 0], y: [0, -15, 15, 0], scale: [1, 1.08, 1, 1] }}
         transition={{ repeat: Infinity, duration: 20, ease: "easeInOut", delay: 6 }}
       />
 
-      {/* Subtle nebula center glow */}
+      {/* Center nebula – brighter */}
       <motion.div
-        className="absolute top-[15%] left-[35%] w-[30vw] h-[30vh] rounded-full"
+        className="absolute top-[10%] left-[30%] w-[40vw] h-[35vh] rounded-full"
         style={{
-          background: "radial-gradient(ellipse, hsla(210, 80%, 70%, 0.06), transparent 70%)",
+          background: "radial-gradient(ellipse, hsla(210, 80%, 75%, 0.1), transparent 70%)",
           filter: "blur(60px)",
         }}
-        animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.1, 1] }}
+        animate={{ opacity: [0.6, 1, 0.6], scale: [1, 1.12, 1] }}
         transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }}
       />
     </div>
