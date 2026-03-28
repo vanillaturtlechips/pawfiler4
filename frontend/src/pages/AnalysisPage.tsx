@@ -65,7 +65,7 @@ const AnalysisPage = () => {
 
   return (
     <div ref={containerRef} className="w-full overflow-y-auto relative" style={{ minHeight: "calc(100vh - 5rem)" }}>
-      <AuroraBackground />
+      <StarfieldBackground />
 
       {/* Share toast */}
       <AnimatePresence>
