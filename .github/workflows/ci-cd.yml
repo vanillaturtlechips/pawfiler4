@@ -12,46 +12,99 @@ permissions:
 
 jobs:
   # ── 1. 변경 감지 ──────────────────────────────────────────────────
-  detect-changes:
+  detect:
     runs-on: ubuntu-latest
     outputs:
-      services: ${{ steps.filter.outputs.changes }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      services:      ${{ steps.filter.outputs.changes }}
+      frontend:      ${{ steps.filter.outputs.frontend }}
       admin_frontend: ${{ steps.filter.outputs.admin_frontend }}
-      report: ${{ steps.filter.outputs.report }}
-      has_backend: ${{ steps.check.outputs.has_backend }}
+      report:        ${{ steps.filter.outputs.report }}
+      aiops:         ${{ steps.filter.outputs.aiops }}
+      has_backend:   ${{ steps.check.outputs.has_backend }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Path Filter
+      - uses: dorny/paths-filter@v3
         id: filter
-        uses: dorny/paths-filter@v3
         with:
           filters: |
-            quiz:              'backend/services/quiz/**'
-            community:         'backend/services/community/**'
-            admin:             'backend/services/admin/**'
-            video-analysis:    'backend/services/video-analysis/**'
-            ai-orchestration:  'backend/services/ai-orchestration/**'
-            user:              'backend/services/user/**'
-            auth:              'backend/services/auth/**'
-            frontend:          'frontend/**'
-            admin_frontend:    'admin-frontend/**'
-            report:            'backend/services/report/**'
-            chat-bot:          'backend/services/chat-bot/**'
+            quiz:             'backend/services/quiz/**'
+            community:        'backend/services/community/**'
+            admin:            'backend/services/admin/**'
+            video-analysis:   'backend/services/video-analysis/**'
+            ai-orchestration: 'backend/services/ai-orchestration/**'
+            user:             'backend/services/user/**'
+            auth:             'backend/services/auth/**'
+            chat-bot:         'backend/services/chat-bot/**'
+            frontend:         'frontend/**'
+            admin_frontend:   'admin-frontend/**'
+            report:           'backend/services/report/**'
+            aiops:            'aiops/**'
 
-      - name: Check backend changes
-        id: check
+      - id: check
         run: |
-          SERVICES='${{ steps.filter.outputs.changes }}'
-          HAS=$(echo "$SERVICES" | jq '[.[] | select(. != "frontend" and . != "admin_frontend" and . != "report")] | length > 0')
+          SKIP="frontend admin_frontend report aiops"
+          HAS=$(echo '${{ steps.filter.outputs.changes }}' | \
+            jq --arg skip "$SKIP" '[.[] | select(. as $s | $skip | split(" ") | index($s) | not)] | length > 0')
           echo "has_backend=$HAS" >> $GITHUB_OUTPUT
 
-  # ── 2. 백엔드 빌드 & ECR 푸시 (순차) ─────────────────────────────
-  build-backend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.has_backend == 'true' && github.event_name == 'push'
+  # ── 2-A. PR: 빌드 검증만 (푸시 없음) ─────────────────────────────
+  build-check:
+    needs: detect
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Login to ECR (pull cache only)
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build changed backend services
+        if: needs.detect.outputs.has_backend == 'true'
+        run: |
+          SKIP="frontend admin_frontend report aiops"
+          SERVICES=$(echo '${{ needs.detect.outputs.services }}' | \
+            jq -r --arg skip "$SKIP" '.[] | select(. as $s | $skip | split(" ") | index($s) | not)')
+          for S in $SERVICES; do
+            echo "▶ build check: $S"
+            docker build ./backend/services/$S
+          done
+
+      - name: Build frontend
+        if: needs.detect.outputs.frontend == 'true'
+        working-directory: frontend
+        env:
+          VITE_USE_MOCK_AUTH: "false"
+          VITE_USE_MOCK_API: "false"
+        run: npm ci && npm run build
+
+      - name: Build admin-frontend
+        if: needs.detect.outputs.admin_frontend == 'true'
+        working-directory: admin-frontend
+        run: npm ci && npm run build
+
+      - name: Build aiops
+        if: needs.detect.outputs.aiops == 'true'
+        run: docker build ./aiops
+
+      - name: Build report
+        if: needs.detect.outputs.report == 'true'
+        run: docker build ./backend/services/report
+
+  # ── 2-B. PUSH: 백엔드 빌드 & ECR 푸시 ───────────────────────────
+  build-push:
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.has_backend == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      pushed_services: ${{ steps.build.outputs.pushed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,30 +118,35 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push changed services (sequential)
+      - name: Build & Push (sequential)
+        id: build
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           SHA: ${{ github.sha }}
         run: |
-          SERVICES='${{ needs.detect-changes.outputs.services }}'
-          BACKEND=$(echo "$SERVICES" | jq -r '.[] | select(. != "frontend" and . != "admin_frontend" and . != "report")')
-
-          for SERVICE in $BACKEND; do
-            echo "▶ Building $SERVICE"
+          SKIP="frontend admin_frontend report aiops"
+          SERVICES=$(echo '${{ needs.detect.outputs.services }}' | \
+            jq -r --arg skip "$SKIP" '.[] | select(. as $s | $skip | split(" ") | index($s) | not)')
+          PUSHED=""
+          for S in $SERVICES; do
+            echo "▶ $S"
             docker build \
-              -t "$REGISTRY/pawfiler/${SERVICE}-service:$SHA" \
-              -t "$REGISTRY/pawfiler/${SERVICE}-service:latest" \
-              ./backend/services/$SERVICE
-            docker push "$REGISTRY/pawfiler/${SERVICE}-service:$SHA"
-            docker push "$REGISTRY/pawfiler/${SERVICE}-service:latest"
-            echo "✔ $SERVICE pushed"
+              -t "$REGISTRY/pawfiler/${S}-service:$SHA" \
+              -t "$REGISTRY/pawfiler/${S}-service:latest" \
+              ./backend/services/$S
+            docker push "$REGISTRY/pawfiler/${S}-service:$SHA"
+            docker push "$REGISTRY/pawfiler/${S}-service:latest"
+            PUSHED="$PUSHED $S"
           done
+          echo "pushed=$PUSHED" >> $GITHUB_OUTPUT
 
-  # ── 3. ArgoCD 이미지 태그 업데이트 ───────────────────────────────
-  update-argocd:
-    needs: [detect-changes, build-backend]
-    if: needs.detect-changes.outputs.has_backend == 'true' && github.event_name == 'push'
+  # ── 3. ArgoCD 태그 업데이트 ───────────────────────────────────────
+  deploy-backend:
+    needs: [detect, build-push]
+    if: github.event_name == 'push' && needs.detect.outputs.has_backend == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      deployed_services: ${{ needs.build-push.outputs.pushed_services }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,28 +158,70 @@ jobs:
           REGISTRY: ${{ secrets.ECR_REGISTRY }}
           SHA: ${{ github.sha }}
         run: |
-          SERVICES='${{ needs.detect-changes.outputs.services }}'
-          BACKEND=$(echo "$SERVICES" | jq -r '.[] | select(. != "frontend" and . != "admin_frontend" and . != "report")')
-
-          for SERVICE in $BACKEND; do
-            FILE="apps/services/${SERVICE}/deployment.yaml"
+          for S in ${{ needs.build-push.outputs.pushed_services }}; do
+            FILE="apps/services/${S}/deployment.yaml"
             [ -f "$FILE" ] && sed -i \
-              "s|image: .*/pawfiler/${SERVICE}-service:.*|image: $REGISTRY/pawfiler/${SERVICE}-service:$SHA|g" \
+              "s|image: .*/pawfiler/${S}-service:.*|image: $REGISTRY/pawfiler/${S}-service:$SHA|g" \
               "$FILE"
           done
-
-      - name: Commit & Push
-        run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git diff --staged --quiet || git commit -m "chore: update image tags to ${{ github.sha }}"
+          git diff --staged --quiet || git commit -m "chore: update image tags to $SHA"
           git push
 
-  # ── 4. 프론트엔드 배포 ────────────────────────────────────────────
+  # ── 4. 헬스체크 & 롤백 ───────────────────────────────────────────
+  healthcheck:
+    needs: [detect, deploy-backend]
+    if: github.event_name == 'push' && needs.detect.outputs.has_backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Wait for ArgoCD sync
+        run: sleep 60
+
+      - name: Health check
+        id: health
+        run: |
+          FAILED=""
+          for S in ${{ needs.deploy-backend.outputs.deployed_services }}; do
+            STATUS=$(aws ecs describe-services \
+              --cluster pawfiler \
+              --services ${S}-service \
+              --query 'services[0].deployments[0].rolloutState' \
+              --output text 2>/dev/null || echo "UNKNOWN")
+            echo "$S: $STATUS"
+            [ "$STATUS" != "COMPLETED" ] && FAILED="$FAILED $S"
+          done
+          [ -n "$FAILED" ] && echo "failed=$FAILED" >> $GITHUB_OUTPUT && exit 1 || true
+
+      - name: Rollback on failure
+        if: failure()
+        uses: actions/checkout@v4
+        with:
+          repository: vanillaturtlechips/pawfiler4-argocd
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+
+      - name: Revert image tags to previous
+        if: failure()
+        env:
+          REGISTRY: ${{ secrets.ECR_REGISTRY }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git revert HEAD --no-edit
+          git push
+          echo "⚠️ Rolled back to previous image tags"
+
+  # ── 5. 프론트엔드 배포 ────────────────────────────────────────────
   deploy-frontend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true' && github.event_name == 'push'
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -132,14 +232,13 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-northeast-2
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Build
+      - name: Build & Deploy
         working-directory: frontend
         env:
           VITE_MEDIA_CLOUDFRONT_DOMAIN: ${{ secrets.VITE_MEDIA_CLOUDFRONT_DOMAIN }}
@@ -149,15 +248,14 @@ jobs:
           VITE_AI_AGENT_BASE_URL: ${{ secrets.VITE_AI_AGENT_BASE_URL }}
         run: npm ci && npm run build
 
-      - name: Deploy to S3 & Invalidate CloudFront
-        run: |
+      - run: |
           aws s3 sync frontend/dist s3://pawfiler-frontend --delete
           aws cloudfront create-invalidation --distribution-id E2ZI7JFQGIUFYC --paths "/*"
 
-  # ── 5. Report Lambda 배포 ─────────────────────────────────────────
+  # ── 6. Report Lambda 배포 ─────────────────────────────────────────
   deploy-report:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.report == 'true' && github.event_name == 'push'
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.report == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -177,10 +275,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           SHA: ${{ github.sha }}
         run: |
-          docker build \
-            -t "$REGISTRY/pawfiler/report-lambda:$SHA" \
-            -t "$REGISTRY/pawfiler/report-lambda:latest" \
-            ./backend/services/report
+          docker build -t "$REGISTRY/pawfiler/report-lambda:$SHA" -t "$REGISTRY/pawfiler/report-lambda:latest" ./backend/services/report
           docker push "$REGISTRY/pawfiler/report-lambda:$SHA"
           docker push "$REGISTRY/pawfiler/report-lambda:latest"
           aws lambda update-function-code \
@@ -188,10 +283,10 @@ jobs:
             --image-uri "$REGISTRY/pawfiler/report-lambda:$SHA" \
             --region ap-northeast-2
 
-  # ── 6. 어드민 프론트엔드 배포 ─────────────────────────────────────
+  # ── 7. 어드민 프론트엔드 배포 ─────────────────────────────────────
   deploy-admin-frontend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.admin_frontend == 'true' && github.event_name == 'push'
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.admin_frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -202,8 +297,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-northeast-2
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -216,5 +310,51 @@ jobs:
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
         run: npm ci && npm run build
 
-      - name: Deploy to S3
-        run: aws s3 sync admin-frontend/dist s3://pawfiler-admin-frontend --delete
+      - run: aws s3 sync admin-frontend/dist s3://pawfiler-admin-frontend --delete
+
+  # ── 8. AIOps 빌드 & 배포 ──────────────────────────────────────────
+  deploy-aiops:
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.aiops == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker build -t "$REGISTRY/pawfiler/aiops-service:$SHA" -t "$REGISTRY/pawfiler/aiops-service:latest" ./aiops
+          docker push "$REGISTRY/pawfiler/aiops-service:$SHA"
+          docker push "$REGISTRY/pawfiler/aiops-service:latest"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: vanillaturtlechips/pawfiler4-argocd
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          path: argocd-repo
+
+      - name: Update ArgoCD & Push
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SHA: ${{ github.sha }}
+        run: |
+          sed -i "s|image: .*/pawfiler/aiops-service:.*|image: $REGISTRY/pawfiler/aiops-service:$SHA|g" \
+            argocd-repo/infrastructure/observability/aiops/deployment.yaml
+          cd argocd-repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git diff --staged --quiet || git commit -m "chore: update aiops-service to $SHA"
+          git push
