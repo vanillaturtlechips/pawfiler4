@@ -28,16 +28,17 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            quiz:            'backend/services/quiz/**'
-            community:       'backend/services/community/**'
-            admin:           'backend/services/admin/**'
-            video-analysis:  'backend/services/video-analysis/**'
-            user:            'backend/services/user/**'
-            auth:            'backend/services/auth/**'
-            frontend:        'frontend/**'
-            admin_frontend:  'admin-frontend/**'
-            report:          'backend/services/report/**'
-            chat-bot:        'backend/services/chat-bot/**'
+            quiz:              'backend/services/quiz/**'
+            community:         'backend/services/community/**'
+            admin:             'backend/services/admin/**'
+            video-analysis:    'backend/services/video-analysis/**'
+            ai-orchestration:  'backend/services/ai-orchestration/**'
+            user:              'backend/services/user/**'
+            auth:              'backend/services/auth/**'
+            frontend:          'frontend/**'
+            admin_frontend:    'admin-frontend/**'
+            report:            'backend/services/report/**'
+            chat-bot:          'backend/services/chat-bot/**'
 
       - name: Check backend changes
         id: check
