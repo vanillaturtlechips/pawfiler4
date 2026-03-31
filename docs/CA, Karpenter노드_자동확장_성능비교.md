@@ -44,15 +44,24 @@ Karpenter는 Pending 파드가 생기는 즉시 이벤트로 감지한다.
 
 CA는 기본값이 매우 보수적이라 scale-down-unneeded-time(기본 10분) +
 scale-down-delay-after-add(기본 10분)를 기다린다.
-설정을 줄일 수는 있지만 bin-packing(파드 재배치)은 지원하지 않는다.
+설정을 최소값으로 줄여도 bin-packing(파드 재배치)이 없어서
+파드가 여러 노드에 분산된 경우 노드를 비울 수 없다.
 
-| 항목 | CA | Karpenter |
-|------|-----|-----------|
-| 최소 대기 시간 (기본값) | `scale-down-unneeded-time` 10분 | `consolidateAfter` 30초 (설정값) |
-| 스케일업 후 추가 대기 | `scale-down-delay-after-add` 10분 | 없음 |
-| 파드 재배치 후 노드 비우기 | 불가 | 가능 (`WhenEmptyOrUnderutilized`) |
-| 어느 노드를 끌지 선택 | AWS가 ASG 내에서 결정 | Karpenter가 특정 NodeClaim 지정 |
-| **빈 노드 → 인스턴스 종료 (기본값)** | **20분+** | **~90초** |
+**CA 최적 설정 (실용적 최솟값)**:
+```
+--scale-down-unneeded-time=2m
+--scale-down-delay-after-add=3m   # 노드 Ready 보장을 위한 최소 대기
+```
+`delay-after-add=0s`로 줄이면 노드 추가 직후 삭제 시도로 레이스 컨디션 발생 가능.
+
+| 항목 | CA 기본값 | CA 최적 설정 | Karpenter |
+|------|-----------|-------------|-----------|
+| `scale-down-unneeded-time` | 10분 | 2분 | — |
+| `scale-down-delay-after-add` | 10분 | 3분 | 없음 |
+| 파드 재배치 후 노드 비우기 | 불가 | 불가 | 가능 (`WhenEmptyOrUnderutilized`) |
+| 어느 노드를 끌지 선택 | AWS ASG 내 자동 | AWS ASG 내 자동 | Karpenter가 특정 NodeClaim 지정 |
+| **빈 노드 → 인스턴스 종료** | **20분+** | **~5~6분** | **~90초** |
+| **CA 기본값 대비 속도** | 기준 | 3배 빠름 | **6배+ 빠름** |
 
 ### Karpenter 로그 (UTC 기준)
 
@@ -94,6 +103,7 @@ Spot (동적, Karpenter): t3/t3a/m5/m5a medium·large 중 자동 선택
 ## 5. 결론
 
 - **노드 추가**: Karpenter가 **17% 빠름** (47s vs 57s) — scan interval 제거가 핵심
-- **노드 반납**: Karpenter가 **10배+ 빠름** (2분 vs 20분+) — 비용 절감 효과가 훨씬 큼
-- **CA scale-down 설정을 줄여도** bin-packing이 없어서 파드가 여러 노드에 분산된 경우 노드를 비울 수 없음
+- **노드 반납 (기본값 기준)**: Karpenter가 **10배+ 빠름** (2분 vs 20분+)
+- **노드 반납 (CA 최적 설정 기준)**: Karpenter가 **6배+ 빠름** (90초 vs 5~6분)
+- **CA 설정을 최소로 줄여도** bin-packing이 없어서 파드가 여러 노드에 분산된 경우 노드를 비울 수 없음 → 실제 비용 절감 효과 제한적
 - Spot 워크로드, 동적 스케일링, 비용 최적화가 목적이라면 Karpenter가 적합
