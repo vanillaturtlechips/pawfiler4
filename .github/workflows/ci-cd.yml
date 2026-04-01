@@ -148,7 +148,7 @@ jobs:
       - name: Invalidate CloudFront
         run: aws cloudfront create-invalidation --distribution-id E2ZI7JFQGIUFYC --paths "/*"
 
-  # Report Lambda 빌드 및 배포
+  # Report Lambda zip 빌드 및 배포
   deploy-report-lambda:
     needs: detect-changes
     if: needs.detect-changes.outputs.report == 'true'
@@ -162,25 +162,24 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-northeast-2
 
-      - name: Login to ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build zip package
+        working-directory: backend/services/report
+        run: |
+          pip install -r requirements.txt -t ./package --quiet
+          cp main.py ./package/
+          cd package && zip -r ../report.zip . -q
 
-      - name: Build and Push Lambda image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend/services/report
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/pawfiler/report-lambda:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/pawfiler/report-lambda:latest
+      - name: Upload zip to S3
+        run: |
+          aws s3 cp backend/services/report/report.zip \
+            s3://pawfiler-reports/lambda/report.zip
 
       - name: Update Lambda function code
         run: |
           aws lambda update-function-code \
             --function-name pawfiler-report \
-            --image-uri ${{ steps.login-ecr.outputs.registry }}/pawfiler/report-lambda:${{ github.sha }} \
+            --s3-bucket pawfiler-reports \
+            --s3-key lambda/report.zip \
             --region ap-northeast-2
 
   # 어드민 프론트엔드 S3 배포

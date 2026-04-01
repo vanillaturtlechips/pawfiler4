@@ -35,40 +35,64 @@ def make_chart(weekly):
     else:
         labels, rates = ['데이터 없음'], [0]
 
-    max_rate = max(rates) if rates else 100
-    bar_height_px = 120  # 최대 막대 높이(px)
+    bar_height_px = 120  # 100% 기준 최대 막대 높이(px)
+    label_height = 20    # 날짜 레이블 영역
+    y_axis_w = 32        # Y축 레이블 너비
 
     bars_html = ''
+    labels_html = ''
     for label, rate in zip(labels, rates):
-        h = max(4, int(rate / max(max_rate, 1) * bar_height_px))
+        h = max(2, int(rate / 100 * bar_height_px))
         color = '#e07b39' if rate >= 70 else ('#f0a060' if rate >= 50 else '#c05621')
+        bottom = h  # 막대 높이 = 바닥에서 올라오는 높이
         bars_html += f'''
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:32px">
-          <span style="font-size:9px;color:#4a2c0a;font-weight:700">{rate}%</span>
-          <div style="width:100%;max-width:36px;height:{h}px;background:{color};
+        <div style="position:relative;flex:1;min-width:44px;height:100%">
+          <span style="position:absolute;bottom:{bottom + 2}px;left:50%;transform:translateX(-50%);
+               font-size:9px;color:#4a2c0a;font-weight:700;white-space:nowrap">{rate}%</span>
+          <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+               width:28px;height:{h}px;background:{color};
                border-radius:3px 3px 0 0;border:1px solid #7c4a1e"></div>
-          <span style="font-size:8px;color:#7c4a1e;text-align:center;
-               word-break:break-all;max-width:40px">{label}</span>
         </div>'''
+        labels_html += f'''
+        <div style="flex:1;min-width:44px;text-align:center;
+             font-size:8px;color:#7c4a1e;white-space:nowrap;padding-top:4px">{label}</div>'''
 
-    # Target 70% 라인 위치 계산
-    target_pct = min(100, round(70 / max(max_rate, 1) * 100))
+    # Y축 레이블 (0, 25, 50, 75, 100)
+    y_labels_html = ''
+    for pct in [100, 75, 50, 25, 0]:
+        top = int((100 - pct) / 100 * bar_height_px)
+        y_labels_html += f'<div style="position:absolute;top:{top}px;right:4px;font-size:8px;color:#a0856a;transform:translateY(-50%)">{pct}%</div>'
+
+    # 수평 그리드 라인
+    grid_html = ''
+    for pct in [25, 50, 75, 100]:
+        top = int((100 - pct) / 100 * bar_height_px)
+        grid_html += f'<div style="position:absolute;top:{top}px;left:0;right:0;height:1px;background:#e8d5b7;opacity:0.6"></div>'
+
+    # Target 70% 라인
+    target_top = int((100 - 70) / 100 * bar_height_px)
 
     return f'''<div style="background:#fef9f0;border:1px solid #e8d5b7;border-radius:4px;padding:14px 16px">
   <div style="font-size:13px;font-weight:700;color:#4a2c0a;margin-bottom:10px;text-align:center">
     📈 Weekly Correct Rate
   </div>
-  <div style="position:relative;padding-bottom:4px">
-    <div style="display:flex;align-items:flex-end;gap:4px;height:{bar_height_px + 30}px;
-         padding-bottom:20px;border-bottom:1px solid #c8a882">
-      {bars_html}
+  <div style="display:flex;gap:0">
+    <div style="position:relative;width:{y_axis_w}px;height:{bar_height_px}px;flex-shrink:0">
+      {y_labels_html}
     </div>
-    <div style="position:absolute;bottom:20px;left:0;right:0;
-         height:1px;background:#2d7a4f;opacity:0.6;
-         top:{bar_height_px + 14 - int(target_pct / 100 * bar_height_px)}px">
-      <span style="position:absolute;right:4px;top:-14px;font-size:9px;color:#2d7a4f">
-        Target 70%
-      </span>
+    <div style="flex:1;position:relative">
+      <div style="position:relative;height:{bar_height_px}px;border-left:1px solid #c8a882;border-bottom:2px solid #c8a882">
+        {grid_html}
+        <div style="position:absolute;top:{target_top}px;left:0;right:0;height:1.5px;background:#2d7a4f;opacity:0.8">
+          <span style="position:absolute;right:4px;top:-14px;font-size:9px;color:#2d7a4f;font-weight:600;background:#fef9f0;padding:0 2px">Target 70%</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;height:100%;padding:0 4px">
+          {bars_html}
+        </div>
+      </div>
+      <div style="display:flex;margin-left:{y_axis_w}px;padding:0 4px">
+        {labels_html}
+      </div>
     </div>
   </div>
 </div>'''
