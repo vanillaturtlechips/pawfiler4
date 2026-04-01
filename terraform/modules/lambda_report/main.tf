@@ -51,39 +51,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "reports" {
   }
 }
 
-# ── ECR: Lambda 컨테이너 이미지 리포지토리 ────────────────────────────────────
-# 기존 pawfiler/quiz-service 등과 동일한 패턴으로 생성
-
-resource "aws_ecr_repository" "report_lambda" {
-  name = "${var.project_name}/report-lambda"
-  tags = { Name = "${var.project_name}-report-lambda-ecr" }
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# 이미지 최대 5개 유지
-resource "aws_ecr_lifecycle_policy" "report_lambda" {
-  repository = aws_ecr_repository.report_lambda.name
-
-  policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep last 5 images"
-      selection = {
-        tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = 5
-      }
-      action = { type = "expire" }
-    }]
-  })
-}
+# ── ECR 리포지토리 제거 (zip 배포 전환으로 불필요)
+# 기존 ECR 리포지토리(pawfiler/report-lambda)는 수동으로 유지하거나 삭제 가능
 
 # ── SQS: 비동기 처리 큐 ───────────────────────────────────────────────────────
 
@@ -191,27 +160,20 @@ resource "aws_iam_role_policy" "report_lambda_custom" {
 
 # ── Lambda 함수 ───────────────────────────────────────────────────────────────
 
-locals {
-  # ecr_image_uri가 비어있으면 ECR 리포지토리 URL:latest 사용
-  # 첫 apply 순서: ECR 생성 → 이미지 push → Lambda apply
-  image_uri = var.ecr_image_uri != "" ? var.ecr_image_uri : "${aws_ecr_repository.report_lambda.repository_url}:latest"
-}
+# ── Lambda 함수 (zip 배포) ────────────────────────────────────────────────────
 
 resource "aws_lambda_function" "report" {
   function_name = "${var.project_name}-report"
   role          = aws_iam_role.report_lambda.arn
-  package_type  = "Image"
-  image_uri     = local.image_uri
+  package_type  = "Zip"
+  s3_bucket     = var.lambda_s3_bucket
+  s3_key        = var.lambda_s3_key
+  handler       = "main.lambda_handler"
+  runtime       = "python3.11"
 
   timeout     = var.lambda_timeout
   memory_size = var.lambda_memory
 
-  # SQS/Function URL 모두 main.lambda_handler 단일 진입점으로 처리
-  image_config {
-    command = ["main.lambda_handler"]
-  }
-
-  # VPC 내 실행 → private subnet에서 RDS(Proxy) 직접 접근
   vpc_config {
     subnet_ids         = var.private_subnet_ids
     security_group_ids = [aws_security_group.lambda_report.id]
@@ -227,9 +189,9 @@ resource "aws_lambda_function" "report" {
 
   tags = { Name = "${var.project_name}-report-lambda" }
 
-  # 이미지 URI는 CI/CD(aws lambda update-function-code)로 관리
+  # zip은 CI/CD에서 aws lambda update-function-code로 관리
   lifecycle {
-    ignore_changes = [image_uri]
+    ignore_changes = [s3_key]
   }
 
   depends_on = [aws_iam_role_policy_attachment.report_lambda_vpc]

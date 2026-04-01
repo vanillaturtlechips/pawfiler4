@@ -38,10 +38,16 @@ variable "rds_security_group_id" {
   type        = string
 }
 
-variable "ecr_image_uri" {
-  description = "ECR image URI (비워두면 ECR 리포지토리 URL:latest 사용, 첫 apply 후 이미지 push 필요)"
+variable "lambda_s3_bucket" {
+  description = "S3 버킷명 — Lambda zip 패키지 저장 위치"
   type        = string
   default     = ""
+}
+
+variable "lambda_s3_key" {
+  description = "S3 키 — Lambda zip 패키지 경로 (예: lambda/report.zip)"
+  type        = string
+  default     = "lambda/report.zip"
 }
 
 variable "lambda_timeout" {
