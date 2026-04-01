@@ -148,6 +148,7 @@ export const createCommunityPost = async (req: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify(requestBody),
     });
@@ -176,6 +177,7 @@ export const updateCommunityPost = async (req: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({
         post_id: req.postId,
@@ -203,6 +205,7 @@ export const deleteCommunityPost = async (postId: string, userId: string): Promi
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
@@ -288,6 +291,7 @@ export const createCommunityComment = async (req: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({
         post_id: req.postId,
@@ -323,6 +327,7 @@ export const deleteCommunityComment = async (commentId: string, userId: string):
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ comment_id: commentId, user_id: userId }),
     });
@@ -344,6 +349,7 @@ export const likePost = async (postId: string, userId: string): Promise<{ succes
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
@@ -368,6 +374,7 @@ export const unlikePost = async (postId: string, userId: string): Promise<{ succ
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
@@ -389,6 +396,7 @@ export const checkLike = async (postId: string, userId: string): Promise<boolean
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ post_id: postId, user_id: userId }),
     });
