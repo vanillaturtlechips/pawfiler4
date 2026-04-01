@@ -165,7 +165,11 @@ jobs:
       - name: Build zip package
         working-directory: backend/services/report
         run: |
-          pip install -r requirements.txt -t ./package --quiet
+          pip install -r requirements.txt -t ./package --quiet \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.11 \
+            --only-binary=:all:
           cp main.py ./package/
           cd package && zip -r ../report.zip . -q
 
