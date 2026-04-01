@@ -893,7 +893,7 @@ export interface AdminShopItemInput {
 const adminFetch = async <T>(method: string, path: string, body?: object): Promise<T> => {
   const res = await fetch(`${config.adminServiceBaseUrl}/admin/shop${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
   const data = await res.json();
@@ -931,7 +931,7 @@ export const generateReport = async (days?: number | null, quizProfile?: { total
 
   const response = await fetch(`${REPORT_BASE_URL}/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify({
       user_id: userId,
       days: days ?? null,
@@ -989,7 +989,7 @@ export const fetchAnalysisHistory = async (userId: string): Promise<AnalysisHist
   try {
     const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/analysis/history`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ user_id: userId }),
     });
     const data = await res.json();
@@ -1003,7 +1003,7 @@ export const fetchAnalysisQuota = async (userId: string): Promise<AnalysisQuota>
   try {
     const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/analysis/quota`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ user_id: userId }),
     });
     return await res.json();
@@ -1016,7 +1016,7 @@ export const fetchApiKeys = async (userId: string): Promise<ApiKeyItem[]> => {
   try {
     const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/keys`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ user_id: userId }),
     });
     const data = await res.json();
@@ -1029,7 +1029,7 @@ export const fetchApiKeys = async (userId: string): Promise<ApiKeyItem[]> => {
 export const generateApiKey = async (userId: string, name: string): Promise<ApiKeyItem> => {
   const res = await fetch(`${VIDEO_ANALYSIS_REST}/api/keys/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify({ user_id: userId, name }),
   });
   if (!res.ok) throw new Error('API 키 생성 실패');
@@ -1039,7 +1039,7 @@ export const generateApiKey = async (userId: string, name: string): Promise<ApiK
 export const revokeApiKey = async (userId: string, keyId: string): Promise<void> => {
   await fetch(`${VIDEO_ANALYSIS_REST}/api/keys/revoke`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify({ user_id: userId, key_id: keyId }),
   });
 };
