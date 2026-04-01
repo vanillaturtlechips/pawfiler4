@@ -206,3 +206,9 @@ output "auth_service_role_arn" {
   description = "ARN of the auth service IAM role (Cognito + SSM)"
   value       = module.irsa.auth_service_role_arn
 }
+
+# External Secrets IRSA
+output "external_secrets_role_arn" {
+  description = "ARN of the External Secrets Operator IAM role"
+  value       = module.irsa.external_secrets_role_arn
+}

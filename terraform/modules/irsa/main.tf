@@ -244,3 +244,46 @@ resource "aws_iam_role_policy" "loki_s3" {
     }]
   })
 }
+
+# ============================================================================
+# IAM Role for External Secrets Operator (SSM Parameter Store 읽기)
+# ============================================================================
+
+resource "aws_iam_role" "external_secrets" {
+  name = "${var.project_name}-external-secrets-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = var.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:external-secrets-system:external-secrets"
+          "${replace(var.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "external_secrets_ssm" {
+  name = "ssm-parameter-access"
+  role = aws_iam_role.external_secrets.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ]
+      Resource = "arn:aws:ssm:*:*:parameter/${var.project_name}/*"
+    }]
+  })
+}

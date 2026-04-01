@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/mail"
 	"os"
 	"strings"
 	"time"
@@ -110,6 +111,11 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 	var req signupReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
 		writeErr(w, http.StatusBadRequest, "email and password required")
+		return
+	}
+
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid email format")
 		return
 	}
 
