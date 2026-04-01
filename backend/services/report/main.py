@@ -1,51 +1,11 @@
 """
 PawFiler 딥페이크 탐지 역량 리포트 v2
-- 양피지 텍스처 배경 (matplotlib noise)
+- 순수 HTML/CSS 차트 (matplotlib 제거 → zip 배포 가능)
 - 아바타 이모지 + 레벨/티어 배지 (ProfilePage.tsx 연동)
-- 하단 고양이+강아지 발자국 각인
-- wkhtmltopdf 기반 PDF 출력
 """
-import os, io, json, math, subprocess
-import numpy as np
+import os, json
 from datetime import datetime
 from typing import Optional
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.font_manager import FontProperties
-
-_F_REG  = "/usr/share/fonts/NotoSansCJKkr-Regular.otf"
-_F_BOLD = "/usr/share/fonts/NotoSansCJKkr-Regular.otf"
-_F_MED  = "/usr/share/fonts/NotoSansCJKkr-Regular.otf"
-
-def _fp(path, fallback=None):
-    p = path if os.path.exists(path) else (fallback or path)
-    return FontProperties(fname=p) if os.path.exists(p) else FontProperties()
-
-FP_REG  = _fp(_F_REG)
-FP_BOLD = _fp(_F_BOLD, _F_REG)
-FP_MED  = _fp(_F_MED,  _F_BOLD)
-
-_TMP_IMG_DIR = '/tmp/pawfiler_imgs'
-os.makedirs(_TMP_IMG_DIR, exist_ok=True)
-_img_counter = 0
-
-def _save_tmp(buf, prefix='img'):
-    """base64 대신 /tmp 파일로 저장 → wkhtmltopdf file:// URL 호환"""
-    global _img_counter
-    _img_counter += 1
-    path = f'{_TMP_IMG_DIR}/{prefix}_{_img_counter}.png'
-    buf.seek(0)
-    with open(path, 'wb') as f:
-        f.write(buf.read())
-    return f'file://{path}'
-
-def _b64(buf):
-    """BytesIO → base64 data URI (HTML inline 이미지용)"""
-    import base64
-    buf.seek(0)
-    return 'data:image/png;base64,' + base64.b64encode(buf.read()).decode()
 
 
 
@@ -68,34 +28,50 @@ def make_avatar(emoji, level, tier_name, is_premium):
 </div>'''
 
 def make_chart(weekly):
+    """순수 HTML/CSS 막대 차트 — matplotlib 없이 렌더링"""
     if weekly:
-        labels=[str(row['week'])[:10] for row in weekly]
-        rates=[round(int(row['correct'] or 0)/max(int(row['total'] or 1),1)*100,1) for row in weekly]
+        labels = [str(row['week'])[:10] for row in weekly]
+        rates  = [round(int(row['correct'] or 0) / max(int(row['total'] or 1), 1) * 100, 1) for row in weekly]
     else:
-        labels,rates=['데이터 없음'],[0]
-    fig,ax = plt.subplots(figsize=(10,3.6),dpi=100)
-    fig.patch.set_facecolor('#fdf3e0'); ax.set_facecolor('#fef9f0')
-    bar_c=['#e07b39' if r>=70 else('#f0a060' if r>=50 else '#c05621') for r in rates]
-    bars=ax.bar(range(len(labels)),rates,color=bar_c,edgecolor='#7c4a1e',lw=0.8,width=0.52,zorder=3)
-    for bar,r in zip(bars,rates):
-        ax.text(bar.get_x()+bar.get_width()/2,bar.get_height()+1.5,f'{r}%',
-                ha='center',va='bottom',fontproperties=FP_BOLD,fontsize=9,color='#4a2c0a')
-    ax.set_xticks(range(len(labels)))
-    ax.set_xticklabels(labels,fontproperties=FP_REG,fontsize=8.5,color='#4a2c0a')
-    ax.set_ylim(0,118)
-    ax.set_yticks([0,25,50,75,100])
-    ax.set_yticklabels(['0%','25%','50%','75%','100%'],fontproperties=FP_REG,fontsize=8,color='#4a2c0a')
-    ax.set_title('Weekly Correct Rate',fontproperties=FP_BOLD,fontsize=13,color='#4a2c0a',pad=8)
-    ax.axhline(70,color='#2d7a4f',linestyle='--',lw=1.2,alpha=0.8,zorder=2)
-    ax.text(max(len(labels)-0.5,0.1),72,'Target 70%',fontproperties=FP_REG,fontsize=8,color='#2d7a4f',va='bottom')
-    ax.grid(axis='y',color='#e8d5b7',lw=0.4,alpha=0.6,zorder=1)
-    ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_color('#c8a882'); ax.spines['bottom'].set_color('#c8a882')
-    ax.tick_params(colors='#4a2c0a',length=3)
-    plt.tight_layout(pad=0.6)
-    buf=io.BytesIO()
-    plt.savefig(buf,format='png',bbox_inches='tight',facecolor='#fdf3e0',dpi=100)
-    plt.close(); return _b64(buf)
+        labels, rates = ['데이터 없음'], [0]
+
+    max_rate = max(rates) if rates else 100
+    bar_height_px = 120  # 최대 막대 높이(px)
+
+    bars_html = ''
+    for label, rate in zip(labels, rates):
+        h = max(4, int(rate / max(max_rate, 1) * bar_height_px))
+        color = '#e07b39' if rate >= 70 else ('#f0a060' if rate >= 50 else '#c05621')
+        bars_html += f'''
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:32px">
+          <span style="font-size:9px;color:#4a2c0a;font-weight:700">{rate}%</span>
+          <div style="width:100%;max-width:36px;height:{h}px;background:{color};
+               border-radius:3px 3px 0 0;border:1px solid #7c4a1e"></div>
+          <span style="font-size:8px;color:#7c4a1e;text-align:center;
+               word-break:break-all;max-width:40px">{label}</span>
+        </div>'''
+
+    # Target 70% 라인 위치 계산
+    target_pct = min(100, round(70 / max(max_rate, 1) * 100))
+
+    return f'''<div style="background:#fef9f0;border:1px solid #e8d5b7;border-radius:4px;padding:14px 16px">
+  <div style="font-size:13px;font-weight:700;color:#4a2c0a;margin-bottom:10px;text-align:center">
+    📈 Weekly Correct Rate
+  </div>
+  <div style="position:relative;padding-bottom:4px">
+    <div style="display:flex;align-items:flex-end;gap:4px;height:{bar_height_px + 30}px;
+         padding-bottom:20px;border-bottom:1px solid #c8a882">
+      {bars_html}
+    </div>
+    <div style="position:absolute;bottom:20px;left:0;right:0;
+         height:1px;background:#2d7a4f;opacity:0.6;
+         top:{bar_height_px + 14 - int(target_pct / 100 * bar_height_px)}px">
+      <span style="position:absolute;right:4px;top:-14px;font-size:9px;color:#2d7a4f">
+        Target 70%
+      </span>
+    </div>
+  </div>
+</div>'''
 
 def get_grade(rate):
     if rate>=90: return 'S','#1a6b3a','탁월한 딥페이크 탐지 능력을 보유하고 있습니다!'
@@ -284,10 +260,10 @@ def build_html(
     story_patterns = detect_story_patterns(total, rate, weekly, type_stats, {})
     story_sentences = build_story(nickname, story_patterns)
 
-    print("  이미지 생성 중...")
-    avatar_html=make_avatar(avatar_emoji,level,tier_name,is_premium)
-    chart_src =make_chart(weekly)
-    print("  이미지 생성 완료")
+    print("  차트 생성 중...")
+    avatar_html = make_avatar(avatar_emoji, level, tier_name, is_premium)
+    chart_html  = make_chart(weekly)
+    print("  차트 생성 완료")
 
     type_label_map={'multiple_choice':'객관식','true_false':'O/X',
                     'region_select':'영역 선택','comparison':'비교'}
@@ -350,11 +326,20 @@ def build_html(
         else:
             answer_txt = '—'
 
-        thumb_html = (
-            f'<img src="{media_url}" class="wn-thumb" onerror="this.style.display=\'none\'">'
-            if media_url else
-            f'<div class="wn-thumb-fallback">{emoji}</div>'
-        )
+        # media_type 기반으로 썸네일 렌더링
+        q_media_type = row.get('media_type') or 'image'
+        if media_url and q_media_type == 'video':
+            # 영상: video 태그로 첫 프레임만 표시 (autoplay/controls 없음)
+            thumb_html = (
+                f'<video src="{media_url}" class="wn-thumb" preload="metadata" '
+                f'style="pointer-events:none" muted></video>'
+            )
+        elif media_url:
+            thumb_html = (
+                f'<img src="{media_url}" class="wn-thumb" onerror="this.style.display=\'none\'">'
+            )
+        else:
+            thumb_html = f'<div class="wn-thumb-fallback">{emoji}</div>'
 
         wrong_note_items += f'''<div class="wn-item">
           <div class="wn-thumb-wrap">{thumb_html}</div>
@@ -555,7 +540,7 @@ body{{font-family:'Noto Sans KR',sans-serif;font-size:14px;color:#2d1a0e;
     <div class="sec-hdr">📖&nbsp; {nickname} 탐정의 성장 스토리</div>
     <div class="story-box">{''.join(f'<p class="story-line">{s}</p>' for s in story_sentences)}</div>
     <div class="sec-hdr">📈&nbsp; 주간 정답률 추이</div>
-    <img src="{chart_src}" class="chart-img"/>    {wrong_note_section}
+    {chart_html}    {wrong_note_section}
     {weak_section}
     <div class="stamp-footer">
       <div class="stamp">🐾 PawFiler<span class="stamp-sub">CERTIFIED</span></div>
@@ -596,22 +581,28 @@ def build_pdf(output_path='/tmp/report.pdf', **kwargs):
 
 
 # ── FastAPI 앱 ─────────────────────────────────────────────────────────────────
-import psycopg2
-import psycopg2.extras
-import boto3
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from mangum import Mangum
+# HTML_ONLY 모드에서는 서버 의존성 import 생략 (로컬 테스트용)
+_HTML_ONLY_MODE = os.environ.get('HTML_ONLY', '0') == '1'
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if not _HTML_ONLY_MODE:
+    import psycopg2
+    import psycopg2.extras
+    import boto3
+    from fastapi import FastAPI, HTTPException
+    from fastapi.responses import FileResponse, RedirectResponse
+    from fastapi.middleware.cors import CORSMiddleware
+    from pydantic import BaseModel
+    from mangum import Mangum
+
+    app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app = None
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -697,7 +688,7 @@ def fetch_user_report_data(user_id: str, days: Optional[int] = 30):
     wrong_date_filter = "AND ua.answered_at >= %s" if since else ""
     cur.execute(f"""
         SELECT DISTINCT ON (q.id)
-               q.id, q.type, q.media_url, q.thumbnail_emoji,
+               q.id, q.type, q.media_type, q.media_url, q.thumbnail_emoji,
                q.explanation, q.options, q.correct_index,
                q.correct_answer, q.correct_regions, q.correct_side,
                ua.answered_at
@@ -742,160 +733,154 @@ def fetch_user_report_data(user_id: str, days: Optional[int] = 30):
     return stats, type_stats, weekly, profile, wrong_answers, weak_labels
 
 
-class ReportRequest(BaseModel):
-    user_id: str
-    days: Optional[int] = 30  # None이면 전체 기간
-    nickname: Optional[str] = None
-    avatar_emoji: Optional[str] = None
-    email: Optional[str] = None
-    subscription_type: Optional[str] = "free"
-    # 프론트에서 최신 quizProfile 값을 직접 전달 (user 서비스 비동기 지연 우회)
-    total_exp: Optional[int] = None
-    total_coins: Optional[int] = None
-    tier_name: Optional[str] = None
+if not _HTML_ONLY_MODE:
+    class ReportRequest(BaseModel):
+        user_id: str
+        days: Optional[int] = 30  # None이면 전체 기간
+        nickname: Optional[str] = None
+        avatar_emoji: Optional[str] = None
+        email: Optional[str] = None
+        subscription_type: Optional[str] = "free"
+        # 프론트에서 최신 quizProfile 값을 직접 전달 (user 서비스 비동기 지연 우회)
+        total_exp: Optional[int] = None
+        total_coins: Optional[int] = None
+        tier_name: Optional[str] = None
 
-
-@app.post("/generate")
-def generate_report(req: ReportRequest, request: Request):
-    user_id = request.headers.get("x-user-id") or req.user_id
-    try:
-        stats, type_stats, weekly, profile, wrong_answers, weak_labels = fetch_user_report_data(
-            user_id, req.days
-        )
-        if not stats or int(stats['total'] or 0) == 0:
-            raise HTTPException(status_code=404, detail="풀이 데이터가 없어요. 퀴즈를 먼저 풀어보세요.")
-
-        html = build_html(
-            user_id=user_id,
-            stats=stats,
-            type_stats=type_stats,
-            weekly=weekly,
-            wrong_answers=wrong_answers,
-            weak_labels=weak_labels,
-            nickname=req.nickname or '탐정',
-            avatar_emoji=req.avatar_emoji or (profile['avatar_emoji'] if profile else '🐾'),
-            email=req.email or '-',
-            subscription_type=req.subscription_type or 'free',
-            level=1,
-            tier_name=req.tier_name or (profile['current_tier'] if profile else '알'),
-            total_coins=req.total_coins if req.total_coins is not None else (int(profile['total_coins']) if profile else 0),
-            total_exp=req.total_exp if req.total_exp is not None else (int(profile['total_exp']) if profile else 0),
-            days=req.days,
-        )
-
-        # S3 버킷이 설정된 경우 S3에 저장, 아니면 로컬 /tmp 저장 (로컬 개발용)
-        if S3_BUCKET:
-            presigned_url = _upload_to_s3(user_id, html)
-            return {"report_url": presigned_url}
-        else:
-            out_path = os.path.join(REPORTS_DIR, f"{user_id}.html")
-            with open(out_path, 'w', encoding='utf-8') as f:
-                f.write(html)
-            return {"report_url": f"/download/{user_id}"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/download/{user_id}")
-def download_report(user_id: str):
-    # S3 모드: S3에서 presigned URL 생성 후 리다이렉트
-    if S3_BUCKET:
+    @app.post("/generate")
+    def generate_report(req: ReportRequest):
         try:
-            s3 = boto3.client("s3")
-            key = f"{S3_PREFIX}/{user_id}.html"
-            url = s3.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": S3_BUCKET, "Key": key},
-                ExpiresIn=3600,
+            stats, type_stats, weekly, profile, wrong_answers, weak_labels = fetch_user_report_data(
+                req.user_id, req.days
             )
-            return RedirectResponse(url)
-        except Exception as e:
-            raise HTTPException(status_code=404, detail="리포트가 없어요. 먼저 생성해주세요.")
-
-    # 로컬 모드: /tmp 파일 반환
-    path = os.path.join(REPORTS_DIR, f"{user_id}.html")
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="리포트가 없어요. 먼저 생성해주세요.")
-    return FileResponse(
-        path, media_type="text/html; charset=utf-8",
-        filename=f"pawfiler_report_{datetime.utcnow().strftime('%Y%m%d')}.html"
-    )
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
-# ── Lambda Handlers ────────────────────────────────────────────────────────────
-
-# API Gateway / Function URL → FastAPI (mangum)
-_mangum_handler = Mangum(app, lifespan="off")
-
-
-def lambda_handler(event, context):
-    """
-    통합 Lambda 핸들러 — 이벤트 소스에 따라 자동 분기
-    - SQS 트리거: Records 키 존재 → sqs_handler
-    - Function URL / API Gateway: HTTP 이벤트 → mangum (FastAPI)
-    """
-    if "Records" in event and event["Records"][0].get("eventSource") == "aws:sqs":
-        return sqs_handler(event, context)
-    return _mangum_handler(event, context)
-
-
-def sqs_handler(event, context):
-    """SQS 트리거용 Lambda handler — 메시지 1건씩 리포트 생성 후 S3 저장"""
-    import json as _json
-    results = []
-    for record in event.get("Records", []):
-        try:
-            body = _json.loads(record["body"])
-            user_id = body["user_id"]
-            days = body.get("days", 30)  # None이면 전체 기간
-            nickname = body.get("nickname", "탐정")
-            avatar_emoji = body.get("avatar_emoji", "🐾")
-            email = body.get("email", "-")
-            subscription_type = body.get("subscription_type", "free")
-
-            stats, type_stats, weekly, profile, wrong_answers, weak_labels = \
-                fetch_user_report_data(user_id, days)
-
             if not stats or int(stats['total'] or 0) == 0:
-                print(f"[SKIP] user_id={user_id}: 풀이 데이터 없음")
-                results.append({"user_id": user_id, "status": "skipped"})
-                continue
+                raise HTTPException(status_code=404, detail="풀이 데이터가 없어요. 퀴즈를 먼저 풀어보세요.")
 
             html = build_html(
-                user_id=user_id,
+                user_id=req.user_id,
                 stats=stats,
                 type_stats=type_stats,
                 weekly=weekly,
                 wrong_answers=wrong_answers,
                 weak_labels=weak_labels,
-                nickname=nickname,
-                avatar_emoji=avatar_emoji or (profile['avatar_emoji'] if profile else '🐾'),
-                email=email,
-                subscription_type=subscription_type,
+                nickname=req.nickname or '탐정',
+                avatar_emoji=req.avatar_emoji or (profile['avatar_emoji'] if profile else '🐾'),
+                email=req.email or '-',
+                subscription_type=req.subscription_type or 'free',
                 level=1,
-                tier_name=profile['current_tier'] if profile else '알',
-                total_coins=int(profile['total_coins']) if profile else 0,
-                total_exp=int(profile['total_exp']) if profile else 0,
+                tier_name=req.tier_name or (profile['current_tier'] if profile else '알'),
+                total_coins=req.total_coins if req.total_coins is not None else (int(profile['total_coins']) if profile else 0),
+                total_exp=req.total_exp if req.total_exp is not None else (int(profile['total_exp']) if profile else 0),
+                days=req.days,
             )
 
-            presigned_url = _upload_to_s3(user_id, html)
-            print(f"[OK] user_id={user_id} → {presigned_url[:60]}...")
-            results.append({"user_id": user_id, "status": "ok", "url": presigned_url})
-
-        except Exception as e:
-            print(f"[ERROR] record={record.get('messageId')}: {e}")
-            results.append({"status": "error", "error": str(e)})
-            # SQS DLQ로 보내기 위해 예외 re-raise (batchItemFailures 방식)
+            # S3 버킷이 설정된 경우 S3에 저장, 아니면 로컬 /tmp 저장 (로컬 개발용)
+            if S3_BUCKET:
+                presigned_url = _upload_to_s3(req.user_id, html)
+                return {"report_url": presigned_url}
+            else:
+                out_path = os.path.join(REPORTS_DIR, f"{req.user_id}.html")
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                return {"report_url": f"/download/{req.user_id}"}
+        except HTTPException:
             raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
-    return {"results": results}
+    @app.get("/download/{user_id}")
+    def download_report(user_id: str):
+        # S3 모드: S3에서 presigned URL 생성 후 리다이렉트
+        if S3_BUCKET:
+            try:
+                s3 = boto3.client("s3")
+                key = f"{S3_PREFIX}/{user_id}.html"
+                url = s3.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": S3_BUCKET, "Key": key},
+                    ExpiresIn=3600,
+                )
+                return RedirectResponse(url)
+            except Exception as e:
+                raise HTTPException(status_code=404, detail="리포트가 없어요. 먼저 생성해주세요.")
+
+        # 로컬 모드: /tmp 파일 반환
+        path = os.path.join(REPORTS_DIR, f"{user_id}.html")
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="리포트가 없어요. 먼저 생성해주세요.")
+        return FileResponse(
+            path, media_type="text/html; charset=utf-8",
+            filename=f"pawfiler_report_{datetime.utcnow().strftime('%Y%m%d')}.html"
+        )
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
+
+    # ── Lambda Handlers ────────────────────────────────────────────────────────────
+
+    # API Gateway / Function URL → FastAPI (mangum)
+    _mangum_handler = Mangum(app, lifespan="off")
+
+    def lambda_handler(event, context):
+        """
+        통합 Lambda 핸들러 — 이벤트 소스에 따라 자동 분기
+        - SQS 트리거: Records 키 존재 → sqs_handler
+        - Function URL / API Gateway: HTTP 이벤트 → mangum (FastAPI)
+        """
+        if "Records" in event and event["Records"][0].get("eventSource") == "aws:sqs":
+            return sqs_handler(event, context)
+        return _mangum_handler(event, context)
+
+    def sqs_handler(event, context):
+        """SQS 트리거용 Lambda handler — 메시지 1건씩 리포트 생성 후 S3 저장"""
+        import json as _json
+        results = []
+        for record in event.get("Records", []):
+            try:
+                body = _json.loads(record["body"])
+                user_id = body["user_id"]
+                days = body.get("days", 30)  # None이면 전체 기간
+                nickname = body.get("nickname", "탐정")
+                avatar_emoji = body.get("avatar_emoji", "🐾")
+                email = body.get("email", "-")
+                subscription_type = body.get("subscription_type", "free")
+
+                stats, type_stats, weekly, profile, wrong_answers, weak_labels = \
+                    fetch_user_report_data(user_id, days)
+
+                if not stats or int(stats['total'] or 0) == 0:
+                    print(f"[SKIP] user_id={user_id}: 풀이 데이터 없음")
+                    results.append({"user_id": user_id, "status": "skipped"})
+                    continue
+
+                html = build_html(
+                    user_id=user_id,
+                    stats=stats,
+                    type_stats=type_stats,
+                    weekly=weekly,
+                    wrong_answers=wrong_answers,
+                    weak_labels=weak_labels,
+                    nickname=nickname,
+                    avatar_emoji=avatar_emoji or (profile['avatar_emoji'] if profile else '🐾'),
+                    email=email,
+                    subscription_type=subscription_type,
+                    level=1,
+                    tier_name=profile['current_tier'] if profile else '알',
+                    total_coins=int(profile['total_coins']) if profile else 0,
+                    total_exp=int(profile['total_exp']) if profile else 0,
+                )
+
+                presigned_url = _upload_to_s3(user_id, html)
+                print(f"[OK] user_id={user_id} → {presigned_url[:60]}...")
+                results.append({"user_id": user_id, "status": "ok", "url": presigned_url})
+
+            except Exception as e:
+                print(f"[ERROR] record={record.get('messageId')}: {e}")
+                results.append({"status": "error", "error": str(e)})
+                # SQS DLQ로 보내기 위해 예외 re-raise (batchItemFailures 방식)
+                raise
+
+        return {"results": results}
 
 
 if __name__ == '__main__':
@@ -922,15 +907,18 @@ if __name__ == '__main__':
     wrong_answers=[
         {'type':'multiple_choice','thumbnail_emoji':'🎬',
          'media_url':'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
+         'media_type':'image',
          'explanation':'배경 글씨가 깨져있는 것이 AI 생성 이미지의 특징입니다.',
          'options':['얼굴 표정이 부자연스러워요','배경 글씨가 깨져있어요','조명이 완벽해요','그림자가 정확해요'],
          'correct_index':1,'correct_answer':None,'correct_regions':None,'correct_side':None},
         {'type':'true_false','thumbnail_emoji':'✅',
-         'media_url':'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=300&fit=crop',
+         'media_url':'https://example.com/test.gif',
+         'media_type':'video',
          'explanation':'이 이미지는 AI가 생성한 가짜입니다.',
          'options':None,'correct_index':None,'correct_answer':False,'correct_regions':None,'correct_side':None},
         {'type':'region_select','thumbnail_emoji':'👁️',
-         'media_url':'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=300&fit=crop',
+         'media_url':'https://pawfiler-media.s3.amazonaws.com/questions/test.jpg?X-Amz-Expires=3600&X-Amz-Signature=abc123',
+         'media_type':'image',
          'explanation':'오른쪽 위 보드의 글씨가 왜곡된 부분이 증거입니다.',
          'options':None,'correct_index':None,'correct_answer':None,
          'correct_regions':[{'x':650,'y':150,'radius':80,'label':'텍스트 왜곡'}],'correct_side':None},
