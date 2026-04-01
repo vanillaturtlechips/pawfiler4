@@ -22,3 +22,8 @@ output "auth_service_role_arn" {
   description = "ARN of the auth service IAM role (Cognito + SSM)"
   value       = aws_iam_role.auth_service.arn
 }
+
+output "external_secrets_role_arn" {
+  description = "ARN of the External Secrets Operator IAM role"
+  value       = aws_iam_role.external_secrets.arn
+}

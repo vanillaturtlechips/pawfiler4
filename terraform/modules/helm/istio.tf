@@ -26,6 +26,9 @@ resource "helm_release" "istiod" {
 
   values = [yamlencode({
     meshConfig = {
+      # Envoy access log → stdout → otel-collector filelog → Loki
+      accessLogFile   = "/dev/stdout"
+      accessLogEncoding = "JSON"
       defaultConfig = {
         holdApplicationUntilProxyStarts = true
       }
