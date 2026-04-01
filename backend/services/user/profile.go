@@ -158,10 +158,12 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch current values to fill blanks
 	var curNickname, curAvatar string
-	db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(ctx,
 		`SELECT nickname, avatar_emoji FROM user_svc.preferences WHERE user_id = $1`,
 		req.UserID,
-	).Scan(&curNickname, &curAvatar)
+	).Scan(&curNickname, &curAvatar); err != nil {
+		log.Printf("[UpdateProfile] failed to fetch current profile for %s: %v", req.UserID, err)
+	}
 
 	if req.Nickname == "" {
 		req.Nickname = curNickname

@@ -317,16 +317,17 @@ def get_community_posts(sort_by: str = "likes") -> str:
     '요즘 인기 게시글', '최근 올라온 글' 같은 질문에 사용하세요."""
     conn = get_db()
     try:
-        order = "likes DESC, created_at DESC" if sort_by == "likes" else "created_at DESC"
-        assert order in ("likes DESC, created_at DESC", "created_at DESC")
+        order_map = {
+            "likes": "likes DESC, created_at DESC",
+            "recent": "created_at DESC",
+        }
+        order = order_map.get(sort_by, "created_at DESC")
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                f"""
-                SELECT title, author_nickname, author_emoji, likes, comments, tags, created_at
-                FROM community.posts
-                ORDER BY {order}
-                LIMIT 5
-                """
+                "SELECT title, author_nickname, author_emoji, likes, comments, tags, created_at "
+                "FROM community.posts "
+                "ORDER BY " + order + " "
+                "LIMIT 5"
             )
             posts = cur.fetchall()
 
