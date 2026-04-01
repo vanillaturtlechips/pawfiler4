@@ -169,17 +169,11 @@ jobs:
           cp main.py ./package/
           cd package && zip -r ../report.zip . -q
 
-      - name: Upload zip to S3
-        run: |
-          aws s3 cp backend/services/report/report.zip \
-            s3://pawfiler-reports/lambda/report.zip
-
       - name: Update Lambda function code
         run: |
           aws lambda update-function-code \
             --function-name pawfiler-report \
-            --s3-bucket pawfiler-reports \
-            --s3-key lambda/report.zip \
+            --zip-file fileb://backend/services/report/report.zip \
             --region ap-northeast-2
 
   # 어드민 프론트엔드 S3 배포
