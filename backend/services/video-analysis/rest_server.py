@@ -16,7 +16,7 @@ import logging
 import threading
 import secrets
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import httpx
 import boto3
@@ -351,7 +351,8 @@ def _check_and_consume_quota(user_id: str) -> dict:
     5. 코인도 부족 → 거부
     """
     now = datetime.now(timezone.utc)
-    reset_at = f"{now.year}-{now.month + 1 if now.month < 12 else 1:02d}-01"
+    next_month = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
+    reset_at = next_month.strftime("%Y-%m-%d")
 
     # 1. 프리미엄 여부 확인 (auth DB 직접 조회)
     if _is_premium(user_id):

@@ -29,7 +29,7 @@ variable "enable_karpenter" {
 variable "enable_istio" {
   description = "Enable Istio service mesh (istio-base + istiod, sidecar injection on pawfiler namespace)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Networking variables
