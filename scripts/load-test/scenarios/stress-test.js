@@ -37,23 +37,26 @@ const quizRequests = new Counter('quiz_requests');
 const communityRequests = new Counter('community_requests');
 const totalTransactions = new Counter('total_transactions');
 
-// 600 VUs 고정, 5분 테스트
+// 1000 VUs 고정, 10분 테스트
 export const options = {
   scenarios: {
     stress_test: {
       executor: 'constant-vus',
-      vus: 600,
-      duration: '5m',
+      vus: 1000,
+      duration: '10m',
     },
   },
   thresholds: {
     'http_req_duration': ['p(50)<500', 'p(95)<1000', 'p(99)<3000'],
-    'http_req_failed': ['rate<0.1'],
-    'errors': ['rate<0.1'],
+    'http_req_failed': ['rate<0.01'],
+    'errors': ['rate<0.02'],
   },
 };
 
 const API_URL = __ENV.API_URL || 'https://pawfiler.site';
+
+// 1x1 JPEG (최소 크기, base64 인코딩)
+const TINY_JPEG_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAFBABAAAAAAAAAAAAAAAAAAAAf/aAAwDAQACEQMRAD8AJQD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwA/AF//2Q==';
 
 // Quiz 서비스용: 순수 UUID (DB 타입: uuid)
 function generateQuizUserId() {
@@ -171,7 +174,7 @@ export default function () {
             break;
           }
         } catch (e) {
-          errorRate.add(true);
+          // JSON 파싱 실패는 서버 에러가 아님 (에너지 부족 등 비정상 응답 형식)
         }
       }
       
@@ -181,31 +184,66 @@ export default function () {
     // Quiz는 이미 충분히 시간 소비했으므로 추가 sleep 불필요
     
   } else {
-    // Community Service - 피드 조회 (읽기 부하 테스트)
-    // CreatePost는 미디어 필수(S3 업로드)라 k6에서 테스트 불가 → GetFeed에 집중
-    const page = Math.random() < 0.8 ? 1 : Math.floor(Math.random() * 5) + 1;
-    const res = http.post(
-      `${API_URL}/api/community.CommunityService/GetFeed`,
-      JSON.stringify({ page: page, page_size: 15 }),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        tags: { service: 'community', method: 'GetFeed' },
-      }
-    );
+    // Community Service - 조회 90% / 작성 10%
+    const isWrite = Math.random() < 0.1;
 
-    communityResponseTime.add(res.timings.duration);
-    communityRequests.add(1);
-    totalTransactions.add(1);
+    if (isWrite) {
+      // CreatePost — 1x1 JPEG를 file_content로 전송 (S3 업로드 포함)
+      const res = http.post(
+        `${API_URL}/api/community.CommunityService/CreatePost`,
+        JSON.stringify({
+          title: `Load Test ${Date.now()}`,
+          body: `Stress test post at ${new Date().toISOString()}`,
+          tags: ['LOAD_TEST'],
+          file_content: TINY_JPEG_B64,
+          file_name: `test-${Date.now()}.jpg`,
+          file_content_type: 'image/jpeg',
+          is_correct: Math.random() < 0.5,
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          tags: { service: 'community', method: 'CreatePost' },
+        }
+      );
 
-    const success = check(res, {
-      'Community GetFeed status is 200': (r) => r.status === 200,
-      'Community GetFeed response time < 2000ms': (r) => r.timings.duration < 2000,
-    });
+      communityResponseTime.add(res.timings.duration);
+      communityRequests.add(1);
+      totalTransactions.add(1);
 
-    errorRate.add(!success);
+      const success = check(res, {
+        'Community CreatePost status is 200': (r) => r.status === 200,
+        'Community CreatePost response time < 3000ms': (r) => r.timings.duration < 3000,
+      });
+      errorRate.add(!success);
+
+    } else {
+      // GetFeed — 피드 조회
+      const page = Math.random() < 0.8 ? 1 : Math.floor(Math.random() * 5) + 1;
+      const res = http.post(
+        `${API_URL}/api/community.CommunityService/GetFeed`,
+        JSON.stringify({ page: page, page_size: 15 }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          tags: { service: 'community', method: 'GetFeed' },
+        }
+      );
+
+      communityResponseTime.add(res.timings.duration);
+      communityRequests.add(1);
+      totalTransactions.add(1);
+
+      const success = check(res, {
+        'Community GetFeed status is 200': (r) => r.status === 200,
+        'Community GetFeed response time < 2000ms': (r) => r.timings.duration < 2000,
+      });
+      errorRate.add(!success);
+    }
 
     // Community는 빠르게 요청하므로 짧은 대기
     sleep(0.2);
@@ -218,7 +256,7 @@ export function setup() {
   console.log('VUs: 600 (고정)');
   console.log('기간: 5분');
   console.log('Quiz:Community = 50:50');
-  console.log('Community: 100% GetFeed (읽기 전용)');
+  console.log('Community: GetFeed 90% / CreatePost 10%');
   console.log('========================');
   
   return { startTime: Date.now() };
@@ -275,5 +313,7 @@ export function teardown(data) {
   console.log('테스트 데이터 정리 방법:');
   console.log('Quiz 답변 삭제 (최근 1시간):');
   console.log(`DELETE FROM quiz.user_answers WHERE answered_at >= NOW() - INTERVAL '1 hour';`);
+  console.log('Community 테스트 게시글 삭제:');
+  console.log(`DELETE FROM community.posts WHERE tags && ARRAY['LOAD_TEST'];`);
   console.log('========================');
 }

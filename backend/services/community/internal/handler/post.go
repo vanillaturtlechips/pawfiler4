@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		pageSize = 100
 	}
 
-	// 검색 없는 요청은 페이지별 인메모리 캐시 (30초 TTL)
+	// 검색 없는 요청은 페이지별 인메모리 캐시 (60초 TTL)
 	useCache := req.SearchQuery == "" && pageSize <= 15
 	if useCache {
 		h.feedCacheMu.RLock()
@@ -42,11 +43,32 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 			return cached, nil
 		}
 		h.feedCacheMu.RUnlock()
+
+		// singleflight — 캐시 미스 시 동일 페이지에 대해 DB 쿼리 1회만 실행
+		// 독립 context 사용: 첫 호출자 취소 시 대기자 전원 실패 방지
+		key := "feed:" + strconv.Itoa(int(page))
+		v, err, _ := h.feedSf.Do(key, func() (interface{}, error) {
+			sfCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			return h.fetchFeed(sfCtx, page, pageSize, "", "")
+		})
+		if err != nil {
+			return nil, err
+		}
+		resp := v.(*pb.FeedResponse)
+		h.feedCacheMu.Lock()
+		h.feedCache[page] = &feedCacheEntry{data: resp, expiresAt: time.Now().Add(60 * time.Second)}
+		h.feedCacheMu.Unlock()
+		return resp, nil
 	}
 
+	// 검색 요청은 캐시 없이 직접 조회
+	return h.fetchFeed(ctx, page, pageSize, req.SearchQuery, req.SearchType)
+}
+
+// fetchFeed - 실제 DB 조회 로직 (singleflight에서 호출)
+func (h *Handler) fetchFeed(ctx context.Context, page, pageSize int32, searchQuery, searchType string) (*pb.FeedResponse, error) {
 	offset := (page - 1) * pageSize
-	searchQuery := req.SearchQuery
-	searchType := req.SearchType
 
 	var rows *sql.Rows
 	var err error
@@ -127,7 +149,7 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		posts = append(posts, &post)
 	}
 
-	// totalCount — 별도 캐시 (60초 TTL), 검색이 아닌 경우만
+	// totalCount — singleflight + 캐시 (120초 TTL), 검색이 아닌 경우만
 	var totalCount int32
 	if searchQuery == "" {
 		h.feedCountMu.RLock()
@@ -136,17 +158,27 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 			h.feedCountMu.RUnlock()
 		} else {
 			h.feedCountMu.RUnlock()
-			h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM community.posts").Scan(&totalCount)
+			v, err, _ := h.countSf.Do("count", func() (interface{}, error) {
+				sfCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				var c int32
+				if err := h.db.QueryRowContext(sfCtx, "SELECT COUNT(*) FROM community.posts").Scan(&c); err != nil {
+					return int32(0), err
+				}
+				return c, nil
+			})
+			if err == nil {
+				totalCount = v.(int32)
+			}
 			h.feedCountMu.Lock()
 			h.feedCount = totalCount
-			h.feedCountExp = time.Now().Add(60 * time.Second)
+			h.feedCountExp = time.Now().Add(120 * time.Second)
 			h.feedCountMu.Unlock()
 		}
 	} else {
-		// 검색 시에만 정확한 카운트 필요 — 결과 수로 대체
 		totalCount = int32(len(posts))
 		if int32(len(posts)) == pageSize {
-			totalCount = pageSize * page * 2 // 다음 페이지 존재 힌트
+			totalCount = pageSize * page * 2
 		}
 	}
 
@@ -170,20 +202,11 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		}
 	}
 
-	resp := &pb.FeedResponse{
+	return &pb.FeedResponse{
 		Posts:      posts,
 		TotalCount: totalCount,
 		Page:       page,
-	}
-
-	// 캐시 저장 (30초 TTL)
-	if useCache {
-		h.feedCacheMu.Lock()
-		h.feedCache[page] = &feedCacheEntry{data: resp, expiresAt: time.Now().Add(30 * time.Second)}
-		h.feedCacheMu.Unlock()
-	}
-
-	return resp, nil
+	}, nil
 }
 
 // GetPost - 게시글 상세 조회

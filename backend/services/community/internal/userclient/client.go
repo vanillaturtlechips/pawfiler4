@@ -92,11 +92,11 @@ func (c *Client) GetProfile(ctx context.Context, userID string) (nickname, avata
 		resp.AvatarEmoji = "🦊"
 	}
 
-	// 캐시 저장 (2분 TTL)
+	// 캐시 저장 (5분 TTL)
 	c.profileCache.Store(userID, &profileCacheEntry{
 		nickname:    resp.Nickname,
 		avatarEmoji: resp.AvatarEmoji,
-		expiresAt:   time.Now().Add(2 * time.Minute),
+		expiresAt:   time.Now().Add(5 * time.Minute),
 	})
 
 	return resp.Nickname, resp.AvatarEmoji
