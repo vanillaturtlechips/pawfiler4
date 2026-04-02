@@ -43,8 +43,11 @@ type Handler struct {
 	rankingCacheMu  sync.RWMutex
 	hotTopicCache   *hotTopicCacheEntry
 	hotTopicCacheMu sync.RWMutex
-	feedCache       *feedCacheEntry
-	feedCacheMu     sync.RWMutex
+	feedCache      map[int32]*feedCacheEntry
+	feedCacheMu    sync.RWMutex
+	feedCount      int32
+	feedCountExp   time.Time
+	feedCountMu    sync.RWMutex
 }
 
 type feedCacheEntry struct {
@@ -60,6 +63,7 @@ func NewHandler(db *sql.DB) *Handler {
 		s3Bucket:   getEnvOrDefault("S3_COMMUNITY_BUCKET", "pawfiler-community-media"),
 		s3Region:   getEnvOrDefault("AWS_REGION", "ap-northeast-2"),
 		cfDomain:   getEnvOrDefault("CLOUDFRONT_COMMUNITY_DOMAIN", ""),
+		feedCache:  make(map[int32]*feedCacheEntry),
 	}
 	// Redis 클라이언트 초기화
 	redisAddr := getEnvOrDefault("REDIS_ADDR", "redis:6379")
