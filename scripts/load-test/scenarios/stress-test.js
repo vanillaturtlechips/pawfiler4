@@ -70,16 +70,6 @@ function generateQuizUserId() {
   return uuid; // 순수 UUID: "550e8400-e29b-41d4-a716-446655440003"
 }
 
-// Community 서비스용: 접두사 있는 문자열 (DB 타입: varchar)
-function generateCommunityUserId() {
-  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-  return 'test-load-' + uuid; // 접두사 포함: "test-load-550e8400-..."
-}
-
 // 각 문제 유형별 랜덤 답변 생성
 function generateAnswer(questionType) {
   switch (questionType) {
@@ -111,7 +101,6 @@ function generateAnswer(questionType) {
 
 export default function () {
   const quizUserId = generateQuizUserId();      // Quiz용: 순수 UUID
-  const communityUserId = generateCommunityUserId(); // Community용: test-load- 접두사
   const isQuizService = Math.random() < 0.5;  // 50% Quiz, 50% Community
   
   if (isQuizService) {
@@ -187,67 +176,32 @@ export default function () {
     // Quiz는 이미 충분히 시간 소비했으므로 추가 sleep 불필요
     
   } else {
-    // Community Service - 10% POST, 90% GET
-    const isPost = Math.random() < 0.1;
-    
-    if (isPost) {
-      // POST - 게시글 작성
-      const res = http.post(
-        `${API_URL}/api/community.CommunityService/CreatePost`,
-        JSON.stringify({
-          user_id: communityUserId,  // Community용 test-load- 접두사 사용
-          title: `Load Test Post ${Date.now()}`,
-          body: `This is a test post created during stress testing at ${new Date().toISOString()}`,
-          author_nickname: `Tester${Math.floor(Math.random() * 1000)}`,
-          author_emoji: '🤖',
-          tags: ['LOAD_TEST', 'DELETE_ME', '부하테스트'],
-        }),
-        {
-          headers: { 
-            'Content-Type': 'application/json',
-            'User-Agent': 'k6-load-test',
-            'Accept': 'application/json',
-          },
-          tags: { service: 'community', method: 'POST' },
-        }
-      );
-      
-      communityResponseTime.add(res.timings.duration);
-      communityRequests.add(1);
-      totalTransactions.add(1);
-      
-      const success = check(res, {
-        'Community POST status is 200': (r) => r.status === 200,
-        'Community POST response time < 2000ms': (r) => r.timings.duration < 2000,
-      });
-      
-      errorRate.add(!success);
-      
-    } else {
-      // POST - 피드 조회 (gRPC-JSON transcoding)
-      const res = http.post(
-        `${API_URL}/api/community.CommunityService/GetFeed`,
-        JSON.stringify({ page: 1, page_size: 15 }),
-        {
-          headers: { 
-            'Content-Type': 'application/json',
-          },
-          tags: { service: 'community', method: 'POST' },
-        }
-      );
-      
-      communityResponseTime.add(res.timings.duration);
-      communityRequests.add(1);
-      totalTransactions.add(1);
-      
-      const success = check(res, {
-        'Community GET status is 200': (r) => r.status === 200,
-        'Community GET response time < 2000ms': (r) => r.timings.duration < 2000,
-      });
-      
-      errorRate.add(!success);
-    }
-    
+    // Community Service - 피드 조회 (읽기 부하 테스트)
+    // CreatePost는 미디어 필수(S3 업로드)라 k6에서 테스트 불가 → GetFeed에 집중
+    const page = Math.random() < 0.8 ? 1 : Math.floor(Math.random() * 5) + 1;
+    const res = http.post(
+      `${API_URL}/api/community.CommunityService/GetFeed`,
+      JSON.stringify({ page: page, page_size: 15 }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        tags: { service: 'community', method: 'GetFeed' },
+      }
+    );
+
+    communityResponseTime.add(res.timings.duration);
+    communityRequests.add(1);
+    totalTransactions.add(1);
+
+    const success = check(res, {
+      'Community GetFeed status is 200': (r) => r.status === 200,
+      'Community GetFeed response time < 2000ms': (r) => r.timings.duration < 2000,
+    });
+
+    errorRate.add(!success);
+
     // Community는 빠르게 요청하므로 짧은 대기
     sleep(0.2);
   }
@@ -263,8 +217,7 @@ export function setup() {
   console.log('각 사용자: 초당 약 1.6개 요청');
   console.log('예상 RPS: 360 → 3,200');
   console.log('Quiz:Community = 50:50');
-  console.log('Community 읽기:쓰기 = 90:10');
-  console.log('Quiz: 순수 UUID, Community: test-load- 접두사');
+  console.log('Community: 100% GetFeed (읽기 전용)');
   console.log('========================');
   
   return { startTime: Date.now() };
@@ -321,7 +274,5 @@ export function teardown(data) {
   console.log('테스트 데이터 정리 방법:');
   console.log('Quiz 답변 삭제 (최근 1시간):');
   console.log(`DELETE FROM quiz.user_answers WHERE answered_at >= NOW() - INTERVAL '1 hour';`);
-  console.log('Community 게시글 삭제 (태그 기반):');
-  console.log(`DELETE FROM community.posts WHERE tags && ARRAY['LOAD_TEST', 'DELETE_ME', '부하테스트'];`);
   console.log('========================');
 }
