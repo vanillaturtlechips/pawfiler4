@@ -11,6 +11,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"gorm.io/driver/postgres"
@@ -21,10 +22,19 @@ import (
 	"github.com/pawfiler/backend/services/quiz/internal/handler"
 	"github.com/pawfiler/backend/services/quiz/internal/repository"
 	"github.com/pawfiler/backend/services/quiz/internal/service"
+	"github.com/pawfiler/backend/services/quiz/internal/tracing"
 	"github.com/pawfiler/backend/services/quiz/internal/userclient"
 )
 
 func main() {
+	ctx := context.Background()
+	shutdown, err := tracing.Init(ctx, "quiz-service")
+	if err != nil {
+		log.Printf("[WARN] tracing init failed: %v", err)
+	} else {
+		defer shutdown()
+	}
+
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL not set")
@@ -65,7 +75,6 @@ func main() {
 		WriteTimeout: 3 * time.Second,
 		MaxRetries:   3,
 	})
-	ctx := context.Background()
 	if _, err = redisClient.Ping(ctx).Result(); err != nil {
 		log.Printf("[WARN] Failed to connect to Redis: %v — running in DB-only mode", err)
 		redisClient = nil
@@ -86,7 +95,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	pb.RegisterQuizServiceServer(grpcServer, quizHandler)
 	go func() {
 		log.Printf("gRPC server on :%s", grpcPort)
