@@ -9,7 +9,7 @@ export const config = {
   communityBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_COMMUNITY_BASE_URL || 'http://localhost:8080'),
   adminServiceBaseUrl: _isProd ? 'https://admin.pawfiler.site' : (import.meta.env.VITE_ADMIN_SERVICE_BASE_URL || 'http://localhost:8082'),
   userServiceBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:8083'),
-  aiAgentBaseUrl: import.meta.env.VITE_AI_AGENT_BASE_URL || 'http://localhost:8088',
+  aiAgentBaseUrl: _isProd ? `${_origin}/api` : (import.meta.env.VITE_AI_AGENT_BASE_URL || 'http://localhost:8088'),
 
   // Feature Flags
   useMockApi: import.meta.env.VITE_USE_MOCK_API === 'true',
