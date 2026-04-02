@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -93,64 +92,42 @@ func (h *Handler) startLikeSyncBatch() {
 func (h *Handler) syncLikesToDB() {
 	ctx := context.Background()
 
-	// SCAN으로 likes:* 키 전체 수집
-	var cursor uint64
-	var allKeys []string
-	for {
-		keys, nextCursor, err := h.rdb.Scan(ctx, cursor, "likes:*", 100).Result()
-		if err != nil {
-			log.Printf("[ERROR] likes sync scan failed: %v", err)
-			return
-		}
-		allKeys = append(allKeys, keys...)
-		cursor = nextCursor
-		if cursor == 0 {
-			break
-		}
-	}
-
-	if len(allKeys) == 0 {
-		return
-	}
-
-	// MGet으로 값 한 번에 조회
-	vals, err := h.rdb.MGet(ctx, allKeys...).Result()
+	// likes 테이블 COUNT로 posts.likes 동기화 (source of truth)
+	_, err := h.db.ExecContext(ctx, `
+		UPDATE community.posts p
+		SET likes = (
+			SELECT COUNT(*) FROM community.likes l 
+			WHERE l.post_id = p.id
+		)
+		WHERE EXISTS (
+			SELECT 1 FROM community.likes l 
+			WHERE l.post_id = p.id
+		)
+	`)
 	if err != nil {
-		log.Printf("[ERROR] likes sync mget failed: %v", err)
+		log.Printf("[ERROR] likes sync from DB failed: %v", err)
 		return
 	}
 
-	likesMap := map[string]int64{}
-	for i, v := range vals {
-		if v == nil {
-			continue
+	// Redis 캐시도 업데이트 (선택적)
+	if h.rdb != nil {
+		// Redis에 있는 키들만 갱신
+		var cursor uint64
+		for {
+			keys, nextCursor, err := h.rdb.Scan(ctx, cursor, "likes:*", 100).Result()
+			if err != nil {
+				break
+			}
+			for _, key := range keys {
+				postID := strings.TrimPrefix(key, "likes:")
+				var dbLikes int64
+				h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", postID).Scan(&dbLikes)
+				h.rdb.Set(ctx, key, dbLikes, 24*time.Hour)
+			}
+			cursor = nextCursor
+			if cursor == 0 {
+				break
+			}
 		}
-		var n int64
-		fmt.Sscanf(fmt.Sprintf("%v", v), "%d", &n)
-		postID := strings.TrimPrefix(allKeys[i], "likes:")
-		likesMap[postID] = n
-	}
-
-	if len(likesMap) == 0 {
-		return
-	}
-
-	// VALUES 배치로 쿼리 1번에 전체 동기화 — UPDATE N번 → 1번
-	args := make([]interface{}, 0, len(likesMap)*2)
-	placeholders := make([]string, 0, len(likesMap))
-	i := 1
-	for postID, val := range likesMap {
-		placeholders = append(placeholders, fmt.Sprintf("($%d::uuid, $%d::int)", i, i+1))
-		args = append(args, postID, val)
-		i += 2
-	}
-	query := fmt.Sprintf(`
-		UPDATE community.posts SET likes = v.likes
-		FROM (VALUES %s) AS v(id, likes)
-		WHERE posts.id = v.id
-	`, strings.Join(placeholders, ","))
-
-	if _, err := h.db.ExecContext(ctx, query, args...); err != nil {
-		log.Printf("[ERROR] likes batch sync failed: %v", err)
 	}
 }
