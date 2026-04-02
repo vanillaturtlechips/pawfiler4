@@ -91,6 +91,7 @@ func NewHandler(db *sql.DB) *Handler {
 	if h.rdb != nil {
 		go h.startLikeSyncBatch()
 	}
+	go h.startFeedCacheWarming()
 	return h
 }
 
@@ -99,6 +100,24 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// startFeedCacheWarming - 50초마다 인기 페이지 캐시를 백그라운드에서 미리 갱신
+// 캐시가 만료되기 전에 갱신하여 요청 경로에서 DB 쿼리 대기를 제거
+func (h *Handler) startFeedCacheWarming() {
+	// 서버 시작 직후 즉시 1회 워밍
+	h.warmFeedCache()
+	ticker := time.NewTicker(50 * time.Second)
+	for range ticker.C {
+		h.warmFeedCache()
+	}
+}
+
+func (h *Handler) warmFeedCache() {
+	for page := int32(1); page <= 5; page++ {
+		h.refreshFeedCache(page, 15)
+	}
+	h.refreshFeedCount()
 }
 
 // startLikeSyncBatch - 30초마다 Redis likes → DB 동기화
