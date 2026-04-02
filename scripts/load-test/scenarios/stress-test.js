@@ -55,9 +55,6 @@ export const options = {
 
 const API_URL = __ENV.API_URL || 'https://pawfiler.site';
 
-// 1x1 JPEG (최소 크기, base64 인코딩)
-const TINY_JPEG_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAFBABAAAAAAAAAAAAAAAAAAAAf/aAAwDAQACEQMRAD8AJQD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwA/AF//2Q==';
-
 // Quiz 서비스용: 순수 UUID (DB 타입: uuid)
 function generateQuizUserId() {
   const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -184,66 +181,29 @@ export default function () {
     // Quiz는 이미 충분히 시간 소비했으므로 추가 sleep 불필요
     
   } else {
-    // Community Service - 조회 90% / 작성 10%
-    const isWrite = Math.random() < 0.1;
+    // Community Service - GetFeed 100%
+    const page = Math.random() < 0.8 ? 1 : Math.floor(Math.random() * 5) + 1;
+    const res = http.post(
+      `${API_URL}/api/community.CommunityService/GetFeed`,
+      JSON.stringify({ page: page, page_size: 15 }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        tags: { service: 'community', method: 'GetFeed' },
+      }
+    );
 
-    if (isWrite) {
-      // CreatePost — 1x1 JPEG를 file_content로 전송 (S3 업로드 포함)
-      const res = http.post(
-        `${API_URL}/api/community.CommunityService/CreatePost`,
-        JSON.stringify({
-          title: `Load Test ${Date.now()}`,
-          body: `Stress test post at ${new Date().toISOString()}`,
-          tags: ['LOAD_TEST'],
-          file_content: TINY_JPEG_B64,
-          file_name: `test-${Date.now()}.jpg`,
-          file_content_type: 'image/jpeg',
-          is_correct: Math.random() < 0.5,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          tags: { service: 'community', method: 'CreatePost' },
-        }
-      );
+    communityResponseTime.add(res.timings.duration);
+    communityRequests.add(1);
+    totalTransactions.add(1);
 
-      communityResponseTime.add(res.timings.duration);
-      communityRequests.add(1);
-      totalTransactions.add(1);
-
-      const success = check(res, {
-        'Community CreatePost status is 200': (r) => r.status === 200,
-        'Community CreatePost response time < 3000ms': (r) => r.timings.duration < 3000,
-      });
-      errorRate.add(!success);
-
-    } else {
-      // GetFeed — 피드 조회
-      const page = Math.random() < 0.8 ? 1 : Math.floor(Math.random() * 5) + 1;
-      const res = http.post(
-        `${API_URL}/api/community.CommunityService/GetFeed`,
-        JSON.stringify({ page: page, page_size: 15 }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          tags: { service: 'community', method: 'GetFeed' },
-        }
-      );
-
-      communityResponseTime.add(res.timings.duration);
-      communityRequests.add(1);
-      totalTransactions.add(1);
-
-      const success = check(res, {
-        'Community GetFeed status is 200': (r) => r.status === 200,
-        'Community GetFeed response time < 2000ms': (r) => r.timings.duration < 2000,
-      });
-      errorRate.add(!success);
-    }
+    const success = check(res, {
+      'Community GetFeed status is 200': (r) => r.status === 200,
+      'Community GetFeed response time < 2000ms': (r) => r.timings.duration < 2000,
+    });
+    errorRate.add(!success);
 
     // Community는 빠르게 요청하므로 짧은 대기
     sleep(0.2);
@@ -253,10 +213,10 @@ export default function () {
 export function setup() {
   console.log('=== Stress Test 시작 ===');
   console.log(`API URL: ${API_URL}`);
-  console.log('VUs: 600 (고정)');
-  console.log('기간: 5분');
+  console.log('VUs: 1000 (고정)');
+  console.log('기간: 10분');
   console.log('Quiz:Community = 50:50');
-  console.log('Community: GetFeed 90% / CreatePost 10%');
+  console.log('Community: GetFeed 100%');
   console.log('========================');
   
   return { startTime: Date.now() };

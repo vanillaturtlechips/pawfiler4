@@ -56,7 +56,7 @@ func (c *Client) ensureConnected() error {
 }
 
 // GetProfile fetches nickname and avatar_emoji from user service via gRPC.
-// 2분 인메모리 캐시로 동일 유저 반복 호출 방지.
+// 5분 인메모리 캐시로 동일 유저 반복 호출 방지.
 func (c *Client) GetProfile(ctx context.Context, userID string) (nickname, avatarEmoji string) {
 	// 캐시 확인
 	if v, ok := c.profileCache.Load(userID); ok {
