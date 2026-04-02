@@ -72,14 +72,13 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 		
 		// Lua 스크립트 실행 (24시간 TTL)
 		result, err := h.rdb.Eval(ctx, script, []string{"likes:" + req.PostId}, 86400, dbLikes).Result()
-		if err == nil {
-			if val, ok := result.(int64); ok {
-				totalLikes = val
-			}
-		} else {
-			// Redis 실패 시 DB fallback
-			h.db.ExecContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1", req.PostId)
-			h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&totalLikes)
+		if err != nil {
+			// Redis 실패: likes 테이블은 이미 INSERT 됐으므로 데이터는 안전
+			// 30초 후 syncLikesToDB()가 정합성 보장
+			return nil, status.Error(codes.Unavailable, "Cache temporarily unavailable, please retry")
+		}
+		if val, ok := result.(int64); ok {
+			totalLikes = val
 		}
 	} else {
 		h.db.ExecContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1", req.PostId)
@@ -142,7 +141,12 @@ func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*p
 			}
 			
 			// Lua 스크립트 실행 (24시간 TTL)
-			h.rdb.Eval(ctx, script, []string{"likes:" + req.PostId}, 86400, dbLikes)
+			_, err := h.rdb.Eval(ctx, script, []string{"likes:" + req.PostId}, 86400, dbLikes).Result()
+			if err != nil {
+				// Redis 실패: likes 테이블은 이미 DELETE 됐으므로 데이터는 안전
+				// 30초 후 syncLikesToDB()가 정합성 보장
+				return nil, status.Error(codes.Unavailable, "Cache temporarily unavailable, please retry")
+			}
 		} else {
 			h.db.ExecContext(ctx, "UPDATE community.posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", req.PostId)
 		}
