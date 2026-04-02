@@ -46,22 +46,39 @@ func (h *Handler) LikePost(ctx context.Context, req *pb.LikePostRequest) (*pb.Li
 		return nil, status.Error(codes.Internal, "Failed to like post")
 	}
 
-	// Redis로 카운터 증가 (원자적 SetNX+Incr Lua 스크립트로 race condition 방지)
+	// Redis로 카운터 증가 (Lua 스크립트로 원자성 보장)
 	var totalLikes int64
 	if h.rdb != nil {
-		// Redis 키 존재 여부 먼저 확인
+		// Lua 스크립트: EXISTS 체크 → 없으면 DB 조회 후 SET → INCR → TTL 갱신
+		script := `
+			local key = KEYS[1]
+			local ttl = tonumber(ARGV[1])
+			local exists = redis.call('exists', key)
+			if exists == 0 then
+				-- 키 없으면 초기값 설정 (Go에서 DB 조회 후 전달)
+				redis.call('set', key, ARGV[2])
+			end
+			local val = redis.call('incr', key)
+			redis.call('expire', key, ttl)
+			return val
+		`
+		
+		// Redis 키 없으면 DB에서 초기값 조회
+		var dbLikes int64
 		exists, _ := h.rdb.Exists(ctx, "likes:"+req.PostId).Result()
 		if exists == 0 {
-			// 키 없을 때만 DB에서 초기값 조회
-			var dbLikes int64
 			h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&dbLikes)
-			h.rdb.Set(ctx, "likes:"+req.PostId, dbLikes, 0)
 		}
-		// Redis INCR
-		val, err := h.rdb.Incr(ctx, "likes:"+req.PostId).Result()
+		
+		// Lua 스크립트 실행 (24시간 TTL)
+		result, err := h.rdb.Eval(ctx, script, []string{"likes:" + req.PostId}, 86400, dbLikes).Result()
 		if err == nil {
-			totalLikes = val
+			if val, ok := result.(int64); ok {
+				totalLikes = val
+			}
 		} else {
+			// Redis 실패 시 DB fallback
+			h.db.ExecContext(ctx, "UPDATE community.posts SET likes = likes + 1 WHERE id = $1", req.PostId)
 			h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&totalLikes)
 		}
 	} else {
@@ -100,16 +117,32 @@ func (h *Handler) UnlikePost(ctx context.Context, req *pb.UnlikePostRequest) (*p
 
 	if rowsAffected > 0 {
 		if h.rdb != nil {
-			// Redis 키 존재 여부 먼저 확인
+			// Lua 스크립트: EXISTS 체크 → 없으면 DB 조회 후 SET → DECR → TTL 갱신
+			script := `
+				local key = KEYS[1]
+				local ttl = tonumber(ARGV[1])
+				local exists = redis.call('exists', key)
+				if exists == 0 then
+					redis.call('set', key, ARGV[2])
+				end
+				local val = redis.call('decr', key)
+				if val < 0 then
+					redis.call('set', key, 0)
+					val = 0
+				end
+				redis.call('expire', key, ttl)
+				return val
+			`
+			
+			// Redis 키 없으면 DB에서 초기값 조회
+			var dbLikes int64
 			exists, _ := h.rdb.Exists(ctx, "likes:"+req.PostId).Result()
 			if exists == 0 {
-				// 키 없을 때만 DB에서 초기값 조회
-				var dbLikes int64
 				h.db.QueryRowContext(ctx, "SELECT likes FROM community.posts WHERE id = $1", req.PostId).Scan(&dbLikes)
-				h.rdb.Set(ctx, "likes:"+req.PostId, dbLikes, 0)
 			}
-			// Redis DECR
-			h.rdb.Decr(ctx, "likes:"+req.PostId)
+			
+			// Lua 스크립트 실행 (24시간 TTL)
+			h.rdb.Eval(ctx, script, []string{"likes:" + req.PostId}, 86400, dbLikes)
 		} else {
 			h.db.ExecContext(ctx, "UPDATE community.posts SET likes = GREATEST(likes - 1, 0) WHERE id = $1", req.PostId)
 		}
