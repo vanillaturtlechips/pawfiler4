@@ -705,9 +705,9 @@ export const fetchRanking = async (sortBy: string = "correct") => {
       totalCoins: e.totalCoins || e.total_coins || 0,
       totalAnswered: e.totalAnswered || e.total_answered || 0,
       correctCount: e.correctAnswers || e.correct_answers || e.correctCount || 0,
-      accuracy: e.totalAnswered || e.total_answered
-        ? Math.round(((e.correctAnswers || e.correct_answers || 0) / (e.totalAnswered || e.total_answered)) * 100)
-        : 0,
+      accuracy: e.accuracy ?? (e.totalAnswered || e.total_answered
+        ? Math.round(((e.correctCount || e.correctAnswers || e.correct_answers || 0) / (e.totalAnswered || e.total_answered)) * 100)
+        : 0),
     }));
   } catch {
     return [];
