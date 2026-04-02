@@ -43,6 +43,13 @@ type Handler struct {
 	rankingCacheMu  sync.RWMutex
 	hotTopicCache   *hotTopicCacheEntry
 	hotTopicCacheMu sync.RWMutex
+	feedCache       *feedCacheEntry
+	feedCacheMu     sync.RWMutex
+}
+
+type feedCacheEntry struct {
+	data      *pb.FeedResponse
+	expiresAt time.Time
 }
 
 // NewHandler - 핸들러 생성
@@ -56,7 +63,13 @@ func NewHandler(db *sql.DB) *Handler {
 	}
 	// Redis 클라이언트 초기화
 	redisAddr := getEnvOrDefault("REDIS_ADDR", "redis:6379")
-	h.rdb = redis.NewClient(&redis.Options{Addr: redisAddr, PoolSize: 10})
+	h.rdb = redis.NewClient(&redis.Options{
+		Addr:         redisAddr,
+		PoolSize:     30,
+		MinIdleConns: 5,
+		ReadTimeout:  2 * time.Second,
+		WriteTimeout: 2 * time.Second,
+	})
 	if err := h.rdb.Ping(context.Background()).Err(); err != nil {
 		log.Printf("[handler] Redis connection failed: %v — like counts will use DB directly", err)
 		h.rdb = nil

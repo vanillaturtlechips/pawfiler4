@@ -32,6 +32,17 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		pageSize = 100
 	}
 
+	// 검색 없는 첫 페이지 요청은 인메모리 캐시 (5초 TTL)
+	if req.SearchQuery == "" && page == 1 && pageSize == 15 {
+		h.feedCacheMu.RLock()
+		if h.feedCache != nil && time.Now().Before(h.feedCache.expiresAt) {
+			cached := h.feedCache.data
+			h.feedCacheMu.RUnlock()
+			return cached, nil
+		}
+		h.feedCacheMu.RUnlock()
+	}
+
 	offset := (page - 1) * pageSize
 	searchQuery := req.SearchQuery
 	searchType := req.SearchType
@@ -137,11 +148,20 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		}
 	}
 
-	return &pb.FeedResponse{
+	resp := &pb.FeedResponse{
 		Posts:      posts,
 		TotalCount: totalCount,
 		Page:       page,
-	}, nil
+	}
+
+	// 검색 없는 첫 페이지 응답 캐시 저장
+	if req.SearchQuery == "" && page == 1 && pageSize == 15 {
+		h.feedCacheMu.Lock()
+		h.feedCache = &feedCacheEntry{data: resp, expiresAt: time.Now().Add(5 * time.Second)}
+		h.feedCacheMu.Unlock()
+	}
+
+	return resp, nil
 }
 
 // GetPost - 게시글 상세 조회
@@ -241,6 +261,11 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		}
 		return nil, status.Error(codes.Internal, "Failed to create post")
 	}
+
+	// 피드 캐시 무효화
+	h.feedCacheMu.Lock()
+	h.feedCache = nil
+	h.feedCacheMu.Unlock()
 
 	return &pb.Post{
 		Id:             postID,
@@ -356,6 +381,11 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	if h.rdb != nil {
 		h.rdb.Del(context.Background(), "likes:"+req.PostId)
 	}
+
+	// 피드 캐시 무효화
+	h.feedCacheMu.Lock()
+	h.feedCache = nil
+	h.feedCacheMu.Unlock()
 
 	return &pb.DeletePostResponse{Success: true}, nil
 }

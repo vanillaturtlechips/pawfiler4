@@ -16,11 +16,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type profileCacheEntry struct {
+	nickname    string
+	avatarEmoji string
+	expiresAt   time.Time
+}
+
 // Client is a gRPC client for the user service.
 type Client struct {
-	mu   sync.Mutex
-	conn *grpc.ClientConn
-	svc  userpb.UserServiceClient
+	mu           sync.Mutex
+	conn         *grpc.ClientConn
+	svc          userpb.UserServiceClient
+	profileCache sync.Map // map[string]*profileCacheEntry
 }
 
 // New creates a lazy-connecting user service gRPC client.
@@ -49,8 +56,17 @@ func (c *Client) ensureConnected() error {
 }
 
 // GetProfile fetches nickname and avatar_emoji from user service via gRPC.
-// Falls back to defaults if user service is unavailable.
+// 2분 인메모리 캐시로 동일 유저 반복 호출 방지.
 func (c *Client) GetProfile(ctx context.Context, userID string) (nickname, avatarEmoji string) {
+	// 캐시 확인
+	if v, ok := c.profileCache.Load(userID); ok {
+		entry := v.(*profileCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			return entry.nickname, entry.avatarEmoji
+		}
+		c.profileCache.Delete(userID)
+	}
+
 	if err := c.ensureConnected(); err != nil {
 		log.Printf("[userclient] connect failed: %v", err)
 		return "탐정", "🦊"
@@ -61,7 +77,6 @@ func (c *Client) GetProfile(ctx context.Context, userID string) (nickname, avata
 
 	resp, err := c.svc.GetProfile(ctx, &userpb.GetProfileRequest{UserId: userID})
 	if err != nil {
-		// 연결 실패 시 다음 호출에서 재연결 시도하도록 conn 초기화
 		log.Printf("[userclient] GetProfile failed for %s: %v — resetting connection", userID, err)
 		c.mu.Lock()
 		c.conn.Close()
@@ -76,6 +91,14 @@ func (c *Client) GetProfile(ctx context.Context, userID string) (nickname, avata
 	if resp.AvatarEmoji == "" {
 		resp.AvatarEmoji = "🦊"
 	}
+
+	// 캐시 저장 (2분 TTL)
+	c.profileCache.Store(userID, &profileCacheEntry{
+		nickname:    resp.Nickname,
+		avatarEmoji: resp.AvatarEmoji,
+		expiresAt:   time.Now().Add(2 * time.Minute),
+	})
+
 	return resp.Nickname, resp.AvatarEmoji
 }
 
