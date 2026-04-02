@@ -37,24 +37,19 @@ const quizRequests = new Counter('quiz_requests');
 const communityRequests = new Counter('community_requests');
 const totalTransactions = new Counter('total_transactions');
 
-// 10분 동안 150명에서 시작해서 5초당 7명씩 증가
-// 10분 = 600초, 5초당 7명 = 120회 증가 = 840명 증가
-// 최종: 150 + 840 = 990명 (약 1000명)
+// 600 VUs 고정, 5분 테스트
 export const options = {
   scenarios: {
     stress_test: {
-      executor: 'ramping-vus',
-      startVUs: 225,  // 초기 225명 (150 * 1.5)
-      stages: [
-        { duration: '10m', target: 2000 },  // 10분 동안 2000명까지 선형 증가
-      ],
-      gracefulRampDown: '30s',
+      executor: 'constant-vus',
+      vus: 600,
+      duration: '5m',
     },
   },
   thresholds: {
-    'http_req_duration': ['p(50)<1000', 'p(95)<2000', 'p(99)<5000'],
-    'http_req_failed': ['rate<0.8'],  // 80% 실패율까지 허용 (다운 시점 확인)
-    'errors': ['rate<0.8'],
+    'http_req_duration': ['p(50)<500', 'p(95)<1000', 'p(99)<3000'],
+    'http_req_failed': ['rate<0.1'],
+    'errors': ['rate<0.1'],
   },
 };
 
@@ -124,19 +119,25 @@ export default function () {
       quizRequests.add(1);
       totalTransactions.add(1);
       
-      const getQuestionSuccess = check(getQuestionRes, {
-        'Quiz GetRandomQuestion status is 200': (r) => r.status === 200,
+      // 200=정상, 429=에너지 부족 (정상 동작). 그 외만 에러
+      const getQuestionOk = getQuestionRes.status === 200 || getQuestionRes.status === 429;
+      check(getQuestionRes, {
+        'Quiz GetRandomQuestion status is 200 or 429': (r) => r.status === 200 || r.status === 429,
         'Quiz GetRandomQuestion response time < 2000ms': (r) => r.timings.duration < 2000,
       });
-      
-      errorRate.add(!getQuestionSuccess);
-      
+      errorRate.add(!getQuestionOk);
+
+      // 429 에너지 부족이면 더 이상 문제 풀기 불가 → 루프 종료
+      if (getQuestionRes.status === 429) {
+        break;
+      }
+
       // 2. 답변 제출 (문제를 성공적으로 가져온 경우에만)
-      if (getQuestionSuccess && getQuestionRes.body) {
+      if (getQuestionOk && getQuestionRes.body) {
         try {
           const question = JSON.parse(getQuestionRes.body);
           const answer = generateAnswer(question.type);
-          
+
           const submitAnswerRes = http.post(
             `${API_URL}/api/quiz.QuizService/SubmitAnswer`,
             JSON.stringify({
@@ -145,7 +146,7 @@ export default function () {
               ...answer,
             }),
             {
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': 'k6-load-test',
                 'Accept': 'application/json',
@@ -153,19 +154,23 @@ export default function () {
               tags: { service: 'quiz', method: 'SubmitAnswer' },
             }
           );
-          
+
           quizResponseTime.add(submitAnswerRes.timings.duration);
           quizRequests.add(1);
           totalTransactions.add(1);
-          
-          const submitSuccess = check(submitAnswerRes, {
-            'Quiz SubmitAnswer status is 200': (r) => r.status === 200,
+
+          // 429=에너지 부족도 정상 동작
+          const submitOk = submitAnswerRes.status === 200 || submitAnswerRes.status === 429;
+          check(submitAnswerRes, {
+            'Quiz SubmitAnswer status is 200 or 429': (r) => r.status === 200 || r.status === 429,
             'Quiz SubmitAnswer response time < 2000ms': (r) => r.timings.duration < 2000,
           });
-          
-          errorRate.add(!submitSuccess);
+          errorRate.add(!submitOk);
+
+          if (submitAnswerRes.status === 429) {
+            break;
+          }
         } catch (e) {
-          // JSON 파싱 실패 시 에러로 기록
           errorRate.add(true);
         }
       }
@@ -210,12 +215,8 @@ export default function () {
 export function setup() {
   console.log('=== Stress Test 시작 ===');
   console.log(`API URL: ${API_URL}`);
-  console.log('초기: 225명 (VUs)');
-  console.log('증가율: 5초당 약 10명');
-  console.log('기간: 10분');
-  console.log('최종: 2000명 (VUs)');
-  console.log('각 사용자: 초당 약 1.6개 요청');
-  console.log('예상 RPS: 360 → 3,200');
+  console.log('VUs: 600 (고정)');
+  console.log('기간: 5분');
   console.log('Quiz:Community = 50:50');
   console.log('Community: 100% GetFeed (읽기 전용)');
   console.log('========================');

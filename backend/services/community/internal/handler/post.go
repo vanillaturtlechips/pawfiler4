@@ -32,11 +32,12 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		pageSize = 100
 	}
 
-	// 검색 없는 첫 페이지 요청은 인메모리 캐시 (5초 TTL)
-	if req.SearchQuery == "" && page == 1 && pageSize == 15 {
+	// 검색 없는 요청은 페이지별 인메모리 캐시 (30초 TTL)
+	useCache := req.SearchQuery == "" && pageSize <= 15
+	if useCache {
 		h.feedCacheMu.RLock()
-		if h.feedCache != nil && time.Now().Before(h.feedCache.expiresAt) {
-			cached := h.feedCache.data
+		if entry, ok := h.feedCache[page]; ok && time.Now().Before(entry.expiresAt) {
+			cached := entry.data
 			h.feedCacheMu.RUnlock()
 			return cached, nil
 		}
@@ -47,7 +48,6 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 	searchQuery := req.SearchQuery
 	searchType := req.SearchType
 
-	var totalCount int32
 	var rows *sql.Rows
 	var err error
 
@@ -56,10 +56,10 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 
 		if searchType == "body" {
 			rows, err = h.db.QueryContext(ctx, `
-				SELECT 
-					id, author_id, author_nickname, author_emoji, title, body, 
+				SELECT
+					id, author_id, author_nickname, author_emoji, title, body,
 					likes, comments, created_at::text, tags,
-					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post,
+					media_url, media_type, is_admin_post,
 					true_votes, false_votes, is_correct
 				FROM community.posts
 				WHERE body ILIKE $1
@@ -74,10 +74,10 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 				whereClause = "(title ILIKE $1 OR $2 = ANY(tags))"
 			}
 			rows, err = h.db.QueryContext(ctx, fmt.Sprintf(`
-				SELECT 
-					id, author_id, author_nickname, author_emoji, title, body, 
+				SELECT
+					id, author_id, author_nickname, author_emoji, title, body,
 					likes, comments, created_at::text, tags,
-					COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post,
+					media_url, media_type, is_admin_post,
 					true_votes, false_votes, is_correct
 				FROM community.posts
 				WHERE %s
@@ -87,10 +87,10 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		}
 	} else {
 		rows, err = h.db.QueryContext(ctx, `
-			SELECT 
-				id, author_id, author_nickname, author_emoji, title, body, 
+			SELECT
+				id, author_id, author_nickname, author_emoji, title, body,
 				likes, comments, created_at::text, tags,
-				COUNT(*) OVER() as total_count, media_url, media_type, is_admin_post,
+				media_url, media_type, is_admin_post,
 				true_votes, false_votes, is_correct
 			FROM community.posts
 			ORDER BY is_admin_post DESC, created_at DESC
@@ -99,7 +99,8 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 	}
 
 	if err != nil {
-		log.Printf("GetFeed query error: %v", err); return nil, status.Error(codes.Internal, "Failed to fetch posts")
+		log.Printf("GetFeed query error: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to fetch posts")
 	}
 	defer rows.Close()
 
@@ -109,10 +110,9 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		var tags []string
 		var mediaUrl, mediaType sql.NullString
 		var isCorrect sql.NullBool
-		var count int
 		err := rows.Scan(&post.Id, &post.AuthorId, &post.AuthorNickname, &post.AuthorEmoji,
 			&post.Title, &post.Body, &post.Likes, &post.Comments, &post.CreatedAt,
-			(*pq.StringArray)(&tags), &count, &mediaUrl, &mediaType, &post.IsAdminPost,
+			(*pq.StringArray)(&tags), &mediaUrl, &mediaType, &post.IsAdminPost,
 			&post.TrueVotes, &post.FalseVotes, &isCorrect)
 		if err != nil {
 			log.Printf("Error scanning post: %v", err)
@@ -124,8 +124,30 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		if isCorrect.Valid {
 			post.IsCorrect = &isCorrect.Bool
 		}
-		totalCount = int32(count)
 		posts = append(posts, &post)
+	}
+
+	// totalCount — 별도 캐시 (60초 TTL), 검색이 아닌 경우만
+	var totalCount int32
+	if searchQuery == "" {
+		h.feedCountMu.RLock()
+		if time.Now().Before(h.feedCountExp) {
+			totalCount = h.feedCount
+			h.feedCountMu.RUnlock()
+		} else {
+			h.feedCountMu.RUnlock()
+			h.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM community.posts").Scan(&totalCount)
+			h.feedCountMu.Lock()
+			h.feedCount = totalCount
+			h.feedCountExp = time.Now().Add(60 * time.Second)
+			h.feedCountMu.Unlock()
+		}
+	} else {
+		// 검색 시에만 정확한 카운트 필요 — 결과 수로 대체
+		totalCount = int32(len(posts))
+		if int32(len(posts)) == pageSize {
+			totalCount = pageSize * page * 2 // 다음 페이지 존재 힌트
+		}
 	}
 
 	// Redis likes 일괄 반영 — MGet으로 한 번에 조회 (N+1 방지)
@@ -154,10 +176,10 @@ func (h *Handler) GetFeed(ctx context.Context, req *pb.GetFeedRequest) (*pb.Feed
 		Page:       page,
 	}
 
-	// 검색 없는 첫 페이지 응답 캐시 저장
-	if req.SearchQuery == "" && page == 1 && pageSize == 15 {
+	// 캐시 저장 (30초 TTL)
+	if useCache {
 		h.feedCacheMu.Lock()
-		h.feedCache = &feedCacheEntry{data: resp, expiresAt: time.Now().Add(5 * time.Second)}
+		h.feedCache[page] = &feedCacheEntry{data: resp, expiresAt: time.Now().Add(30 * time.Second)}
 		h.feedCacheMu.Unlock()
 	}
 
@@ -264,7 +286,7 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 
 	// 피드 캐시 무효화
 	h.feedCacheMu.Lock()
-	h.feedCache = nil
+	h.feedCache = make(map[int32]*feedCacheEntry)
 	h.feedCacheMu.Unlock()
 
 	return &pb.Post{
@@ -384,7 +406,7 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 
 	// 피드 캐시 무효화
 	h.feedCacheMu.Lock()
-	h.feedCache = nil
+	h.feedCache = make(map[int32]*feedCacheEntry)
 	h.feedCacheMu.Unlock()
 
 	return &pb.DeletePostResponse{Success: true}, nil
