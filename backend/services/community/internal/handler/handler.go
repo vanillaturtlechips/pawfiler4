@@ -16,6 +16,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 // rankingCacheEntry 랭킹 응답을 TTL과 함께 저장하는 인메모리 캐시
@@ -48,6 +49,8 @@ type Handler struct {
 	feedCount      int32
 	feedCountExp   time.Time
 	feedCountMu    sync.RWMutex
+	feedSf         singleflight.Group
+	countSf        singleflight.Group
 }
 
 type feedCacheEntry struct {
