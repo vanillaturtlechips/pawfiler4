@@ -33,7 +33,6 @@ const (
 	CommunityService_VotePost_FullMethodName           = "/community.CommunityService/VotePost"
 	CommunityService_GetVoteResult_FullMethodName      = "/community.CommunityService/GetVoteResult"
 	CommunityService_GetUserVote_FullMethodName        = "/community.CommunityService/GetUserVote"
-	CommunityService_UploadMedia_FullMethodName        = "/community.CommunityService/UploadMedia"
 	CommunityService_SyncAuthorNickname_FullMethodName = "/community.CommunityService/SyncAuthorNickname"
 	CommunityService_GetRanking_FullMethodName         = "/community.CommunityService/GetRanking"
 	CommunityService_GetHotTopic_FullMethodName        = "/community.CommunityService/GetHotTopic"
@@ -58,7 +57,6 @@ type CommunityServiceClient interface {
 	VotePost(ctx context.Context, in *VotePostRequest, opts ...grpc.CallOption) (*VotePostResponse, error)
 	GetVoteResult(ctx context.Context, in *GetVoteResultRequest, opts ...grpc.CallOption) (*VoteResult, error)
 	GetUserVote(ctx context.Context, in *GetUserVoteRequest, opts ...grpc.CallOption) (*GetUserVoteResponse, error)
-	UploadMedia(ctx context.Context, in *UploadMediaRequest, opts ...grpc.CallOption) (*UploadMediaResponse, error)
 	SyncAuthorNickname(ctx context.Context, in *SyncAuthorNicknameRequest, opts ...grpc.CallOption) (*SyncAuthorNicknameResponse, error)
 	GetRanking(ctx context.Context, in *GetRankingRequest, opts ...grpc.CallOption) (*GetRankingResponse, error)
 	GetHotTopic(ctx context.Context, in *GetHotTopicRequest, opts ...grpc.CallOption) (*HotTopicResponse, error)
@@ -213,16 +211,6 @@ func (c *communityServiceClient) GetUserVote(ctx context.Context, in *GetUserVot
 	return out, nil
 }
 
-func (c *communityServiceClient) UploadMedia(ctx context.Context, in *UploadMediaRequest, opts ...grpc.CallOption) (*UploadMediaResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UploadMediaResponse)
-	err := c.cc.Invoke(ctx, CommunityService_UploadMedia_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *communityServiceClient) SyncAuthorNickname(ctx context.Context, in *SyncAuthorNicknameRequest, opts ...grpc.CallOption) (*SyncAuthorNicknameResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SyncAuthorNicknameResponse)
@@ -281,7 +269,6 @@ type CommunityServiceServer interface {
 	VotePost(context.Context, *VotePostRequest) (*VotePostResponse, error)
 	GetVoteResult(context.Context, *GetVoteResultRequest) (*VoteResult, error)
 	GetUserVote(context.Context, *GetUserVoteRequest) (*GetUserVoteResponse, error)
-	UploadMedia(context.Context, *UploadMediaRequest) (*UploadMediaResponse, error)
 	SyncAuthorNickname(context.Context, *SyncAuthorNicknameRequest) (*SyncAuthorNicknameResponse, error)
 	GetRanking(context.Context, *GetRankingRequest) (*GetRankingResponse, error)
 	GetHotTopic(context.Context, *GetHotTopicRequest) (*HotTopicResponse, error)
@@ -337,9 +324,6 @@ func (UnimplementedCommunityServiceServer) GetVoteResult(context.Context, *GetVo
 }
 func (UnimplementedCommunityServiceServer) GetUserVote(context.Context, *GetUserVoteRequest) (*GetUserVoteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserVote not implemented")
-}
-func (UnimplementedCommunityServiceServer) UploadMedia(context.Context, *UploadMediaRequest) (*UploadMediaResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UploadMedia not implemented")
 }
 func (UnimplementedCommunityServiceServer) SyncAuthorNickname(context.Context, *SyncAuthorNicknameRequest) (*SyncAuthorNicknameResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncAuthorNickname not implemented")
@@ -626,24 +610,6 @@ func _CommunityService_GetUserVote_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CommunityService_UploadMedia_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UploadMediaRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CommunityServiceServer).UploadMedia(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CommunityService_UploadMedia_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CommunityServiceServer).UploadMedia(ctx, req.(*UploadMediaRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _CommunityService_SyncAuthorNickname_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SyncAuthorNicknameRequest)
 	if err := dec(in); err != nil {
@@ -778,10 +744,6 @@ var CommunityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserVote",
 			Handler:    _CommunityService_GetUserVote_Handler,
-		},
-		{
-			MethodName: "UploadMedia",
-			Handler:    _CommunityService_UploadMedia_Handler,
 		},
 		{
 			MethodName: "SyncAuthorNickname",

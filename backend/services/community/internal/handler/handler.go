@@ -15,7 +15,6 @@ import (
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -70,73 +69,10 @@ func NewHandler(db *sql.DB) *Handler {
 	} else {
 		h.s3 = s3.NewFromConfig(cfg)
 	}
-	go h.startOrphanCleanup()
 	if h.rdb != nil {
 		go h.startLikeSyncBatch()
 	}
 	return h
-}
-
-// startOrphanCleanup - 매일 새벽 3시에 고아 S3 파일 정리
-func (h *Handler) startOrphanCleanup() {
-	for {
-		now := time.Now()
-		next := time.Date(now.Year(), now.Month(), now.Day()+1, 3, 0, 0, 0, now.Location())
-		time.Sleep(time.Until(next))
-		h.cleanOrphanS3Files()
-	}
-}
-
-func (h *Handler) cleanOrphanS3Files() {
-	if h.s3 == nil {
-		return
-	}
-	ctx := context.Background()
-
-	rows, err := h.db.QueryContext(ctx, `
-		SELECT media_url FROM community.media_uploads
-		WHERE uploaded_at < NOW() - INTERVAL '2 days'
-	`)
-	if err != nil {
-		log.Printf("[ERROR] orphan cleanup: DB query failed: %v", err)
-		return
-	}
-
-	// rows 먼저 전부 수집 후 닫기 — rows 열린 채로 DB 작업 시 커넥션 충돌 방지
-	var urls []string
-	for rows.Next() {
-		var mediaURL string
-		if err := rows.Scan(&mediaURL); err == nil {
-			urls = append(urls, mediaURL)
-		}
-	}
-	rows.Close()
-
-	if len(urls) == 0 {
-		return
-	}
-
-	// S3 삭제 성공한 것만 수집
-	var deleted []string
-	for _, url := range urls {
-		if err := h.deleteMediaFromS3(url); err != nil {
-			log.Printf("[ERROR] orphan cleanup: delete failed %s: %v", url, err)
-			continue
-		}
-		deleted = append(deleted, url)
-	}
-
-	if len(deleted) == 0 {
-		return
-	}
-
-	// DB DELETE 배치로 1번에 처리
-	if _, err := h.db.ExecContext(ctx, `
-		DELETE FROM community.media_uploads WHERE media_url = ANY($1)
-	`, pq.Array(deleted)); err != nil {
-		log.Printf("[ERROR] orphan cleanup: DB delete failed: %v", err)
-	}
-	log.Printf("[INFO] orphan cleanup done: deleted %d files", len(deleted))
 }
 
 func getEnvOrDefault(key, def string) string {

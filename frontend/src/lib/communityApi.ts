@@ -89,55 +89,34 @@ export const createCommunityPost = async (req: {
   isCorrect?: boolean;
 }): Promise<CommunityPost> => {
   try {
-    // 1. 미디어 파일이 있으면 먼저 업로드 (gRPC로 변경)
-    let mediaUrl = "";
-    let mediaType = "";
+    let fileContent = "";
+    let fileName = "";
+    let fileContentType = "";
+
     if (req.mediaFile) {
-      // 파일을 base64로 변환
       const arrayBuffer = await req.mediaFile.arrayBuffer();
       const uint8 = new Uint8Array(arrayBuffer);
       const chunks: string[] = [];
       for (let i = 0; i < uint8.length; i += 8192) {
         chunks.push(String.fromCharCode(...uint8.subarray(i, i + 8192)));
       }
-      const base64Content = btoa(chunks.join(''));
-
-      const uploadResponse = await fetch(`${config.communityBaseUrl}/community.CommunityService/UploadMedia`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        ...getAuthHeader(),
-        },
-        body: JSON.stringify({
-          file_name: req.mediaFile.name,
-          content: base64Content,
-          content_type: req.mediaFile.type,
-        }),
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("미디어 업로드 실패");
-      }
-
-      const uploadData = await uploadResponse.json();
-      mediaUrl = uploadData.media_url || uploadData.mediaUrl || "";
-      mediaType = uploadData.media_type || uploadData.mediaType || "";
+      fileContent = btoa(chunks.join(''));
+      fileName = req.mediaFile.name;
+      fileContentType = req.mediaFile.type;
     }
 
-    // 2. JSON으로 게시글 생성 (gRPC Gateway는 JSON만 받음)
     const requestBody: any = {
       user_id: req.userId,
-      author_nickname: req.authorNickname,
-      author_emoji: req.authorEmoji,
       title: req.title,
       body: req.body,
       tags: req.tags,
       is_admin_post: req.isAdminPost || false,
     };
 
-    if (mediaUrl) {
-      requestBody.media_url = mediaUrl;
-      requestBody.media_type = mediaType;
+    if (fileContent) {
+      requestBody.file_name = fileName;
+      requestBody.file_content = fileContent;
+      requestBody.file_content_type = fileContentType;
     }
 
     if (req.isCorrect !== undefined) {

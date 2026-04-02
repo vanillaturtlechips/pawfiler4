@@ -186,8 +186,7 @@ func (h *Handler) GetPost(ctx context.Context, req *pb.GetPostRequest) (*pb.Post
 	return &post, nil
 }
 
-// CreatePost - 게시글 작성
-// author_nickname/emoji는 user 서비스 gRPC 호출로 최신값을 가져옴
+// CreatePost - 게시글 작성 (미디어 파일 포함 시 S3 업로드 후 저장)
 func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*pb.Post, error) {
 	if req.Title == "" {
 		return nil, status.Error(codes.InvalidArgument, "Title is required")
@@ -195,11 +194,26 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 	if req.Body == "" {
 		return nil, status.Error(codes.InvalidArgument, "Body is required")
 	}
-	if req.MediaUrl == "" {
-		return nil, status.Error(codes.InvalidArgument, "Media is required")
-	}
 	if req.IsCorrect == nil {
 		return nil, status.Error(codes.InvalidArgument, "isCorrect is required")
+	}
+
+	// 파일 데이터가 있으면 S3 업로드 (media_url 직접 전달 방식 대체)
+	mediaUrl := req.MediaUrl
+	mediaType := req.MediaType
+	if len(req.FileContent) > 0 {
+		if req.FileName == "" {
+			return nil, status.Error(codes.InvalidArgument, "file_name is required with file_content")
+		}
+		var uploadErr error
+		mediaUrl, mediaType, uploadErr = h.uploadMediaInternal(ctx, req.FileName, req.FileContent, req.FileContentType)
+		if uploadErr != nil {
+			return nil, uploadErr
+		}
+	}
+
+	if mediaUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "Media is required")
 	}
 
 	// Istio가 주입한 x-user-id 헤더 우선, 없으면 proto 필드 사용 (내부 서비스 호출 호환)
@@ -218,15 +232,14 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		INSERT INTO community.posts (id, author_id, author_nickname, author_emoji, title, body, tags, media_url, media_type, is_admin_post, is_correct, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, postID, userID, nickname, avatarEmoji, req.Title, req.Body,
-		pq.Array(req.Tags), nullableString(req.MediaUrl), nullableString(req.MediaType), isAdminPost, req.IsCorrect, createdAt)
+		pq.Array(req.Tags), nullableString(mediaUrl), nullableString(mediaType), isAdminPost, req.IsCorrect, createdAt)
 
 	if err != nil {
+		// DB 저장 실패 시 S3에 업로드된 파일 삭제 (고아 파일 방지)
+		if len(req.FileContent) > 0 && mediaUrl != "" {
+			go h.deleteMediaFromS3(mediaUrl)
+		}
 		return nil, status.Error(codes.Internal, "Failed to create post")
-	}
-
-	// 미디어 linked 처리 — 연결되면 추적 테이블에서 바로 삭제
-	if req.MediaUrl != "" {
-		h.db.ExecContext(ctx, "DELETE FROM community.media_uploads WHERE media_url = $1", req.MediaUrl)
 	}
 
 	return &pb.Post{
@@ -237,8 +250,8 @@ func (h *Handler) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*p
 		Title:          req.Title,
 		Body:           req.Body,
 		Tags:           req.Tags,
-		MediaUrl:       req.MediaUrl,
-		MediaType:      req.MediaType,
+		MediaUrl:       mediaUrl,
+		MediaType:      mediaType,
 		IsAdminPost:    isAdminPost,
 		CreatedAt:      createdAt.Format(time.RFC3339),
 		Likes:          0,
@@ -322,6 +335,14 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 		return nil, status.Error(codes.PermissionDenied, "Forbidden")
 	}
 
+	// S3 파일 먼저 삭제 (DB 삭제 전) - 실패 시 트랜잭션 롤백
+	if mediaURL != "" {
+		if err := h.deleteMediaFromS3(mediaURL); err != nil {
+			log.Printf("[ERROR] S3 delete failed for %s: %v", mediaURL, err)
+			return nil, status.Error(codes.Internal, "Failed to delete media file")
+		}
+	}
+
 	_, err = tx.ExecContext(ctx, "DELETE FROM community.posts WHERE id = $1", req.PostId)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Failed to delete post")
@@ -334,19 +355,6 @@ func (h *Handler) DeletePost(ctx context.Context, req *pb.DeletePostRequest) (*p
 	// Redis likes 키 삭제
 	if h.rdb != nil {
 		h.rdb.Del(context.Background(), "likes:"+req.PostId)
-	}
-
-	// S3 삭제는 트랜잭션 커밋 후 비동기 처리 — row lock 유지 시간 최소화
-	if mediaURL != "" {
-		go func() {
-			for i := 0; i < 3; i++ {
-				if err := h.deleteMediaFromS3(mediaURL); err == nil {
-					return
-				}
-				time.Sleep(time.Duration(i+1) * 5 * time.Second)
-			}
-			log.Printf("[ERROR] S3 delete permanently failed after 3 attempts: %s", mediaURL)
-		}()
 	}
 
 	return &pb.DeletePostResponse{Success: true}, nil

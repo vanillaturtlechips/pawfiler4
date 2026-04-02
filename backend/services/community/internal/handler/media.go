@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"community/pb"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
@@ -17,51 +15,45 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// UploadMedia - S3에 미디어 업로드 (이미지/영상)
-func (h *Handler) UploadMedia(ctx context.Context, req *pb.UploadMediaRequest) (*pb.UploadMediaResponse, error) {
-	log.Printf("UploadMedia called - FileName: %s, ContentSize: %d bytes", req.FileName, len(req.Content))
+// uploadMediaInternal - S3에 미디어 업로드 (내부 전용, CreatePost에서 호출)
+func (h *Handler) uploadMediaInternal(ctx context.Context, fileName string, content []byte, contentType string) (mediaUrl string, mediaType string, err error) {
+	log.Printf("uploadMediaInternal called - FileName: %s, ContentSize: %d bytes", fileName, len(content))
 
-	if req.FileName == "" || len(req.Content) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "file_name and content required")
-	}
-
-	ext := strings.ToLower(filepath.Ext(req.FileName))
+	ext := strings.ToLower(filepath.Ext(fileName))
 	allowedExts := map[string]string{
 		".jpg": "image", ".jpeg": "image", ".png": "image", ".gif": "image", ".webp": "image",
 		".mp4": "video", ".mov": "video", ".avi": "video", ".webm": "video",
 	}
-	mediaType, ok := allowedExts[ext]
+	mt, ok := allowedExts[ext]
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "unsupported file type")
+		return "", "", status.Error(codes.InvalidArgument, "unsupported file type")
 	}
 
-	if len(req.Content) > 100<<20 {
-		return nil, status.Error(codes.InvalidArgument, "file too large (max 100MB)")
+	if len(content) > 100<<20 {
+		return "", "", status.Error(codes.InvalidArgument, "file too large (max 100MB)")
 	}
 
 	if h.s3 == nil {
-		return nil, status.Error(codes.Internal, "storage not configured")
+		return "", "", status.Error(codes.Internal, "storage not configured")
 	}
 
-	key := fmt.Sprintf("community/%s/%s%s", mediaType, uuid.New().String(), ext)
+	key := fmt.Sprintf("community/%s/%s%s", mt, uuid.New().String(), ext)
 
-	contentType := req.ContentType
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 
-	_, err := h.s3.PutObject(ctx, &s3.PutObjectInput{
+	_, err = h.s3.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(h.s3Bucket),
 		Key:         aws.String(key),
-		Body:        bytes.NewReader(req.Content),
+		Body:        bytes.NewReader(content),
 		ContentType: aws.String(contentType),
 	})
 	if err != nil {
 		log.Printf("S3 upload error: %v", err)
-		return nil, status.Error(codes.Internal, "upload failed")
+		return "", "", status.Error(codes.Internal, "upload failed")
 	}
 
-	var mediaUrl string
 	if h.cfDomain != "" {
 		mediaUrl = fmt.Sprintf("%s/%s", strings.TrimRight(h.cfDomain, "/"), key)
 	} else {
@@ -69,12 +61,5 @@ func (h *Handler) UploadMedia(ctx context.Context, req *pb.UploadMediaRequest) (
 	}
 
 	log.Printf("Uploaded media to S3: %s", key)
-
-	// 고아 파일 추적 — 게시글 연결 전까지 linked=false로 기록
-	h.db.ExecContext(ctx, "INSERT INTO community.media_uploads (media_url, media_type) VALUES ($1, $2)", mediaUrl, mediaType)
-
-	return &pb.UploadMediaResponse{
-		MediaUrl:  mediaUrl,
-		MediaType: mediaType,
-	}, nil
+	return mediaUrl, mt, nil
 }

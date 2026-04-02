@@ -57,9 +57,6 @@ service CommunityService {
   rpc GetUserVote(GetUserVoteRequest) returns (GetUserVoteResponse) {
     option (google.api.http) = { post: "/community.CommunityService/GetUserVote" body: "*" };
   }
-  rpc UploadMedia(UploadMediaRequest) returns (UploadMediaResponse) {
-    option (google.api.http) = { post: "/community.CommunityService/UploadMedia" body: "*" };
-  }
   rpc SyncAuthorNickname(SyncAuthorNicknameRequest) returns (SyncAuthorNicknameResponse) {
     option (google.api.http) = { post: "/community.CommunityService/SyncAuthorNickname" body: "*" };
   }
@@ -119,6 +116,10 @@ message CreatePostRequest {
   string media_type = 8;
   bool is_admin_post = 9;
   optional bool is_correct = 10;
+  // 미디어 직접 업로드 — media_url 대신 파일 데이터를 직접 전송
+  string file_name = 11;
+  bytes file_content = 12;
+  string file_content_type = 13;
 }
 
 message UpdatePostRequest {
@@ -175,9 +176,6 @@ message VoteResult { string post_id = 1; int32 true_votes = 2; int32 false_votes
 
 message GetUserVoteRequest { string post_id = 1; string user_id = 2; }
 message GetUserVoteResponse { bool voted = 1; bool vote = 2; }
-
-message UploadMediaRequest { string file_name = 1; bytes content = 2; string content_type = 3; }
-message UploadMediaResponse { string media_url = 1; string media_type = 2; }
 
 message SyncAuthorNicknameRequest {
   string user_id = 1;

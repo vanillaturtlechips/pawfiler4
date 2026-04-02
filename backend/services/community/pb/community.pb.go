@@ -370,8 +370,12 @@ type CreatePostRequest struct {
 	MediaType      string                 `protobuf:"bytes,8,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
 	IsAdminPost    bool                   `protobuf:"varint,9,opt,name=is_admin_post,json=isAdminPost,proto3" json:"is_admin_post,omitempty"`
 	IsCorrect      *bool                  `protobuf:"varint,10,opt,name=is_correct,json=isCorrect,proto3,oneof" json:"is_correct,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// 미디어 직접 업로드 — media_url 대신 파일 데이터를 직접 전송
+	FileName        string `protobuf:"bytes,11,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	FileContent     []byte `protobuf:"bytes,12,opt,name=file_content,json=fileContent,proto3" json:"file_content,omitempty"`
+	FileContentType string `protobuf:"bytes,13,opt,name=file_content_type,json=fileContentType,proto3" json:"file_content_type,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *CreatePostRequest) Reset() {
@@ -472,6 +476,27 @@ func (x *CreatePostRequest) GetIsCorrect() bool {
 		return *x.IsCorrect
 	}
 	return false
+}
+
+func (x *CreatePostRequest) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+func (x *CreatePostRequest) GetFileContent() []byte {
+	if x != nil {
+		return x.FileContent
+	}
+	return nil
+}
+
+func (x *CreatePostRequest) GetFileContentType() string {
+	if x != nil {
+		return x.FileContentType
+	}
+	return ""
 }
 
 type UpdatePostRequest struct {
@@ -1662,118 +1687,6 @@ func (x *GetUserVoteResponse) GetVote() bool {
 	return false
 }
 
-type UploadMediaRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	FileName      string                 `protobuf:"bytes,1,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
-	Content       []byte                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
-	ContentType   string                 `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UploadMediaRequest) Reset() {
-	*x = UploadMediaRequest{}
-	mi := &file_community_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UploadMediaRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UploadMediaRequest) ProtoMessage() {}
-
-func (x *UploadMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UploadMediaRequest.ProtoReflect.Descriptor instead.
-func (*UploadMediaRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{26}
-}
-
-func (x *UploadMediaRequest) GetFileName() string {
-	if x != nil {
-		return x.FileName
-	}
-	return ""
-}
-
-func (x *UploadMediaRequest) GetContent() []byte {
-	if x != nil {
-		return x.Content
-	}
-	return nil
-}
-
-func (x *UploadMediaRequest) GetContentType() string {
-	if x != nil {
-		return x.ContentType
-	}
-	return ""
-}
-
-type UploadMediaResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MediaUrl      string                 `protobuf:"bytes,1,opt,name=media_url,json=mediaUrl,proto3" json:"media_url,omitempty"`
-	MediaType     string                 `protobuf:"bytes,2,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UploadMediaResponse) Reset() {
-	*x = UploadMediaResponse{}
-	mi := &file_community_proto_msgTypes[27]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UploadMediaResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UploadMediaResponse) ProtoMessage() {}
-
-func (x *UploadMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[27]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UploadMediaResponse.ProtoReflect.Descriptor instead.
-func (*UploadMediaResponse) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{27}
-}
-
-func (x *UploadMediaResponse) GetMediaUrl() string {
-	if x != nil {
-		return x.MediaUrl
-	}
-	return ""
-}
-
-func (x *UploadMediaResponse) GetMediaType() string {
-	if x != nil {
-		return x.MediaType
-	}
-	return ""
-}
-
 type SyncAuthorNicknameRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1785,7 +1698,7 @@ type SyncAuthorNicknameRequest struct {
 
 func (x *SyncAuthorNicknameRequest) Reset() {
 	*x = SyncAuthorNicknameRequest{}
-	mi := &file_community_proto_msgTypes[28]
+	mi := &file_community_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1797,7 +1710,7 @@ func (x *SyncAuthorNicknameRequest) String() string {
 func (*SyncAuthorNicknameRequest) ProtoMessage() {}
 
 func (x *SyncAuthorNicknameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[28]
+	mi := &file_community_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1810,7 +1723,7 @@ func (x *SyncAuthorNicknameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncAuthorNicknameRequest.ProtoReflect.Descriptor instead.
 func (*SyncAuthorNicknameRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{28}
+	return file_community_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SyncAuthorNicknameRequest) GetUserId() string {
@@ -1843,7 +1756,7 @@ type SyncAuthorNicknameResponse struct {
 
 func (x *SyncAuthorNicknameResponse) Reset() {
 	*x = SyncAuthorNicknameResponse{}
-	mi := &file_community_proto_msgTypes[29]
+	mi := &file_community_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1855,7 +1768,7 @@ func (x *SyncAuthorNicknameResponse) String() string {
 func (*SyncAuthorNicknameResponse) ProtoMessage() {}
 
 func (x *SyncAuthorNicknameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[29]
+	mi := &file_community_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1868,7 +1781,7 @@ func (x *SyncAuthorNicknameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncAuthorNicknameResponse.ProtoReflect.Descriptor instead.
 func (*SyncAuthorNicknameResponse) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{29}
+	return file_community_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SyncAuthorNicknameResponse) GetSuccess() bool {
@@ -1886,7 +1799,7 @@ type GetNoticesRequest struct {
 
 func (x *GetNoticesRequest) Reset() {
 	*x = GetNoticesRequest{}
-	mi := &file_community_proto_msgTypes[30]
+	mi := &file_community_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1898,7 +1811,7 @@ func (x *GetNoticesRequest) String() string {
 func (*GetNoticesRequest) ProtoMessage() {}
 
 func (x *GetNoticesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[30]
+	mi := &file_community_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,7 +1824,7 @@ func (x *GetNoticesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNoticesRequest.ProtoReflect.Descriptor instead.
 func (*GetNoticesRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{30}
+	return file_community_proto_rawDescGZIP(), []int{28}
 }
 
 type Notice struct {
@@ -1927,7 +1840,7 @@ type Notice struct {
 
 func (x *Notice) Reset() {
 	*x = Notice{}
-	mi := &file_community_proto_msgTypes[31]
+	mi := &file_community_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1939,7 +1852,7 @@ func (x *Notice) String() string {
 func (*Notice) ProtoMessage() {}
 
 func (x *Notice) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[31]
+	mi := &file_community_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1952,7 +1865,7 @@ func (x *Notice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Notice.ProtoReflect.Descriptor instead.
 func (*Notice) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{31}
+	return file_community_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Notice) GetId() string {
@@ -1999,7 +1912,7 @@ type NoticesResponse struct {
 
 func (x *NoticesResponse) Reset() {
 	*x = NoticesResponse{}
-	mi := &file_community_proto_msgTypes[32]
+	mi := &file_community_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2011,7 +1924,7 @@ func (x *NoticesResponse) String() string {
 func (*NoticesResponse) ProtoMessage() {}
 
 func (x *NoticesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[32]
+	mi := &file_community_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2024,7 +1937,7 @@ func (x *NoticesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NoticesResponse.ProtoReflect.Descriptor instead.
 func (*NoticesResponse) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{32}
+	return file_community_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *NoticesResponse) GetNotices() []*Notice {
@@ -2042,7 +1955,7 @@ type GetTopDetectiveRequest struct {
 
 func (x *GetTopDetectiveRequest) Reset() {
 	*x = GetTopDetectiveRequest{}
-	mi := &file_community_proto_msgTypes[33]
+	mi := &file_community_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2054,7 +1967,7 @@ func (x *GetTopDetectiveRequest) String() string {
 func (*GetTopDetectiveRequest) ProtoMessage() {}
 
 func (x *GetTopDetectiveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[33]
+	mi := &file_community_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2067,7 +1980,7 @@ func (x *GetTopDetectiveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTopDetectiveRequest.ProtoReflect.Descriptor instead.
 func (*GetTopDetectiveRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{33}
+	return file_community_proto_rawDescGZIP(), []int{31}
 }
 
 type TopDetectiveResponse struct {
@@ -2082,7 +1995,7 @@ type TopDetectiveResponse struct {
 
 func (x *TopDetectiveResponse) Reset() {
 	*x = TopDetectiveResponse{}
-	mi := &file_community_proto_msgTypes[34]
+	mi := &file_community_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2094,7 +2007,7 @@ func (x *TopDetectiveResponse) String() string {
 func (*TopDetectiveResponse) ProtoMessage() {}
 
 func (x *TopDetectiveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[34]
+	mi := &file_community_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2107,7 +2020,7 @@ func (x *TopDetectiveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopDetectiveResponse.ProtoReflect.Descriptor instead.
 func (*TopDetectiveResponse) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{34}
+	return file_community_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *TopDetectiveResponse) GetAuthorNickname() string {
@@ -2146,7 +2059,7 @@ type GetHotTopicRequest struct {
 
 func (x *GetHotTopicRequest) Reset() {
 	*x = GetHotTopicRequest{}
-	mi := &file_community_proto_msgTypes[35]
+	mi := &file_community_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2158,7 +2071,7 @@ func (x *GetHotTopicRequest) String() string {
 func (*GetHotTopicRequest) ProtoMessage() {}
 
 func (x *GetHotTopicRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[35]
+	mi := &file_community_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2171,7 +2084,7 @@ func (x *GetHotTopicRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHotTopicRequest.ProtoReflect.Descriptor instead.
 func (*GetHotTopicRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{35}
+	return file_community_proto_rawDescGZIP(), []int{33}
 }
 
 type HotTopicResponse struct {
@@ -2184,7 +2097,7 @@ type HotTopicResponse struct {
 
 func (x *HotTopicResponse) Reset() {
 	*x = HotTopicResponse{}
-	mi := &file_community_proto_msgTypes[36]
+	mi := &file_community_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2196,7 +2109,7 @@ func (x *HotTopicResponse) String() string {
 func (*HotTopicResponse) ProtoMessage() {}
 
 func (x *HotTopicResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[36]
+	mi := &file_community_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2209,7 +2122,7 @@ func (x *HotTopicResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HotTopicResponse.ProtoReflect.Descriptor instead.
 func (*HotTopicResponse) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{36}
+	return file_community_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *HotTopicResponse) GetTag() string {
@@ -2235,7 +2148,7 @@ type GetRankingRequest struct {
 
 func (x *GetRankingRequest) Reset() {
 	*x = GetRankingRequest{}
-	mi := &file_community_proto_msgTypes[37]
+	mi := &file_community_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2247,7 +2160,7 @@ func (x *GetRankingRequest) String() string {
 func (*GetRankingRequest) ProtoMessage() {}
 
 func (x *GetRankingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[37]
+	mi := &file_community_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2260,7 +2173,7 @@ func (x *GetRankingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRankingRequest.ProtoReflect.Descriptor instead.
 func (*GetRankingRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{37}
+	return file_community_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *GetRankingRequest) GetSortBy() string {
@@ -2287,7 +2200,7 @@ type RankingEntry struct {
 
 func (x *RankingEntry) Reset() {
 	*x = RankingEntry{}
-	mi := &file_community_proto_msgTypes[38]
+	mi := &file_community_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2299,7 +2212,7 @@ func (x *RankingEntry) String() string {
 func (*RankingEntry) ProtoMessage() {}
 
 func (x *RankingEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[38]
+	mi := &file_community_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2312,7 +2225,7 @@ func (x *RankingEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RankingEntry.ProtoReflect.Descriptor instead.
 func (*RankingEntry) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{38}
+	return file_community_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RankingEntry) GetRank() int32 {
@@ -2387,7 +2300,7 @@ type GetRankingResponse struct {
 
 func (x *GetRankingResponse) Reset() {
 	*x = GetRankingResponse{}
-	mi := &file_community_proto_msgTypes[39]
+	mi := &file_community_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2399,7 +2312,7 @@ func (x *GetRankingResponse) String() string {
 func (*GetRankingResponse) ProtoMessage() {}
 
 func (x *GetRankingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[39]
+	mi := &file_community_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2412,7 +2325,7 @@ func (x *GetRankingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRankingResponse.ProtoReflect.Descriptor instead.
 func (*GetRankingResponse) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{39}
+	return file_community_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetRankingResponse) GetEntries() []*RankingEntry {
@@ -2435,7 +2348,7 @@ type CreateAdminPostRequest struct {
 
 func (x *CreateAdminPostRequest) Reset() {
 	*x = CreateAdminPostRequest{}
-	mi := &file_community_proto_msgTypes[40]
+	mi := &file_community_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2447,7 +2360,7 @@ func (x *CreateAdminPostRequest) String() string {
 func (*CreateAdminPostRequest) ProtoMessage() {}
 
 func (x *CreateAdminPostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_community_proto_msgTypes[40]
+	mi := &file_community_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2460,7 +2373,7 @@ func (x *CreateAdminPostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAdminPostRequest.ProtoReflect.Descriptor instead.
 func (*CreateAdminPostRequest) Descriptor() ([]byte, []int) {
-	return file_community_proto_rawDescGZIP(), []int{40}
+	return file_community_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *CreateAdminPostRequest) GetUserId() string {
@@ -2539,7 +2452,7 @@ const file_community_proto_rawDesc = "" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\")\n" +
 	"\x0eGetPostRequest\x12\x17\n" +
-	"\apost_id\x18\x01 \x01(\tR\x06postId\"\xc9\x02\n" +
+	"\apost_id\x18\x01 \x01(\tR\x06postId\"\xb5\x03\n" +
 	"\x11CreatePostRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
 	"\x0fauthor_nickname\x18\x02 \x01(\tR\x0eauthorNickname\x12!\n" +
@@ -2553,7 +2466,10 @@ const file_community_proto_rawDesc = "" +
 	"\ris_admin_post\x18\t \x01(\bR\visAdminPost\x12\"\n" +
 	"\n" +
 	"is_correct\x18\n" +
-	" \x01(\bH\x00R\tisCorrect\x88\x01\x01B\r\n" +
+	" \x01(\bH\x00R\tisCorrect\x88\x01\x01\x12\x1b\n" +
+	"\tfile_name\x18\v \x01(\tR\bfileName\x12!\n" +
+	"\ffile_content\x18\f \x01(\fR\vfileContent\x12*\n" +
+	"\x11file_content_type\x18\r \x01(\tR\x0ffileContentTypeB\r\n" +
 	"\v_is_correct\"\x83\x01\n" +
 	"\x11UpdatePostRequest\x12\x17\n" +
 	"\apost_id\x18\x01 \x01(\tR\x06postId\x12\x17\n" +
@@ -2636,15 +2552,7 @@ const file_community_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"?\n" +
 	"\x13GetUserVoteResponse\x12\x14\n" +
 	"\x05voted\x18\x01 \x01(\bR\x05voted\x12\x12\n" +
-	"\x04vote\x18\x02 \x01(\bR\x04vote\"n\n" +
-	"\x12UploadMediaRequest\x12\x1b\n" +
-	"\tfile_name\x18\x01 \x01(\tR\bfileName\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\fR\acontent\x12!\n" +
-	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\"Q\n" +
-	"\x13UploadMediaResponse\x12\x1b\n" +
-	"\tmedia_url\x18\x01 \x01(\tR\bmediaUrl\x12\x1d\n" +
-	"\n" +
-	"media_type\x18\x02 \x01(\tR\tmediaType\"s\n" +
+	"\x04vote\x18\x02 \x01(\bR\x04vote\"s\n" +
 	"\x19SyncAuthorNicknameRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\bnickname\x18\x02 \x01(\tR\bnickname\x12!\n" +
@@ -2694,7 +2602,7 @@ const file_community_proto_rawDesc = "" +
 	"\x04tags\x18\x04 \x03(\tR\x04tags\x12\"\n" +
 	"\n" +
 	"is_correct\x18\x05 \x01(\bH\x00R\tisCorrect\x88\x01\x01B\r\n" +
-	"\v_is_correct2\xd0\x12\n" +
+	"\v_is_correct2\xcd\x11\n" +
 	"\x10CommunityService\x12m\n" +
 	"\aGetFeed\x12\x19.community.GetFeedRequest\x1a\x17.community.FeedResponse\".\x82\xd3\xe4\x93\x02(:\x01*\"#/community.CommunityService/GetFeed\x12e\n" +
 	"\aGetPost\x12\x19.community.GetPostRequest\x1a\x0f.community.Post\".\x82\xd3\xe4\x93\x02(:\x01*\"#/community.CommunityService/GetPost\x12n\n" +
@@ -2713,8 +2621,7 @@ const file_community_proto_rawDesc = "" +
 	"\tCheckLike\x12\x1b.community.CheckLikeRequest\x1a\x1c.community.CheckLikeResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/community.CommunityService/CheckLike\x12t\n" +
 	"\bVotePost\x12\x1a.community.VotePostRequest\x1a\x1b.community.VotePostResponse\"/\x82\xd3\xe4\x93\x02):\x01*\"$/community.CommunityService/VotePost\x12}\n" +
 	"\rGetVoteResult\x12\x1f.community.GetVoteResultRequest\x1a\x15.community.VoteResult\"4\x82\xd3\xe4\x93\x02.:\x01*\")/community.CommunityService/GetVoteResult\x12\x80\x01\n" +
-	"\vGetUserVote\x12\x1d.community.GetUserVoteRequest\x1a\x1e.community.GetUserVoteResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/GetUserVote\x12\x80\x01\n" +
-	"\vUploadMedia\x12\x1d.community.UploadMediaRequest\x1a\x1e.community.UploadMediaResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/UploadMedia\x12\x9c\x01\n" +
+	"\vGetUserVote\x12\x1d.community.GetUserVoteRequest\x1a\x1e.community.GetUserVoteResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/community.CommunityService/GetUserVote\x12\x9c\x01\n" +
 	"\x12SyncAuthorNickname\x12$.community.SyncAuthorNicknameRequest\x1a%.community.SyncAuthorNicknameResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./community.CommunityService/SyncAuthorNickname\x12|\n" +
 	"\n" +
 	"GetRanking\x12\x1c.community.GetRankingRequest\x1a\x1d.community.GetRankingResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/community.CommunityService/GetRanking\x12}\n" +
@@ -2733,7 +2640,7 @@ func file_community_proto_rawDescGZIP() []byte {
 	return file_community_proto_rawDescData
 }
 
-var file_community_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_community_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_community_proto_goTypes = []any{
 	(*Post)(nil),                       // 0: community.Post
 	(*GetFeedRequest)(nil),             // 1: community.GetFeedRequest
@@ -2761,27 +2668,25 @@ var file_community_proto_goTypes = []any{
 	(*VoteResult)(nil),                 // 23: community.VoteResult
 	(*GetUserVoteRequest)(nil),         // 24: community.GetUserVoteRequest
 	(*GetUserVoteResponse)(nil),        // 25: community.GetUserVoteResponse
-	(*UploadMediaRequest)(nil),         // 26: community.UploadMediaRequest
-	(*UploadMediaResponse)(nil),        // 27: community.UploadMediaResponse
-	(*SyncAuthorNicknameRequest)(nil),  // 28: community.SyncAuthorNicknameRequest
-	(*SyncAuthorNicknameResponse)(nil), // 29: community.SyncAuthorNicknameResponse
-	(*GetNoticesRequest)(nil),          // 30: community.GetNoticesRequest
-	(*Notice)(nil),                     // 31: community.Notice
-	(*NoticesResponse)(nil),            // 32: community.NoticesResponse
-	(*GetTopDetectiveRequest)(nil),     // 33: community.GetTopDetectiveRequest
-	(*TopDetectiveResponse)(nil),       // 34: community.TopDetectiveResponse
-	(*GetHotTopicRequest)(nil),         // 35: community.GetHotTopicRequest
-	(*HotTopicResponse)(nil),           // 36: community.HotTopicResponse
-	(*GetRankingRequest)(nil),          // 37: community.GetRankingRequest
-	(*RankingEntry)(nil),               // 38: community.RankingEntry
-	(*GetRankingResponse)(nil),         // 39: community.GetRankingResponse
-	(*CreateAdminPostRequest)(nil),     // 40: community.CreateAdminPostRequest
+	(*SyncAuthorNicknameRequest)(nil),  // 26: community.SyncAuthorNicknameRequest
+	(*SyncAuthorNicknameResponse)(nil), // 27: community.SyncAuthorNicknameResponse
+	(*GetNoticesRequest)(nil),          // 28: community.GetNoticesRequest
+	(*Notice)(nil),                     // 29: community.Notice
+	(*NoticesResponse)(nil),            // 30: community.NoticesResponse
+	(*GetTopDetectiveRequest)(nil),     // 31: community.GetTopDetectiveRequest
+	(*TopDetectiveResponse)(nil),       // 32: community.TopDetectiveResponse
+	(*GetHotTopicRequest)(nil),         // 33: community.GetHotTopicRequest
+	(*HotTopicResponse)(nil),           // 34: community.HotTopicResponse
+	(*GetRankingRequest)(nil),          // 35: community.GetRankingRequest
+	(*RankingEntry)(nil),               // 36: community.RankingEntry
+	(*GetRankingResponse)(nil),         // 37: community.GetRankingResponse
+	(*CreateAdminPostRequest)(nil),     // 38: community.CreateAdminPostRequest
 }
 var file_community_proto_depIdxs = []int32{
 	0,  // 0: community.FeedResponse.posts:type_name -> community.Post
 	8,  // 1: community.CommentsResponse.comments:type_name -> community.Comment
-	31, // 2: community.NoticesResponse.notices:type_name -> community.Notice
-	38, // 3: community.GetRankingResponse.entries:type_name -> community.RankingEntry
+	29, // 2: community.NoticesResponse.notices:type_name -> community.Notice
+	36, // 3: community.GetRankingResponse.entries:type_name -> community.RankingEntry
 	1,  // 4: community.CommunityService.GetFeed:input_type -> community.GetFeedRequest
 	3,  // 5: community.CommunityService.GetPost:input_type -> community.GetPostRequest
 	4,  // 6: community.CommunityService.CreatePost:input_type -> community.CreatePostRequest
@@ -2796,32 +2701,30 @@ var file_community_proto_depIdxs = []int32{
 	20, // 15: community.CommunityService.VotePost:input_type -> community.VotePostRequest
 	22, // 16: community.CommunityService.GetVoteResult:input_type -> community.GetVoteResultRequest
 	24, // 17: community.CommunityService.GetUserVote:input_type -> community.GetUserVoteRequest
-	26, // 18: community.CommunityService.UploadMedia:input_type -> community.UploadMediaRequest
-	28, // 19: community.CommunityService.SyncAuthorNickname:input_type -> community.SyncAuthorNicknameRequest
-	37, // 20: community.CommunityService.GetRanking:input_type -> community.GetRankingRequest
-	35, // 21: community.CommunityService.GetHotTopic:input_type -> community.GetHotTopicRequest
-	40, // 22: community.CommunityService.CreateAdminPost:input_type -> community.CreateAdminPostRequest
-	2,  // 23: community.CommunityService.GetFeed:output_type -> community.FeedResponse
-	0,  // 24: community.CommunityService.GetPost:output_type -> community.Post
-	0,  // 25: community.CommunityService.CreatePost:output_type -> community.Post
-	0,  // 26: community.CommunityService.UpdatePost:output_type -> community.Post
-	7,  // 27: community.CommunityService.DeletePost:output_type -> community.DeletePostResponse
-	10, // 28: community.CommunityService.GetComments:output_type -> community.CommentsResponse
-	8,  // 29: community.CommunityService.CreateComment:output_type -> community.Comment
-	13, // 30: community.CommunityService.DeleteComment:output_type -> community.DeleteCommentResponse
-	15, // 31: community.CommunityService.LikePost:output_type -> community.LikePostResponse
-	17, // 32: community.CommunityService.UnlikePost:output_type -> community.UnlikePostResponse
-	19, // 33: community.CommunityService.CheckLike:output_type -> community.CheckLikeResponse
-	21, // 34: community.CommunityService.VotePost:output_type -> community.VotePostResponse
-	23, // 35: community.CommunityService.GetVoteResult:output_type -> community.VoteResult
-	25, // 36: community.CommunityService.GetUserVote:output_type -> community.GetUserVoteResponse
-	27, // 37: community.CommunityService.UploadMedia:output_type -> community.UploadMediaResponse
-	29, // 38: community.CommunityService.SyncAuthorNickname:output_type -> community.SyncAuthorNicknameResponse
-	39, // 39: community.CommunityService.GetRanking:output_type -> community.GetRankingResponse
-	36, // 40: community.CommunityService.GetHotTopic:output_type -> community.HotTopicResponse
-	0,  // 41: community.CommunityService.CreateAdminPost:output_type -> community.Post
-	23, // [23:42] is the sub-list for method output_type
-	4,  // [4:23] is the sub-list for method input_type
+	26, // 18: community.CommunityService.SyncAuthorNickname:input_type -> community.SyncAuthorNicknameRequest
+	35, // 19: community.CommunityService.GetRanking:input_type -> community.GetRankingRequest
+	33, // 20: community.CommunityService.GetHotTopic:input_type -> community.GetHotTopicRequest
+	38, // 21: community.CommunityService.CreateAdminPost:input_type -> community.CreateAdminPostRequest
+	2,  // 22: community.CommunityService.GetFeed:output_type -> community.FeedResponse
+	0,  // 23: community.CommunityService.GetPost:output_type -> community.Post
+	0,  // 24: community.CommunityService.CreatePost:output_type -> community.Post
+	0,  // 25: community.CommunityService.UpdatePost:output_type -> community.Post
+	7,  // 26: community.CommunityService.DeletePost:output_type -> community.DeletePostResponse
+	10, // 27: community.CommunityService.GetComments:output_type -> community.CommentsResponse
+	8,  // 28: community.CommunityService.CreateComment:output_type -> community.Comment
+	13, // 29: community.CommunityService.DeleteComment:output_type -> community.DeleteCommentResponse
+	15, // 30: community.CommunityService.LikePost:output_type -> community.LikePostResponse
+	17, // 31: community.CommunityService.UnlikePost:output_type -> community.UnlikePostResponse
+	19, // 32: community.CommunityService.CheckLike:output_type -> community.CheckLikeResponse
+	21, // 33: community.CommunityService.VotePost:output_type -> community.VotePostResponse
+	23, // 34: community.CommunityService.GetVoteResult:output_type -> community.VoteResult
+	25, // 35: community.CommunityService.GetUserVote:output_type -> community.GetUserVoteResponse
+	27, // 36: community.CommunityService.SyncAuthorNickname:output_type -> community.SyncAuthorNicknameResponse
+	37, // 37: community.CommunityService.GetRanking:output_type -> community.GetRankingResponse
+	34, // 38: community.CommunityService.GetHotTopic:output_type -> community.HotTopicResponse
+	0,  // 39: community.CommunityService.CreateAdminPost:output_type -> community.Post
+	22, // [22:40] is the sub-list for method output_type
+	4,  // [4:22] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -2834,14 +2737,14 @@ func file_community_proto_init() {
 	}
 	file_community_proto_msgTypes[0].OneofWrappers = []any{}
 	file_community_proto_msgTypes[4].OneofWrappers = []any{}
-	file_community_proto_msgTypes[40].OneofWrappers = []any{}
+	file_community_proto_msgTypes[38].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_community_proto_rawDesc), len(file_community_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
