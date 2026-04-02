@@ -12,10 +12,12 @@ import (
 	"time"
 
 	pb "user-service/pb"
+	"user-service/tracing"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/redis/go-redis/v9"
 	_ "github.com/lib/pq"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -44,6 +46,14 @@ func initDB() error {
 }
 
 func main() {
+	ctx := context.Background()
+	shutdown, err := tracing.Init(ctx, "user-service")
+	if err != nil {
+		log.Printf("[WARN] tracing init failed: %v", err)
+	} else {
+		defer shutdown()
+	}
+
 	if err := initDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -78,7 +88,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	pb.RegisterUserServiceServer(s, svc)
 	go func() {
 		log.Printf("User gRPC server on :%s", grpcPort)
@@ -87,7 +97,6 @@ func main() {
 		}
 	}()
 
-	ctx := context.Background()
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if err := pb.RegisterUserServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {

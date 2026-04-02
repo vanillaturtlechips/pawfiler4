@@ -15,10 +15,12 @@ import (
 
 	"community/internal/handler"
 	"community/pb"
+	"community/tracing"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "github.com/lib/pq"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -47,6 +49,14 @@ func initDB() error {
 }
 
 func main() {
+	initCtx := context.Background()
+	shutdown, err := tracing.Init(initCtx, "community-service")
+	if err != nil {
+		log.Printf("[WARN] tracing init failed: %v", err)
+	} else {
+		defer shutdown()
+	}
+
 	if err := initDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -68,7 +78,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	pb.RegisterCommunityServiceServer(s, h)
 	go func() {
 		log.Printf("Community gRPC server listening on :%s", grpcPort)
