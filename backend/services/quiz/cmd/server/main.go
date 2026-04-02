@@ -12,6 +12,8 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"gorm.io/driver/postgres"
@@ -111,7 +113,10 @@ func main() {
 	}
 
 	mux := runtime.NewServeMux()
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	}
 	if err := pb.RegisterQuizServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {
 		log.Fatalf("Failed to register gateway: %v", err)
 	}
@@ -125,6 +130,10 @@ func main() {
 
 	// CORS + /health + /api prefix strip 미들웨어
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Istio가 주입한 trace 헤더(B3/W3C)를 OTel context로 추출 → grpc-gateway → gRPC 전파
+		prop := otel.GetTextMapPropagator()
+		ctx := prop.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		r = r.WithContext(ctx)
 		// Istio가 주입한 x-user-id 헤더를 gRPC metadata로 전달
 		if uid := r.Header.Get("X-User-Id"); uid != "" {
 			r.Header.Set("Grpc-Metadata-X-User-Id", uid)

@@ -21,6 +21,8 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/lib/pq"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -91,7 +93,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mux := runtime.NewServeMux()
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	}
 	if err := pb.RegisterCommunityServiceHandlerFromEndpoint(ctx, mux, "localhost:"+grpcPort, opts); err != nil {
 		log.Fatalf("failed to register gateway: %v", err)
 	}
@@ -103,6 +108,10 @@ func main() {
 	allowedOrigins := strings.Split(corsOrigins, ",")
 
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Istio가 주입한 trace 헤더(B3/W3C)를 OTel context로 추출 → grpc-gateway → gRPC 전파
+		prop := otel.GetTextMapPropagator()
+		ctx := prop.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		r = r.WithContext(ctx)
 		// Istio가 주입한 x-user-id 헤더를 gRPC metadata로 전달
 		if uid := r.Header.Get("X-User-Id"); uid != "" {
 			r.Header.Set("Grpc-Metadata-X-User-Id", uid)
