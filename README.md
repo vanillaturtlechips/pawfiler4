@@ -1,183 +1,285 @@
 # PawFiler
 
-반려동물 딥페이크 탐지 교육 플랫폼. EKS + Istio + ArgoCD GitOps 기반으로 운영됩니다.
+AI 미디어 리터러시 교육 플랫폼
 
-## 전체 아키텍처
+## 프로젝트 소개
 
-```
-[사용자/관리자]
-      │ HTTPS
-      ▼
-[Route 53] → [CloudFront]
-                 │
-                 ├─ pawfiler.site       → S3 (React SPA)
-                 ├─ admin.pawfiler.site → S3 (Admin SPA)
-                 └─ /api/*             → ALB (Internet-facing)
-                                              │
-                                        [Istio Gateway]
-                                              │
-                        ┌─────────────────────┼─────────────────────┐
-                        ▼                     ▼                     ▼
-                 quiz-service        community-service        auth-service
-                 user-service         chat-bot-service      video-analysis
-                        │
-                   [ai-orchestration]
-                   Ray Serve + GPU (g5.xlarge Spot)
-                   XGBoost + CNN 딥페이크 탐지 앙상블
+PawFiler는 AI로 생성되거나 조작된 미디어(영상, 음성, 이미지)를 구별하는 방법을 가르치는 교육 플랫폼입니다.
 
-[Lambda] ← API Gateway → SQS → 리포트 생성 → RDS + S3
+**핵심 가치**: 사용자들이 AI로 생성/조작된 미디어를 스스로 판별할 수 있는 능력을 키우는 것
+
+### 교육 카테고리
+- 딥페이크 (얼굴 합성)
+- AI 합성 영상 (생성형 AI)
+- 음성 합성 (AI 보이스)
+- 이미지 조작
+- 기타 AI 생성 콘텐츠
+
+## 아키텍처
+
+```mermaid
+graph TB
+    User([사용자])
+    Admin([관리자])
+
+    subgraph "Frontend"
+        React[React SPA<br/>Vite + TypeScript]
+        AdminUI[Admin UI]
+    end
+
+    subgraph "API Gateway"
+        Envoy[Envoy Proxy<br/>gRPC-JSON Transcoding]
+        AdminAPI[Admin REST API]
+    end
+
+    subgraph "Backend Services (gRPC)"
+        Quiz[Quiz Service<br/>Go]
+        Community[Community Service<br/>Go]
+        Video[Video Analysis<br/>Python]
+    end
+
+    RDS[(RDS PostgreSQL)]
+    S3[S3 Media Storage]
+    SageMaker[SageMaker<br/>ML Pipeline]
+
+    User --> React
+    Admin --> AdminUI
+
+    React --> Envoy
+    AdminUI --> AdminAPI
+
+    Envoy --> Quiz
+    Envoy --> Community
+    Envoy --> Video
+
+    Quiz --> RDS
+    Community --> RDS
+    Video --> RDS
+    Video --> SageMaker
+    AdminAPI --> RDS
+    AdminAPI --> S3
 ```
 
 ## 프로젝트 구조
 
 ```
 pawfiler4/
-├── frontend/              # 사용자 프론트엔드 (React + TypeScript + Vite)
-├── admin-frontend/        # 관리자 프론트엔드 (React + TypeScript + Vite)
-├── backend/services/
-│   ├── quiz/              # 퀴즈 서비스 (Go, gRPC:50052 HTTP:8080)
-│   ├── community/         # 커뮤니티 서비스 (Go, gRPC:50053 HTTP:8080)
-│   ├── auth/              # 인증 서비스 (Go, HTTP:8084)
-│   ├── user/              # 사용자 서비스 (Go, gRPC:50054 HTTP:8083)
-│   ├── admin/             # 관리자 서비스 (Go, HTTP:8082)
-│   ├── chat-bot/          # 챗봇 서비스 (HTTP:8088)
-│   ├── video-analysis/    # 영상 분석 서비스 (Python, gRPC:50054 HTTP:8080)
-│   └── ai-orchestration/  # Ray Serve ML 추론 (Python, GPU)
-├── aiops/                 # AIOps 에이전트 (Bedrock Claude 기반 이상 탐지)
-├── terraform/             # AWS 인프라 IaC
-│   └── modules/
-│       ├── networking/    # VPC, Subnet
-│       ├── eks/           # EKS Cluster
-│       ├── rds/           # PostgreSQL 16
-│       ├── helm/          # ArgoCD, Kubecost, ALB Controller 등 Helm 배포
-│       ├── irsa/          # IRSA 역할
-│       ├── karpenter/     # Karpenter 노드 오토스케일러
-│       ├── s3/            # S3 버킷
-│       ├── ecr/           # ECR 리포지토리
-│       └── lambda_report/ # 리포트 Lambda
-└── docs/                  # 아키텍처, 트러블슈팅 문서
+├── frontend/              # 사용자 프론트엔드 (React + Vite)
+├── admin-frontend/        # 관리자 프론트엔드 (React + Vite)
+├── backend/
+│   ├── services/
+│   │   ├── quiz/         # 퀴즈 서비스 (Go + gRPC)
+│   │   ├── community/    # 커뮤니티 서비스 (Go + gRPC)
+│   │   ├── admin/        # 관리자 서비스 (Go + REST)
+│   │   └── video-analysis/ # 영상 분석 서비스 (Python + gRPC)
+│   ├── proto/            # gRPC 프로토콜 정의
+│   └── scripts/          # DB 초기화 스크립트
+├── k8s/                  # Kubernetes 매니페스트
+├── terraform/            # AWS 인프라 (IaC)
+├── scripts/              # 배포 및 ML 학습 스크립트
+└── docs/                 # 문서
 ```
 
-## 기술 스택
+## 빠른 시작
 
-### 프론트엔드
-- React 18 + TypeScript + Vite
-- TailwindCSS + Shadcn UI
-- CloudFront + S3 정적 호스팅
+### 로컬 개발 환경
 
-### 백엔드
-| 서비스 | 언어 | 프로토콜 |
-|---|---|---|
-| quiz, community, user | Go | gRPC + HTTP |
-| auth, admin | Go | HTTP REST |
-| chat-bot | - | HTTP |
-| video-analysis | Python | gRPC + HTTP |
-| ai-orchestration | Python | Ray Serve (HTTP:8000) |
+#### 1. Backend 시작
 
-### 인프라
-- **EKS**: v1.31, ap-northeast-2
-- **서비스 메시**: Istio (mTLS STRICT, VirtualService, AuthorizationPolicy)
-- **노드 오토스케일링**: Karpenter Spot (t3.medium / t3.large / t3a.medium)
-- **관리형 노드그룹**: t3.medium On-Demand (시스템 워크로드)
-- **데이터베이스**: RDS PostgreSQL 16 (db.t3.micro) + RDS Proxy
-- **캐시**: Redis (K8s Deployment)
-- **AI 추론**: Ray 2.41.0 on g5.xlarge Spot (Karpenter)
-- **스토리지**: EFS (모델 가중치), S3 (미디어/로그/리포트)
-- **GitOps**: ArgoCD → [pawfiler4-argocd](https://github.com/vanillaturtlechips/pawfiler4-argocd)
-- **IaC**: Terraform (모듈화)
+```bash
+cd backend
+docker-compose up -d
+```
 
-### Observability
-| 컴포넌트 | 역할 |
-|---|---|
-| kube-prometheus-stack + AMP | 메트릭 수집 및 장기 보관 |
-| Grafana | 대시보드 (infra / overview / services / traces) |
-| Loki + OTel Collector | 로그 수집 (filelog → Loki → S3) |
-| Tempo + OTel Collector | 분산 트레이싱 (Istio → OTel → Tempo) |
-| AIOps (Bedrock Claude Haiku) | 이상 탐지 + 자동 복구 + SNS/Slack 알림 |
-| Kubecost | 서비스별 비용 분석 |
+서비스 포트:
+- PostgreSQL: `5432`
+- Quiz Service: `50052`
+- Community Service: `50053`
+- Admin Service: `8082`
+- Envoy Proxy: `8080`
 
-## 인프라 배포
+#### 2. Frontend 시작
+
+```bash
+# 사용자 프론트엔드
+cd frontend
+npm install
+npm run dev  # http://localhost:5173
+
+# 관리자 프론트엔드
+cd admin-frontend
+npm install
+npm run dev  # http://localhost:5174
+```
+
+### AWS 배포
+
+#### 1. 인프라 배포
 
 ```bash
 cd terraform
 terraform init
 cp terraform.tfvars.example terraform.tfvars
-# terraform.tfvars 수정 후
+# terraform.tfvars 수정 (database_password, bastion_key_name 등)
 
-terraform apply
+./infra.sh
+# 1) 기본 인프라 생성 (VPC, IAM, ECR, S3)
+# 2) EKS 시작
+# 4) RDS 생성
 ```
 
-주요 모듈 단독 적용:
-```bash
-# Kubecost 설정 변경
-terraform apply -target=module.helm.helm_release.kubecost
+#### 2. 서비스 배포
 
-# IAM 정책 변경
-terraform apply -target=module.helm.aws_iam_role_policy.kubecost
+```bash
+# 백엔드 빌드 및 ECR 푸시
+./scripts/build-and-push.sh
+
+# Kubernetes 배포
+cd k8s
+kubectl apply -f namespace.yaml
+kubectl apply -f db-secret.yaml
+kubectl apply -f quiz-service.yaml
+kubectl apply -f community-service.yaml
+kubectl apply -f envoy-proxy.yaml
+kubectl apply -f envoy-ingress.yaml
+
+# 프론트엔드 배포 (S3)
+./scripts/deploy-frontend.sh
 ```
 
-## K8s 매니페스트 배포 (GitOps)
+## 주요 기능
 
-모든 K8s 리소스는 [pawfiler4-argocd](https://github.com/vanillaturtlechips/pawfiler4-argocd) 저장소에서 ArgoCD가 자동 sync합니다.
+### 1. Quiz Service (교육 콘텐츠)
+- 4가지 퀴즈 타입: 객관식, OX, 영역선택, 비교
+- 실시간 피드백 및 보상 시스템 (XP, 코인)
+- 사용자 통계 추적 (정답률, 연속 정답, 생명)
+- 성능 목표: p95 < 200ms
 
+### 2. Video/Audio Analysis (실습 도구)
+- 영상/음성 업로드 및 분석
+- ML Cascade 파이프라인 (비용 69% 절감)
+- 비동기 백그라운드 처리
+- 성능 목표: 
+  - Throughput: 최소 10 requests/minute
+  - Latency: p95 < 30초, p99 < 60초
+
+### 3. Community Service (학습 공유)
+- 게시글/댓글/좋아요 CRUD
+- 검색 및 페이지네이션
+- 탐정 랭킹 (월간 좋아요 수)
+- 인기 토픽 (일간 태그 통계)
+- 성능 목표: p95 < 300ms
+
+### 4. Admin Service
+- 퀴즈 문제 관리 (CRUD)
+- S3 미디어 업로드 (IRSA)
+- 사용자 관리
+
+## 기술 스택
+
+### Frontend
+- React 18 + TypeScript
+- Vite (빌드 도구)
+- TailwindCSS + Shadcn UI
+- React Router
+
+### Backend
+- **Quiz/Community**: Go + gRPC
+- **Admin**: Go + REST API (IRSA for S3)
+- **Video Analysis**: Python + gRPC
+
+### Infrastructure
+- **Compute**: AWS EKS (Kubernetes)
+- **Database**: AWS RDS (PostgreSQL 16)
+- **Storage**: S3 (Frontend, Media)
+- **API Gateway**: Envoy Proxy (gRPC-JSON transcoding)
+- **ML Platform**: AWS SageMaker
+- **Container Registry**: ECR
+- **IaC**: Terraform
+- **Monitoring**: Kubecost, Grafana, Prometheus
+
+### ML/AI
+- ML Cascade 파이프라인 (경량 → 중량 모델)
+- 음성 딥페이크 탐지 (Colab 무료 학습)
+- 비용 최적화: 69% 절감
+
+## 구현 상태
+
+| 서비스 | 구현 | DB 연결 | Docker | 프론트 연동 |
+|--------|------|---------|--------|------------|
+| Quiz Service | 완료 | 완료 | 완료 | 완료 |
+| Community Service | 완료 | 완료 | 완료 | 완료 |
+| Admin Service | 완료 | 완료 | 완료 | 완료 |
+| Video Analysis | 완료 | 완료 | 완료 | 부분 (Mock) |
+| Auth Service | 미구현 | 완료 (스키마) | 미구현 | 부분 (Mock) |
+
+## 비용 관리
+
+### 무료 ($0/월)
+- VPC, IAM, ECR, S3 (사용량 기반)
+
+### 유료 (필요시)
+- **EKS**: $133/월
+- **RDS**: $15/월 (db.t3.micro)
+- **NAT Gateway**: $32/월
+- **Bastion**: $8/월 (t3.micro)
+- **노드**: On-Demand 1개 + Spot 1개 (~$50/월)
+
+### 비용 절감
 ```bash
-# ArgoCD 접속
-kubectl port-forward -n argocd svc/argocd-server 8080:443
-
-# 특정 앱 강제 sync
-argocd app sync <앱이름> --force
+cd terraform
+./infra.sh
+# 3) EKS 중지
+# 7) Bastion 중지
 ```
 
-## 이미지 빌드 및 배포
+**Spot 인스턴스**: 약 70% 절감 (단, 중단 가능)
 
-CI/CD 파이프라인(GitHub Actions)이 main 브랜치 머지 시 자동으로:
-1. ECR에 이미지 빌드 & 푸시
-2. pawfiler4-argocd 저장소의 이미지 태그 업데이트
-3. ArgoCD auto-sync로 롤링 업데이트
-
-## Observability 접속
-
+### 모니터링
 ```bash
-# Grafana
-kubectl port-forward -n monitoring svc/grafana 3000:80
-# http://localhost:3000
-
-# Kubecost
+# 비용 분석 (Kubecost)
 kubectl port-forward -n monitoring svc/kubecost-cost-analyzer 9090:9090
 # http://localhost:9090
 
-# Loki 라벨 확인
-kubectl port-forward -n monitoring svc/loki 3100:3100
-curl http://localhost:3100/loki/api/v1/labels | jq .
+# 리소스 대시보드 (Grafana)
+kubectl port-forward -n monitoring svc/grafana 3000:80
+# http://localhost:3000 (admin/admin)
 ```
 
-## AWS 리소스 요약
+## 문서
 
-| 리소스 | 스펙 |
-|---|---|
-| EKS | v1.31, ap-northeast-2 |
-| 관리형 노드 | t3.medium On-Demand |
-| Karpenter Spot | t3.medium / t3.large / t3a.medium |
-| GPU Spot (추론) | g5.xlarge (Karpenter, 필요 시 프로비저닝) |
-| RDS | PostgreSQL 16, db.t3.micro |
-| AMP | ap-northeast-2 |
-| CloudFront | pawfiler.site, www.pawfiler.site, admin.pawfiler.site |
+### 필수
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - 시스템 아키텍처
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) - 배포 가이드
+- [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) - 개발 가이드
+
+### 상세
+- [terraform/README.md](./terraform/README.md) - Terraform 인프라 관리
+- [k8s/README.md](./k8s/README.md) - Kubernetes 매니페스트
+- [docs/ML_PROJECT_OVERVIEW.md](./docs/ML_PROJECT_OVERVIEW.md) - ML 파이프라인
+- [docs/troubleshooting/](./docs/troubleshooting/) - 트러블슈팅
 
 ## 보안 주의사항
 
-**이 저장소는 공개되어 있습니다.**
+**이 리포지토리는 공개되어 있습니다!**
 
 절대 커밋하지 말 것:
-- `terraform/terraform.tfvars`
-- AWS Access Key / Secret Key
+- `terraform/terraform.tfvars` (gitignored)
+- AWS Access Key/Secret Key
 - 데이터베이스 비밀번호
-- SSH 키 (`*.pem`, `*.key`)
+- SSH 키 (*.pem, *.key)
 
-시크릿은 AWS Secrets Manager에 저장하고 External Secrets Operator로 K8s Secret 동기화합니다.
+자세한 내용: [terraform/README.md](terraform/README.md)
 
-## 관련 저장소
+## 주요 기술적 성과
 
-| 저장소 | 역할 |
-|---|---|
-| `pawfiler4` (이 저장소) | 애플리케이션 소스코드 + Terraform |
-| `pawfiler4-argocd` | K8s 매니페스트 GitOps |
+- gRPC-JSON Transcoding (Envoy)
+- IRSA (IAM Roles for Service Accounts)
+- Spot + On-Demand 혼합 노드 그룹
+- ML Cascade 파이프라인 (비용 69% 절감)
+- 음성 딥페이크 탐지 (Colab 무료 학습)
+- Kubecost 비용 모니터링
+
+## 라이선스
+
+MIT
